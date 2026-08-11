@@ -103,17 +103,24 @@
   .kp-summary-col .val{ font-size:18px; font-weight:700; color:#3A2705; font-family:'IBM Plex Mono',monospace; }
   .kp-summary-col .lbl{ font-size:10.5px; color:#5C4009; text-transform:uppercase; letter-spacing:0.4px; margin-top:2px; }
   .kp-grid3{ display:grid; grid-template-columns:repeat(3, 1fr); }
-  .kp-key{ font-family:'IBM Plex Mono',monospace; font-size:34px; font-weight:700; padding:34px 0; border:none; border-right:1px solid var(--line); border-bottom:1px solid var(--line); background:#fff; color:var(--ink); cursor:pointer; }
+  .ventas-3zonas{ display:flex; flex-direction:column; height:calc(100vh - 64px); max-height:calc(100vh - 64px); }
+  .ventas-zona-superior{ flex-shrink:0; overflow-y:auto; max-height:34vh; padding-right:2px; }
+  .ventas-zona-teclado{ flex-shrink:0; }
+  .ventas-zona-lista{ flex:1; min-height:0; overflow-y:auto; padding-top:12px; padding-right:2px; }
+  @media (max-width:820px){
+    .ventas-3zonas{ height:calc(100vh - 150px); max-height:calc(100vh - 150px); }
+  }
+  .kp-key{ font-family:'IBM Plex Mono',monospace; font-size:34px; font-weight:700; padding:34px 0; border:none; border-right:1px solid var(--line); border-bottom:1px solid var(--line); background:#fff; color:var(--ink); cursor:pointer; touch-action:manipulation; }
   .kp-key:nth-child(3n){ border-right:none; }
   .kp-key:active{ background:var(--paper-dim); }
   .kp-key-clear{ background:var(--paper-dim); color:var(--ink-dim); font-size:26px; }
   .kp-key-ok{ background:var(--green); color:#fff; }
   .kp-dup-row{ display:flex; }
-  .kp-dup-btn{ flex:1; padding:32px 0; text-align:center; font-weight:700; font-size:19px; border:none; cursor:pointer; color:#fff; }
+  .kp-dup-btn{ flex:1; padding:32px 0; text-align:center; font-weight:700; font-size:19px; border:none; cursor:pointer; color:#fff; touch-action:manipulation; }
   .kp-dup-reemplazar{ background:var(--blue); }
   .kp-dup-sumar{ background:var(--green); }
   .kp-action-bar{ display:flex; }
-  .kp-action-btn{ flex:1; padding:26px 0; text-align:center; font-weight:700; color:#fff; cursor:pointer; font-size:19px; border:none; }
+  .kp-action-btn{ flex:1; padding:26px 0; text-align:center; font-weight:700; color:#fff; cursor:pointer; font-size:19px; border:none; touch-action:manipulation; }
   .kp-action-cancelar{ background:var(--red); }
   .kp-action-confirmar{ background:var(--green); }
   .kp-action-btn:disabled{ opacity:0.45; cursor:not-allowed; }
@@ -187,6 +194,8 @@
   .ticket-row{ display:flex; justify-content:space-between; font-size:13px; margin-bottom:6px; }
   .ticket-row .k{ color:var(--ink-dim); } .ticket-row .v{ font-weight:600; text-align:right; }
   .ticket-jugada{ display:flex; justify-content:space-between; font-family:'IBM Plex Mono',monospace; font-size:13.5px; padding:5px 0; }
+  .ticket-numero-vendido{ font-size:19px; font-weight:800; color:var(--green); letter-spacing:0.5px; }
+  .ticket-cantidad-vendida{ font-size:12px; color:var(--ink-dim); font-weight:500; }
   .ticket-total{ display:flex; justify-content:space-between; align-items:baseline; margin-top:10px; padding-top:10px; border-top:2px solid var(--ink); }
   .ticket-total .v{ font-family:'IBM Plex Mono',monospace; font-size:20px; font-weight:700; }
   .ticket-footer{ text-align:center; font-size:10.5px; color:var(--ink-dim); margin-top:14px; }
@@ -268,85 +277,89 @@
 
     <!-- ===== VENTAS ===== -->
     <div id="tab-ventas">
-      <h1 class="page-title">Nueva venta</h1>
-      <div class="page-sub">Selecciona sorteo y registra las jugadas.</div>
+      <div class="ventas-3zonas">
 
-      <div class="card">
-        <div class="grid-2">
-          <div class="field">
-            <label>Vendedor</label>
-            <select id="sel-vendedor" onchange="onHeaderChange()"></select>
-            <div class="locked-vendedor" id="locked-vendedor" style="display:none"></div>
-          </div>
-          <div class="field">
-            <label>Sorteo</label>
-            <select id="sel-sorteo" onchange="onHeaderChange()"></select>
-            <div class="sorteo-status" id="sorteo-status"></div>
-          </div>
-        </div>
-        <div class="field">
-          <label>Cliente (opcional)</label>
-          <input type="text" id="in-cliente" placeholder="Nombre del cliente, para identificar el comprobante">
-        </div>
-      </div>
-
-      <div class="card" style="padding:0; overflow:hidden;">
-        <div style="padding:22px 22px 0 22px;">
-          <h2>Agregar jugada</h2>
-          <div class="modalidad-tabs">
-            <div class="modalidad-tab active" data-mod="chance20" onclick="setModalidad('chance20')">Chance<span class="price">$0.20</span></div>
-            <div class="modalidad-tab" data-mod="chance25" onclick="setModalidad('chance25')">Chance<span class="price">$0.25</span></div>
-            <div class="modalidad-tab" data-mod="pale" onclick="setModalidad('pale')">Palé<span class="price">$1.00</span></div>
-          </div>
-          <div class="empty-state" id="pale-bloqueado-aviso" style="display:none; padding:6px 0; color:var(--red); font-weight:600;">Este sorteo no vende Palé.</div>
-        </div>
-
-        <div class="kp-display-bar">
-          <div class="kp-display-col active" id="kp-col-cantidad" onclick="seleccionarCampo('cantidad')">
-            <div class="kp-big mono" id="kp-cantidad">0</div>
-            <div class="kp-lbl">Tiempos</div>
-          </div>
-          <div class="kp-display-col" id="kp-col-numero" onclick="seleccionarCampo('numero')">
-            <div class="kp-big mono" id="kp-numero">0</div>
-            <div class="kp-lbl" id="kp-label-numero">Número</div>
+        <div class="ventas-zona-superior">
+          <h1 class="page-title" style="font-size:22px;">Nueva venta</h1>
+          <div class="card" style="margin-bottom:10px;">
+            <div class="grid-2">
+              <div class="field">
+                <label>Vendedor</label>
+                <select id="sel-vendedor" onchange="onHeaderChange()"></select>
+                <div class="locked-vendedor" id="locked-vendedor" style="display:none"></div>
+              </div>
+              <div class="field">
+                <label>Sorteo</label>
+                <select id="sel-sorteo" onchange="onHeaderChange()"></select>
+                <div class="sorteo-status" id="sorteo-status"></div>
+              </div>
+            </div>
+            <div class="field" style="margin-bottom:0;">
+              <label>Cliente (opcional)</label>
+              <input type="text" id="in-cliente" placeholder="Nombre del cliente, para identificar el comprobante">
+            </div>
           </div>
         </div>
 
-        <div class="kp-summary-bar">
-          <div class="kp-summary-col"><div class="val" id="kp-sum-modalidad">--</div><div class="lbl">Modalidad</div></div>
-          <div class="kp-summary-col"><div class="val" id="kp-sum-jugadas">0</div><div class="lbl">Jugadas</div></div>
-          <div class="kp-summary-col"><div class="val" id="kp-sum-total">$0.00</div><div class="lbl">Total</div></div>
+        <div class="ventas-zona-teclado">
+          <div class="card" style="padding:0; overflow:hidden; margin-bottom:0;">
+            <div style="padding:14px 22px 0 22px;">
+              <div class="modalidad-tabs">
+                <div class="modalidad-tab active" data-mod="chance20" onclick="setModalidad('chance20')">Chance<span class="price">$0.20</span></div>
+                <div class="modalidad-tab" data-mod="chance25" onclick="setModalidad('chance25')">Chance<span class="price">$0.25</span></div>
+                <div class="modalidad-tab" data-mod="pale" onclick="setModalidad('pale')">Palé<span class="price">$1.00</span></div>
+              </div>
+              <div class="empty-state" id="pale-bloqueado-aviso" style="display:none; padding:6px 0; color:var(--red); font-weight:600;">Este sorteo no vende Palé.</div>
+            </div>
+
+            <div class="kp-display-bar">
+              <div class="kp-display-col active" id="kp-col-cantidad" onclick="seleccionarCampo('cantidad')">
+                <div class="kp-big mono" id="kp-cantidad">0</div>
+                <div class="kp-lbl">Tiempos</div>
+              </div>
+              <div class="kp-display-col" id="kp-col-numero" onclick="seleccionarCampo('numero')">
+                <div class="kp-big mono" id="kp-numero">0</div>
+                <div class="kp-lbl" id="kp-label-numero">Número</div>
+              </div>
+            </div>
+
+            <div class="kp-summary-bar">
+              <div class="kp-summary-col"><div class="val" id="kp-sum-modalidad">--</div><div class="lbl">Modalidad</div></div>
+              <div class="kp-summary-col"><div class="val" id="kp-sum-jugadas">0</div><div class="lbl">Jugadas</div></div>
+              <div class="kp-summary-col"><div class="val" id="kp-sum-total">$0.00</div><div class="lbl">Total</div></div>
+            </div>
+
+            <div class="kp-grid3" id="kp-teclado-normal">
+              <button type="button" class="kp-key" onclick="tecla('1')">1</button>
+              <button type="button" class="kp-key" onclick="tecla('2')">2</button>
+              <button type="button" class="kp-key" onclick="tecla('3')">3</button>
+              <button type="button" class="kp-key" onclick="tecla('4')">4</button>
+              <button type="button" class="kp-key" onclick="tecla('5')">5</button>
+              <button type="button" class="kp-key" onclick="tecla('6')">6</button>
+              <button type="button" class="kp-key" onclick="tecla('7')">7</button>
+              <button type="button" class="kp-key" onclick="tecla('8')">8</button>
+              <button type="button" class="kp-key" onclick="tecla('9')">9</button>
+              <button type="button" class="kp-key kp-key-clear" onclick="tecla('clear')">C</button>
+              <button type="button" class="kp-key" onclick="tecla('0')">0</button>
+              <button type="button" class="kp-key kp-key-ok" onclick="presionarOK()">OK</button>
+            </div>
+
+            <div class="kp-dup-row" id="kp-teclado-duplicado" style="display:none">
+              <button type="button" class="kp-dup-btn kp-dup-reemplazar" onclick="resolverDuplicado('reemplazar')">↻ Reemplazar</button>
+              <button type="button" class="kp-dup-btn kp-dup-sumar" onclick="resolverDuplicado('sumar')">+ Sumar</button>
+            </div>
+            <div class="empty-state" id="kp-dup-aviso" style="display:none; padding:6px 0 0 0; font-size:12px;">Ese número ya está en el ticket. Elige qué hacer con la cantidad nueva.</div>
+          </div>
         </div>
 
-        <div class="kp-grid3" id="kp-teclado-normal">
-          <button type="button" class="kp-key" onclick="tecla('1')">1</button>
-          <button type="button" class="kp-key" onclick="tecla('2')">2</button>
-          <button type="button" class="kp-key" onclick="tecla('3')">3</button>
-          <button type="button" class="kp-key" onclick="tecla('4')">4</button>
-          <button type="button" class="kp-key" onclick="tecla('5')">5</button>
-          <button type="button" class="kp-key" onclick="tecla('6')">6</button>
-          <button type="button" class="kp-key" onclick="tecla('7')">7</button>
-          <button type="button" class="kp-key" onclick="tecla('8')">8</button>
-          <button type="button" class="kp-key" onclick="tecla('9')">9</button>
-          <button type="button" class="kp-key kp-key-clear" onclick="tecla('clear')">C</button>
-          <button type="button" class="kp-key" onclick="tecla('0')">0</button>
-          <button type="button" class="kp-key kp-key-ok" onclick="presionarOK()">OK</button>
-        </div>
-
-        <div class="kp-dup-row" id="kp-teclado-duplicado" style="display:none">
-          <button type="button" class="kp-dup-btn kp-dup-reemplazar" onclick="resolverDuplicado('reemplazar')">↻ Reemplazar</button>
-          <button type="button" class="kp-dup-btn kp-dup-sumar" onclick="resolverDuplicado('sumar')">+ Sumar</button>
-        </div>
-        <div class="empty-state" id="kp-dup-aviso" style="display:none; padding:6px 0 0 0; font-size:12px;">Ese número ya está en el ticket. Elige qué hacer con la cantidad nueva.</div>
-
-        <div class="kp-action-bar">
-          <button type="button" class="kp-action-btn kp-action-cancelar" onclick="cancelarTicketActual()">🚫 Anular ticket</button>
-          <button type="button" class="kp-action-btn kp-action-confirmar" id="btn-confirmar" onclick="confirmarVenta()" disabled>▶▶ Cerrar venta</button>
-        </div>
-
-        <div style="padding:16px 22px 20px 22px;">
+        <div class="ventas-zona-lista">
+          <div class="kp-action-bar">
+            <button type="button" class="kp-action-btn kp-action-cancelar" onclick="cancelarTicketActual()">🚫 Anular ticket</button>
+            <button type="button" class="kp-action-btn kp-action-confirmar" id="btn-confirmar" onclick="confirmarVenta()" disabled>▶▶ Cerrar venta</button>
+          </div>
           <div class="jugadas-list" id="jugadas-list"><div class="empty-state">Aún no has agregado jugadas a este ticket.</div></div>
         </div>
+
       </div>
     </div>
 
@@ -1436,7 +1449,7 @@ function codigoTextoDeVenta(venta){
 
 function construirTicketHTML(venta){
   const jugadasHtml = venta.jugadas.map(j=>`
-    <div class="ticket-jugada"><span><span class="jugada-tag ${TAG_CLASS[j.modalidad]}" style="font-size:9px;">${NOMBRES_MOD[j.modalidad]}</span> ${formatearNumeroJugada(j)} ×${j.cantidad}</span><span>$${j.monto.toFixed(2)}</span></div>`).join('');
+    <div class="ticket-jugada"><span><span class="jugada-tag ${TAG_CLASS[j.modalidad]}" style="font-size:9px;">${NOMBRES_MOD[j.modalidad]}</span> <span class="ticket-numero-vendido">${formatearNumeroJugada(j)}</span> <span class="ticket-cantidad-vendida">×${j.cantidad}</span></span><span>$${j.monto.toFixed(2)}</span></div>`).join('');
   const clienteRow = venta.cliente ? `<div class="ticket-row"><span class="k">Cliente</span><span class="v">${escapeHtml(venta.cliente)}</span></div>` : '';
   return `
     <div class="ticket-header"><div class="logo-badge">L4P</div><div class="name">LotC4Pa</div><div class="folio">Comprobante N.° ${folioTexto(venta)}</div></div>

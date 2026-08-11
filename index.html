@@ -1,0 +1,1836 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LotC4Pa</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#FFF6E2; --paper-dim:#FBE7BE; --ink:#2B1B12; --ink-dim:#8A6F52;
+    --red:#D1262C; --red-dark:#96181D; --gold:#F2A93B; --gold-dark:#C97F0E;
+    --blue:#1E5FA8; --green:#2E8B57; --green-dark:#1F6B44; --purple:#7B3FA0;
+    --card:#FFFFFF; --line:#F0D9A8; --radius:10px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{ background:var(--paper); color:var(--ink); font-family:'Inter',sans-serif; -webkit-font-smoothing:antialiased; }
+  .mono{font-family:'IBM Plex Mono',monospace;}
+  .display{font-family:'Fraunces',serif;}
+
+  #login-screen{ min-height:100vh; display:flex; align-items:center; justify-content:center; background:linear-gradient(160deg, var(--green) 0%, #123D26 100%); padding:20px; }
+  .login-card{ background:var(--paper); width:100%; max-width:360px; border-radius:14px; padding:34px 30px; box-shadow:0 30px 60px rgba(0,0,0,0.35); border-top:5px solid var(--gold); }
+  .login-brand{ text-align:center; margin-bottom:26px; }
+  .login-brand .name{ font-family:'Fraunces',serif; font-weight:700; font-size:24px; color:var(--green); }
+  .login-brand .sub{ font-size:12px; color:var(--ink-dim); text-transform:uppercase; letter-spacing:1px; margin-top:4px; }
+  .logo-badge{ width:46px; height:46px; border-radius:50%; background:var(--green); border:3px solid var(--gold); display:flex; align-items:center; justify-content:center; font-family:'Fraunces',serif; font-weight:700; color:#fff; font-size:16px; margin:0 auto 10px auto; box-shadow:0 3px 8px rgba(0,0,0,0.15); }
+  .logo-badge-sm{ width:36px; height:36px; border:2px solid var(--gold); font-size:13px; margin:0; flex-shrink:0; }
+  .brand-row{ display:flex; align-items:center; gap:10px; }
+  .login-error{ background:rgba(162,59,30,0.1); color:var(--red); font-size:13px; padding:9px 12px; border-radius:7px; margin-bottom:14px; display:none; }
+
+  #app-shell{ display:none; }
+  #app{ display:flex; min-height:100vh; }
+
+  .sidebar{ width:230px; flex-shrink:0; background:var(--green); color:var(--paper); display:flex; flex-direction:column; padding:24px 0; }
+  .brand{ padding:0 20px 16px 20px; border-bottom:1px solid rgba(245,241,230,0.15); margin-bottom:10px; }
+  .brand-mark{ font-family:'Fraunces',serif; font-weight:700; font-size:21px; letter-spacing:0.3px; color:var(--gold); }
+  .brand-sub{ font-size:11px; text-transform:uppercase; letter-spacing:1.2px; color:rgba(245,241,230,0.6); margin-top:4px; }
+  .session-box{ padding:10px 20px 16px 20px; border-bottom:1px solid rgba(245,241,230,0.15); margin-bottom:10px; }
+  .session-box .who{ font-size:13.5px; font-weight:600; }
+  .session-box .role{ font-size:11px; color:var(--gold); text-transform:uppercase; letter-spacing:0.6px; margin-top:2px; }
+  .nav-item{ display:flex; align-items:center; gap:10px; padding:12px 20px; cursor:pointer; font-size:14.5px; font-weight:500; color:rgba(245,241,230,0.75); border-left:3px solid transparent; transition:background .15s, color .15s; }
+  .nav-item:hover{ background:rgba(245,241,230,0.06); color:var(--paper); }
+  .nav-item.active{ background:rgba(245,241,230,0.1); color:var(--paper); border-left:3px solid var(--gold); font-weight:600; }
+  .nav-item.logout{ margin-top:auto; color:rgba(245,241,230,0.55); }
+
+  .main{ flex:1; padding:32px 40px 60px 40px; max-width:1150px; }
+  h1.page-title{ font-family:'Fraunces',serif; font-weight:600; font-size:26px; margin:0 0 4px 0; display:inline-block; background:var(--green); color:#fff; padding:8px 20px; border-radius:8px; }
+  .page-sub{ color:var(--ink-dim); font-size:14px; margin-bottom:28px; }
+  .card{ background:var(--card); border:1px solid var(--line); border-top:3px solid var(--gold); border-radius:var(--radius); padding:22px; margin-bottom:20px; box-shadow:0 2px 10px rgba(43,27,18,0.05); }
+  .card h2{ font-family:'Fraunces',serif; font-size:17px; font-weight:600; margin:0 0 16px 0; display:flex; align-items:center; gap:8px; }
+  .card p.hint{ font-size:12.5px; color:var(--ink-dim); margin:-10px 0 16px 0; }
+  .grid-2{ display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+  .grid-3{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:14px; }
+  label{ display:block; font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:0.5px; color:var(--ink-dim); margin-bottom:6px; }
+  select, input[type=text], input[type=number], input[type=password], input[type=date], input[type=time]{
+    width:100%; padding:10px 12px; border:1px solid var(--line); border-radius:7px;
+    background:var(--paper-dim); font-family:'Inter',sans-serif; font-size:14.5px; color:var(--ink);
+  }
+  select:focus, input:focus{ outline:2px solid var(--blue); outline-offset:1px; background:#fff; }
+  .field{ margin-bottom:14px; }
+  .btn{ font-family:'Inter',sans-serif; font-weight:600; font-size:15.5px; padding:13px 20px; border-radius:8px; border:none; cursor:pointer; transition:transform .08s, opacity .15s; }
+  .btn:active{ transform:scale(0.97); }
+  .btn-primary{ background:var(--green); color:#fff; }
+  .btn-primary:hover{ background:var(--green-dark); }
+  .btn-gold{ background:var(--gold); color:#fff; }
+  .btn-gold:hover{ opacity:0.9; }
+  .btn-outline{ background:transparent; color:var(--green); border:1.5px solid var(--green); }
+  .btn-outline:hover{ background:var(--paper-dim); }
+  .btn-danger-text{ background:transparent; color:var(--red); border:none; font-size:13px; font-weight:600; cursor:pointer; padding:4px 8px;}
+  .btn-text{ background:transparent; color:var(--ink-dim); border:none; font-size:13px; font-weight:600; cursor:pointer; padding:4px 8px;}
+  .btn:disabled{ opacity:0.4; cursor:not-allowed; }
+  .btn-block{ width:100%; }
+  .btn-row{ display:flex; gap:10px; flex-wrap:wrap; }
+  .btn-sm{ padding:6px 12px; font-size:12.5px; }
+
+  .modalidad-tabs{ display:flex; gap:8px; margin-bottom:14px; }
+  .modalidad-tab{ flex:1; text-align:center; padding:10px 6px; border-radius:7px; border:1.5px solid var(--line); cursor:pointer; font-size:13px; font-weight:600; color:var(--ink-dim); background:var(--paper-dim); }
+  .modalidad-tab .price{ display:block; font-family:'IBM Plex Mono',monospace; font-size:15px; margin-top:2px; }
+  .modalidad-tab.active{ border-color:var(--blue); background:var(--blue); color:#fff; }
+  .modalidad-tab[data-mod="chance25"].active{ border-color:var(--gold-dark); background:var(--gold); color:#fff; }
+  .modalidad-tab[data-mod="pale"].active{ border-color:var(--purple); background:var(--purple); color:#fff; }
+  .modalidad-tab.deshabilitado{ opacity:0.4; pointer-events:none; }
+  .tag-pale{ background:var(--purple); }
+
+  .kp-display-bar{ display:flex; background:#201a14; }
+  .kp-display-col{ flex:1; text-align:center; padding:22px 10px; cursor:pointer; border-right:1px solid rgba(255,255,255,0.08); transition:background .15s; }
+  .kp-display-col:last-child{ border-right:none; }
+  .kp-display-col .kp-big{ font-size:52px; font-weight:700; color:#fff; line-height:1; }
+  .kp-display-col .kp-lbl{ font-size:12.5px; color:#a89680; margin-top:6px; }
+  .kp-display-col.active{ background:rgba(46,139,87,0.18); }
+  .kp-display-col.active .kp-lbl{ color:var(--green); font-weight:700; }
+  .kp-summary-bar{ display:flex; background:var(--gold); }
+  .kp-summary-col{ flex:1; text-align:center; padding:12px 6px; border-right:1px solid rgba(0,0,0,0.1); }
+  .kp-summary-col:last-child{ border-right:none; }
+  .kp-summary-col .val{ font-size:18px; font-weight:700; color:#3A2705; font-family:'IBM Plex Mono',monospace; }
+  .kp-summary-col .lbl{ font-size:10.5px; color:#5C4009; text-transform:uppercase; letter-spacing:0.4px; margin-top:2px; }
+  .kp-grid3{ display:grid; grid-template-columns:repeat(3, 1fr); }
+  .kp-key{ font-family:'IBM Plex Mono',monospace; font-size:34px; font-weight:700; padding:34px 0; border:none; border-right:1px solid var(--line); border-bottom:1px solid var(--line); background:#fff; color:var(--ink); cursor:pointer; }
+  .kp-key:nth-child(3n){ border-right:none; }
+  .kp-key:active{ background:var(--paper-dim); }
+  .kp-key-clear{ background:var(--paper-dim); color:var(--ink-dim); font-size:26px; }
+  .kp-key-ok{ background:var(--green); color:#fff; }
+  .kp-dup-row{ display:flex; }
+  .kp-dup-btn{ flex:1; padding:32px 0; text-align:center; font-weight:700; font-size:19px; border:none; cursor:pointer; color:#fff; }
+  .kp-dup-reemplazar{ background:var(--blue); }
+  .kp-dup-sumar{ background:var(--green); }
+  .kp-action-bar{ display:flex; }
+  .kp-action-btn{ flex:1; padding:26px 0; text-align:center; font-weight:700; color:#fff; cursor:pointer; font-size:19px; border:none; }
+  .kp-action-cancelar{ background:var(--red); }
+  .kp-action-confirmar{ background:var(--green); }
+  .kp-action-btn:disabled{ opacity:0.45; cursor:not-allowed; }
+
+  .jugadas-list{ margin-top:16px; }
+  .jugada-row{ display:flex; align-items:center; justify-content:space-between; padding:10px 12px; border-bottom:1px solid var(--line); font-size:14px; }
+  .jugada-row:last-child{ border-bottom:none; }
+  .jugada-num{ font-family:'IBM Plex Mono',monospace; font-weight:600; font-size:15px; }
+  .jugada-tag{ display:inline-block; font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:0.4px; padding:2px 7px; border-radius:20px; margin-right:8px; color:#fff; }
+  .tag-chance20{ background:var(--blue); }
+  .tag-chance25{ background:var(--gold); }
+
+  .total-row{ display:flex; justify-content:space-between; align-items:center; padding-top:16px; margin-top:12px; border-top:2px solid var(--ink); }
+  .total-label{ font-family:'Fraunces',serif; font-size:16px; font-weight:600; }
+  .total-amount{ font-family:'IBM Plex Mono',monospace; font-size:24px; font-weight:700; color:var(--green); }
+
+  .locked-vendedor{ padding:10px 12px; background:var(--paper-dim); border:1px solid var(--line); border-radius:7px; font-weight:600; }
+  .sorteo-status{ font-size:12.5px; margin-top:6px; font-weight:600; }
+  .sorteo-status.abierto{ color:var(--green); }
+  .sorteo-status.cerrado{ color:var(--red); }
+
+  .empty-state{ text-align:center; padding:30px 10px; color:var(--ink-dim); font-size:13.5px; }
+
+  table{ width:100%; border-collapse:collapse; font-size:13.5px; }
+  th{ text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:0.5px; color:var(--ink-dim); padding:8px 10px; border-bottom:2px solid var(--ink); }
+  td{ padding:10px; border-bottom:1px solid var(--line); vertical-align:middle; }
+  tr:hover td{ background:var(--paper-dim); }
+  .premio-tag{ font-family:'IBM Plex Mono',monospace; font-weight:700; color:var(--gold); }
+  .ganancia-pos{ font-family:'IBM Plex Mono',monospace; font-weight:700; color:var(--green); }
+  .ganancia-neg{ font-family:'IBM Plex Mono',monospace; font-weight:700; color:var(--red); }
+  .tag-anulado{ display:inline-block; font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:0.4px; padding:3px 8px; border-radius:20px; color:#fff; background:var(--red); }
+  tr.row-anulada td{ opacity:0.55; }
+  .ticket-anulado-banner{ text-align:center; background:var(--red); color:#fff; font-weight:700; font-size:12px; letter-spacing:0.6px; text-transform:uppercase; padding:6px; border-radius:5px; margin-bottom:12px; }
+
+  .pill-list{ display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }
+  .pill{ display:flex; align-items:center; gap:6px; background:var(--paper-dim); border:1px solid var(--line); border-radius:20px; padding:6px 6px 6px 14px; font-size:13.5px; font-weight:500; }
+  .pill.pill-block{ border-radius:10px; align-items:flex-start; flex-direction:column; padding:12px 14px; gap:4px; min-width:210px; }
+  .pill button{ background:none; border:none; cursor:pointer; font-weight:700; font-size:13px; padding:2px 6px; border-radius:20px; }
+  .pill .edit-btn{ color:var(--blue); }
+  .pill .del-btn{ color:var(--red); }
+  .pill .exc-btn{ color:var(--gold); }
+  .pill button:hover{ background:rgba(0,0,0,0.06); }
+  .dot{ display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:5px; }
+  .dot.abierto{ background:var(--green); }
+  .dot.cerrado{ background:var(--red); }
+  .pill-row-actions{ display:flex; gap:4px; margin-top:4px; }
+  .dias-check{ display:flex; flex-wrap:wrap; gap:8px; margin-bottom:14px; }
+  .dias-check label{ display:flex; align-items:center; gap:5px; text-transform:none; font-size:13px; font-weight:500; color:var(--ink); background:var(--paper-dim); padding:6px 10px; border-radius:20px; cursor:pointer; }
+  .dias-check input{ width:auto; }
+
+  .summary-strip{ display:flex; gap:14px; margin-bottom:20px; flex-wrap:wrap; }
+  .summary-box{ flex:1; min-width:140px; background:var(--card); border:1px solid var(--line); border-left:4px solid var(--gold); border-radius:8px; padding:14px 16px; }
+  .summary-box .num{ font-family:'IBM Plex Mono',monospace; font-size:22px; font-weight:700; color:var(--blue); }
+  .summary-box .lbl{ font-size:12px; color:var(--ink-dim); margin-top:2px; }
+
+  .filters{ display:flex; gap:10px; margin-bottom:16px; flex-wrap:wrap; }
+  .filters select, .filters input{ width:auto; min-width:160px; }
+
+  .premios-table td, .premios-table th{ text-align:center; }
+  .premios-table input{ text-align:center; max-width:90px; margin:0 auto; }
+
+  .modal-overlay{ position:fixed; inset:0; background:rgba(38,35,29,0.55); display:flex; align-items:center; justify-content:center; z-index:100; padding:20px; }
+  .ticket{ background:#fff; width:320px; border-radius:4px; position:relative; box-shadow:0 20px 50px rgba(0,0,0,0.3); overflow:hidden; }
+  .ticket-notch{ position:absolute; top:-10px; width:20px; height:20px; background:rgba(38,35,29,0.55); border-radius:50%; }
+  .ticket-notch.left{ left:-10px; } .ticket-notch.right{ right:-10px; }
+  .ticket-body{ padding:22px 20px; }
+  .ticket-header{ text-align:center; margin-bottom:14px; }
+  .ticket-header .name{ font-family:'Fraunces',serif; font-weight:700; font-size:18px; color:var(--green); }
+  .ticket-header .folio{ font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--ink-dim); margin-top:2px; }
+  .ticket-divider{ border-top:2px dashed var(--line); margin:14px 0; }
+  .ticket-row{ display:flex; justify-content:space-between; font-size:13px; margin-bottom:6px; }
+  .ticket-row .k{ color:var(--ink-dim); } .ticket-row .v{ font-weight:600; text-align:right; }
+  .ticket-jugada{ display:flex; justify-content:space-between; font-family:'IBM Plex Mono',monospace; font-size:13.5px; padding:5px 0; }
+  .ticket-total{ display:flex; justify-content:space-between; align-items:baseline; margin-top:10px; padding-top:10px; border-top:2px solid var(--ink); }
+  .ticket-total .v{ font-family:'IBM Plex Mono',monospace; font-size:20px; font-weight:700; }
+  .ticket-footer{ text-align:center; font-size:10.5px; color:var(--ink-dim); margin-top:14px; }
+  .modal-actions{ display:flex; flex-wrap:wrap; gap:10px; margin-top:16px; padding:0 4px 4px 4px; }
+  .modal-actions .btn{ flex:1 1 90px; }
+
+  #print-area{ display:none; }
+  @media print{
+    body *{ visibility:hidden; }
+    #print-area, #print-area *{ visibility:visible; }
+    #print-area{ display:block !important; position:absolute; top:0; left:0; width:100%; }
+  }
+
+  @media (max-width:820px){
+    #app{ flex-direction:column; }
+    .sidebar{ width:100%; flex-direction:row; overflow-x:auto; padding:10px; align-items:center; }
+    .brand, .session-box{ display:none; }
+    .nav-item{ border-left:none; border-bottom:3px solid transparent; white-space:nowrap; }
+    .nav-item.active{ border-left:none; border-bottom:3px solid var(--gold); }
+    .nav-item.logout{ margin-top:0; }
+    .main{ padding:20px 16px 60px 16px; }
+    .grid-2, .grid-3{ grid-template-columns:1fr; }
+  }
+  .numeros-grid{ display:flex; flex-wrap:wrap; gap:8px; }
+  .num-chip{ min-width:62px; text-align:center; background:var(--card); border:1.5px solid var(--line); border-radius:8px; padding:8px 6px; }
+  .num-chip .num{ display:block; font-family:'IBM Plex Mono',monospace; font-weight:700; font-size:16px; color:var(--ink); }
+  .num-chip .cant{ display:block; font-size:11px; color:var(--ink-dim); margin-top:2px; }
+  .num-chip.nivel-naranja{ background:#FDEBD0; border-color:var(--gold-dark); }
+  .num-chip.nivel-naranja .num, .num-chip.nivel-naranja .cant{ color:var(--gold-dark); font-weight:700; }
+  .num-chip.nivel-rojo{ background:#FBDAD7; border-color:var(--red); }
+  .num-chip.nivel-rojo .num, .num-chip.nivel-rojo .cant{ color:var(--red); font-weight:700; }
+  .nivel-dot{ display:inline-block; width:10px; height:10px; border-radius:3px; margin-right:4px; vertical-align:middle; }
+  .toast{ position:fixed; top:16px; left:50%; transform:translateX(-50%); background:var(--ink); color:#fff; padding:13px 22px; border-radius:9px; font-size:14px; font-weight:600; z-index:300; box-shadow:0 10px 24px rgba(0,0,0,0.3); max-width:88%; text-align:center; }
+  :focus-visible{ outline:2px solid var(--blue); outline-offset:2px; }
+</style>
+</head>
+<body>
+
+<div id="login-screen">
+  <div class="login-card">
+    <div class="login-brand">
+      <div class="logo-badge">L4P</div>
+      <div class="name">LotC4Pa</div>
+      <div class="sub">🎟️ Acceso al sistema · versión de prueba v3</div>
+    </div>
+    <div class="login-error" id="login-error"></div>
+    <div class="field"><label>Usuario</label><input type="text" id="login-username" autocomplete="username"></div>
+    <div class="field"><label>Contraseña</label><input type="password" id="login-password" autocomplete="current-password" onkeydown="if(event.key==='Enter') intentarLogin()"></div>
+    <button class="btn btn-primary btn-block" id="btn-entrar" onclick="intentarLogin()">Entrar</button>
+  </div>
+</div>
+
+<div id="app-shell">
+<div id="app">
+  <div class="sidebar no-print">
+    <div class="brand">
+      <div class="brand-row">
+        <div class="logo-badge logo-badge-sm">L4P</div>
+        <div>
+          <div class="brand-mark">LotC4Pa</div>
+          <div class="brand-sub">Chances y sorteos del día</div>
+        </div>
+      </div>
+    </div>
+    <div class="session-box">
+      <div class="who" id="session-nombre">—</div>
+      <div class="role" id="session-rol">—</div>
+    </div>
+    <div class="nav-item active" data-tab="ventas" onclick="switchTab('ventas')">🎟️ Nueva venta</div>
+    <div class="nav-item" data-tab="historial" onclick="switchTab('historial')">📖 Historial</div>
+    <div class="nav-item" data-tab="tabla" onclick="switchTab('tabla')">🔢 Tabla de números</div>
+    <div class="nav-item admin-only" data-tab="reportes" onclick="switchTab('reportes')">📊 Reportes</div>
+    <div class="nav-item admin-only" data-tab="resultados" onclick="switchTab('resultados')">🏆 Resultados</div>
+    <div class="nav-item admin-only" data-tab="config" onclick="switchTab('config')">⚙️ Administración</div>
+    <div class="nav-item logout" onclick="cerrarSesion()">⎋ Cerrar sesión</div>
+  </div>
+
+  <div class="main no-print">
+
+    <!-- ===== VENTAS ===== -->
+    <div id="tab-ventas">
+      <h1 class="page-title">Nueva venta</h1>
+      <div class="page-sub">Selecciona sorteo y registra las jugadas.</div>
+
+      <div class="card">
+        <div class="grid-2">
+          <div class="field">
+            <label>Vendedor</label>
+            <select id="sel-vendedor" onchange="onHeaderChange()"></select>
+            <div class="locked-vendedor" id="locked-vendedor" style="display:none"></div>
+          </div>
+          <div class="field">
+            <label>Sorteo</label>
+            <select id="sel-sorteo" onchange="onHeaderChange()"></select>
+            <div class="sorteo-status" id="sorteo-status"></div>
+          </div>
+        </div>
+        <div class="field">
+          <label>Cliente (opcional)</label>
+          <input type="text" id="in-cliente" placeholder="Nombre del cliente, para identificar el comprobante">
+        </div>
+      </div>
+
+      <div class="card" style="padding:0; overflow:hidden;">
+        <div style="padding:22px 22px 0 22px;">
+          <h2>Agregar jugada</h2>
+          <div class="modalidad-tabs">
+            <div class="modalidad-tab active" data-mod="chance20" onclick="setModalidad('chance20')">Chance<span class="price">$0.20</span></div>
+            <div class="modalidad-tab" data-mod="chance25" onclick="setModalidad('chance25')">Chance<span class="price">$0.25</span></div>
+            <div class="modalidad-tab" data-mod="pale" onclick="setModalidad('pale')">Palé<span class="price">$1.00</span></div>
+          </div>
+          <div class="empty-state" id="pale-bloqueado-aviso" style="display:none; padding:6px 0; color:var(--red); font-weight:600;">Este sorteo no vende Palé.</div>
+        </div>
+
+        <div class="kp-display-bar">
+          <div class="kp-display-col active" id="kp-col-cantidad" onclick="seleccionarCampo('cantidad')">
+            <div class="kp-big mono" id="kp-cantidad">0</div>
+            <div class="kp-lbl">Tiempos</div>
+          </div>
+          <div class="kp-display-col" id="kp-col-numero" onclick="seleccionarCampo('numero')">
+            <div class="kp-big mono" id="kp-numero">0</div>
+            <div class="kp-lbl" id="kp-label-numero">Número</div>
+          </div>
+        </div>
+
+        <div class="kp-summary-bar">
+          <div class="kp-summary-col"><div class="val" id="kp-sum-modalidad">--</div><div class="lbl">Modalidad</div></div>
+          <div class="kp-summary-col"><div class="val" id="kp-sum-jugadas">0</div><div class="lbl">Jugadas</div></div>
+          <div class="kp-summary-col"><div class="val" id="kp-sum-total">$0.00</div><div class="lbl">Total</div></div>
+        </div>
+
+        <div class="kp-grid3" id="kp-teclado-normal">
+          <button type="button" class="kp-key" onclick="tecla('1')">1</button>
+          <button type="button" class="kp-key" onclick="tecla('2')">2</button>
+          <button type="button" class="kp-key" onclick="tecla('3')">3</button>
+          <button type="button" class="kp-key" onclick="tecla('4')">4</button>
+          <button type="button" class="kp-key" onclick="tecla('5')">5</button>
+          <button type="button" class="kp-key" onclick="tecla('6')">6</button>
+          <button type="button" class="kp-key" onclick="tecla('7')">7</button>
+          <button type="button" class="kp-key" onclick="tecla('8')">8</button>
+          <button type="button" class="kp-key" onclick="tecla('9')">9</button>
+          <button type="button" class="kp-key kp-key-clear" onclick="tecla('clear')">C</button>
+          <button type="button" class="kp-key" onclick="tecla('0')">0</button>
+          <button type="button" class="kp-key kp-key-ok" onclick="presionarOK()">OK</button>
+        </div>
+
+        <div class="kp-dup-row" id="kp-teclado-duplicado" style="display:none">
+          <button type="button" class="kp-dup-btn kp-dup-reemplazar" onclick="resolverDuplicado('reemplazar')">↻ Reemplazar</button>
+          <button type="button" class="kp-dup-btn kp-dup-sumar" onclick="resolverDuplicado('sumar')">+ Sumar</button>
+        </div>
+        <div class="empty-state" id="kp-dup-aviso" style="display:none; padding:6px 0 0 0; font-size:12px;">Ese número ya está en el ticket. Elige qué hacer con la cantidad nueva.</div>
+
+        <div class="kp-action-bar">
+          <button type="button" class="kp-action-btn kp-action-cancelar" onclick="cancelarTicketActual()">🚫 Anular ticket</button>
+          <button type="button" class="kp-action-btn kp-action-confirmar" id="btn-confirmar" onclick="confirmarVenta()" disabled>▶▶ Cerrar venta</button>
+        </div>
+
+        <div style="padding:16px 22px 20px 22px;">
+          <div class="jugadas-list" id="jugadas-list"><div class="empty-state">Aún no has agregado jugadas a este ticket.</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== HISTORIAL ===== -->
+    <div id="tab-historial" style="display:none">
+      <h1 class="page-title">Historial de ventas</h1>
+      <div class="page-sub">Consulta, filtra y reimprime comprobantes.</div>
+      <div class="summary-strip" id="summary-strip"></div>
+      <div class="filters">
+        <select id="filtro-vendedor" onchange="renderHistorial()"></select>
+        <select id="filtro-sorteo" onchange="renderHistorial()"></select>
+        <input type="text" id="filtro-fecha" placeholder="Filtrar por fecha (dd/mm/aaaa)" oninput="renderHistorial()">
+        <input type="text" id="filtro-cliente" placeholder="Buscar por cliente" oninput="renderHistorial()">
+      </div>
+      <div class="card" style="padding:0; overflow-x:auto;">
+        <table id="tabla-historial">
+          <thead><tr><th>Folio</th><th>Fecha y hora</th><th>Cliente</th><th>Vendedor</th><th>Sorteo</th><th>Jugadas</th><th>Total</th><th>Premio</th><th></th></tr></thead>
+          <tbody id="tabla-historial-body"></tbody>
+        </table>
+        <div class="empty-state" id="historial-empty" style="display:none">Todavía no hay ventas registradas.</div>
+      </div>
+    </div>
+
+    <!-- ===== REPORTES ===== -->
+    <div id="tab-reportes" style="display:none">
+      <h1 class="page-title">Reportes</h1>
+      <div class="page-sub">Ganancias y pérdidas por vendedor, por sorteo y global.</div>
+
+      <div class="filters">
+        <select id="rep-vendedor" onchange="renderReportes()"></select>
+        <select id="rep-sorteo" onchange="renderReportes()"></select>
+      </div>
+      <div class="filters">
+        <button class="btn btn-outline btn-sm" onclick="aplicarPresetReportes('hoy')">Hoy</button>
+        <button class="btn btn-outline btn-sm" onclick="aplicarPresetReportes('semana')">Esta semana</button>
+        <button class="btn btn-outline btn-sm" onclick="aplicarPresetReportes('mes')">Este mes</button>
+        <button class="btn btn-outline btn-sm" onclick="aplicarPresetReportes('todo')">Todo</button>
+      </div>
+      <div class="filters">
+        <div class="field" style="margin-bottom:0; max-width:170px;"><label>Desde</label><input type="date" id="rep-desde" onchange="renderReportes()"></div>
+        <div class="field" style="margin-bottom:0; max-width:170px;"><label>Hasta</label><input type="date" id="rep-hasta" onchange="renderReportes()"></div>
+      </div>
+
+      <div class="summary-strip" id="reportes-global"></div>
+
+      <div class="card" style="padding:0; overflow-x:auto;">
+        <h2 style="padding:20px 20px 0 20px">Por vendedor</h2>
+        <table style="margin-top:12px">
+          <thead><tr><th>Vendedor</th><th>Total vendido</th><th>Premios pagados</th><th>Ganancia / pérdida</th></tr></thead>
+          <tbody id="reportes-vendedor-body"></tbody>
+        </table>
+        <div class="empty-state" id="reportes-vendedor-empty" style="display:none">No hay ventas para este filtro.</div>
+      </div>
+
+      <div class="card" style="padding:0; overflow-x:auto;">
+        <h2 style="padding:20px 20px 0 20px">Por sorteo</h2>
+        <table style="margin-top:12px">
+          <thead><tr><th>Sorteo</th><th>Total vendido</th><th>Premios pagados</th><th>Ganancia / pérdida</th></tr></thead>
+          <tbody id="reportes-sorteo-body"></tbody>
+        </table>
+        <div class="empty-state" id="reportes-sorteo-empty" style="display:none">No hay ventas para este filtro.</div>
+      </div>
+    </div>
+
+    <!-- ===== RESULTADOS ===== -->
+    <div id="tab-resultados" style="display:none">
+      <h1 class="page-title">Resultados y premiación</h1>
+      <div class="page-sub">Ingresa el número ganador de un sorteo para calcular los tickets premiados.</div>
+      <div class="card">
+        <h2>Registrar resultado</h2>
+        <div class="grid-3">
+          <div class="field"><label>Sorteo</label><select id="res-sorteo"></select></div>
+          <div class="field"><label>Fecha</label><input type="date" id="res-fecha"></div>
+          <div class="field"></div>
+        </div>
+        <div class="grid-3">
+          <div class="field"><label>1er lugar (00-99)</label><input type="text" id="res-primero" maxlength="2" inputmode="numeric" placeholder="00"></div>
+          <div class="field"><label>2do lugar (00-99)</label><input type="text" id="res-segundo" maxlength="2" inputmode="numeric" placeholder="00"></div>
+          <div class="field"><label>3er lugar (00-99)</label><input type="text" id="res-tercero" maxlength="2" inputmode="numeric" placeholder="00"></div>
+        </div>
+        <button class="btn btn-gold" onclick="guardarResultado()">Guardar resultado y calcular ganadores</button>
+      </div>
+      <div class="card" id="ganadores-card" style="display:none">
+        <h2>Tickets ganadores <span id="ganadores-sorteo-fecha" style="font-weight:400; font-size:13px; color:var(--ink-dim)"></span></h2>
+        <div class="summary-strip" id="ganadores-summary"></div>
+        <div style="overflow-x:auto">
+          <table><thead><tr><th>Folio</th><th>Cliente</th><th>Vendedor</th><th>Número</th><th>Modalidad</th><th>Posición</th><th>Premio</th></tr></thead><tbody id="ganadores-body"></tbody></table>
+        </div>
+        <div class="empty-state" id="ganadores-empty" style="display:none">Nadie ganó en este sorteo con este resultado.</div>
+      </div>
+      <div class="card"><h2>Resultados registrados</h2><div id="lista-resultados"></div></div>
+    </div>
+
+    <!-- ===== TABLA DE NÚMEROS ===== -->
+    <div id="tab-tabla" style="display:none">
+      <h1 class="page-title">Tabla de números</h1>
+      <div class="page-sub">Cuánto se ha vendido de cada número, por sorteo y por día.</div>
+
+      <div class="filters">
+        <select id="tabla-sorteo" onchange="renderTablaNumeros()"></select>
+        <input type="date" id="tabla-fecha" onchange="renderTablaNumeros()">
+      </div>
+
+      <div class="summary-strip" id="tabla-resumen"></div>
+
+      <div class="card">
+        <h2>Chances (00-99) <span style="font-weight:400; font-size:12.5px; color:var(--ink-dim)">— suma de Chance $0.20 y $0.25</span></h2>
+        <div style="display:flex; gap:14px; font-size:12px; color:var(--ink-dim); margin-bottom:14px;">
+          <span><span class="nivel-dot" style="background:var(--card); border:1px solid var(--line);"></span> Normal</span>
+          <span><span class="nivel-dot" style="background:#FDEBD0; border:1px solid var(--gold-dark);"></span> 100 o más</span>
+          <span><span class="nivel-dot" style="background:#FBDAD7; border:1px solid var(--red);"></span> 300 o más</span>
+        </div>
+        <div class="numeros-grid" id="tabla-chance-grid"></div>
+      </div>
+
+      <div class="card">
+        <h2>Palé <span style="font-weight:400; font-size:12.5px; color:var(--ink-dim)">— combinaciones vendidas</span></h2>
+        <div style="display:flex; gap:14px; font-size:12px; color:var(--ink-dim); margin-bottom:14px;">
+          <span><span class="nivel-dot" style="background:var(--card); border:1px solid var(--line);"></span> Normal</span>
+          <span><span class="nivel-dot" style="background:#FDEBD0; border:1px solid var(--gold-dark);"></span> 2 o más</span>
+          <span><span class="nivel-dot" style="background:#FBDAD7; border:1px solid var(--red);"></span> 4 o más</span>
+        </div>
+        <div class="numeros-grid" id="tabla-pale-grid"></div>
+      </div>
+    </div>
+
+    <!-- ===== CONFIG ===== -->
+    <div id="tab-config" style="display:none">
+      <h1 class="page-title">Administración</h1>
+      <div class="page-sub">Vendedores, sorteos, premiación y seguridad.</div>
+
+      <div class="card">
+        <h2 id="vendedor-form-title">Agregar vendedor</h2>
+        <p class="hint">Cada vendedor inicia sesión con su propio usuario y contraseña.</p>
+        <div class="grid-3">
+          <div class="field"><label>Nombre</label><input type="text" id="in-v-nombre"></div>
+          <div class="field"><label>Usuario</label><input type="text" id="in-v-username"></div>
+          <div class="field"><label>Contraseña</label><input type="text" id="in-v-password"></div>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-primary" id="btn-guardar-vendedor" onclick="guardarVendedor()">Agregar vendedor</button>
+          <button class="btn btn-text" id="btn-cancelar-edicion" onclick="cancelarEdicionVendedor()" style="display:none">Cancelar</button>
+        </div>
+        <div class="pill-list" id="lista-vendedores"></div>
+      </div>
+
+      <div class="card">
+        <h2 id="sorteo-form-title">Agregar sorteo</h2>
+        <p class="hint">Define la hora del sorteo, la hora de cierre y los días en que se juega. Después de la hora de cierre, los vendedores no podrán registrar jugadas de ese sorteo.</p>
+        <div class="grid-3">
+          <div class="field"><label>Nombre</label><input type="text" id="in-s-nombre" placeholder="Ej. Nica"></div>
+          <div class="field"><label>Hora del sorteo</label><input type="text" id="in-s-horasorteo" placeholder="Ej. 4:00 PM"></div>
+          <div class="field"><label>Hora de cierre</label><input type="time" id="in-s-cierre"></div>
+        </div>
+        <label>Días que se juega</label>
+        <div class="dias-check" id="dias-check-container"></div>
+        <div class="field"><label>Notas (opcional)</label><input type="text" id="in-s-notas" placeholder="Ej. + algunos viernes"></div>
+        <label style="display:flex; align-items:center; gap:7px; text-transform:none; font-size:13.5px; color:var(--ink); cursor:pointer;">
+          <input type="checkbox" id="in-s-pale" style="width:auto" checked> Permitir venta de Palé en este sorteo
+        </label>
+        <div class="btn-row" style="margin-top:14px">
+          <button class="btn btn-primary" id="btn-guardar-sorteo" onclick="guardarSorteo()">Agregar sorteo</button>
+          <button class="btn btn-text" id="btn-cancelar-edicion-sorteo" onclick="cancelarEdicionSorteo()" style="display:none">Cancelar</button>
+          <button class="btn btn-outline" onclick="cargarSorteosPredefinidos()">Cargar los 19 sorteos que enviaste</button>
+        </div>
+        <div class="pill-list" id="lista-sorteos"></div>
+      </div>
+
+      <div class="card">
+        <h2>Premiación</h2>
+        <p class="hint">Monto que se paga por raya jugada, según posición ganadora.</p>
+        <table class="premios-table">
+          <thead><tr><th style="text-align:left">Modalidad</th><th>1er lugar</th><th>2do lugar</th><th>3er lugar</th></tr></thead>
+          <tbody>
+            <tr><td style="text-align:left; font-weight:600">Chance $0.20</td>
+              <td><input type="number" step="0.01" id="premio-c20-1"></td>
+              <td><input type="number" step="0.01" id="premio-c20-2"></td>
+              <td><input type="number" step="0.01" id="premio-c20-3"></td></tr>
+            <tr><td style="text-align:left; font-weight:600">Chance $0.25</td>
+              <td><input type="number" step="0.01" id="premio-c25-1"></td>
+              <td><input type="number" step="0.01" id="premio-c25-2"></td>
+              <td><input type="number" step="0.01" id="premio-c25-3"></td></tr>
+          </tbody>
+        </table>
+
+        <h2 style="margin-top:22px">Premiación Palé $1.00</h2>
+        <p class="hint">El palé son 4 dígitos (dos pares de 2 números, ej. 45 56). Paga si los pares coinciden con el 1er y 2do lugar (en cualquier orden), o con el 2do y 3er lugar (en cualquier orden). Se puede desactivar la venta de palé por sorteo desde la lista de sorteos.</p>
+        <div class="grid-2">
+          <div class="field"><label>Acierta 1ro y 2do (cualquier orden)</label><input type="number" step="0.01" id="premio-pale-12"></div>
+          <div class="field"><label>Acierta 2do y 3ro (cualquier orden)</label><input type="number" step="0.01" id="premio-pale-23"></div>
+        </div>
+
+        <button class="btn btn-primary" style="margin-top:6px" onclick="guardarPremios()">Guardar premiación</button>
+      </div>
+
+      <div class="card">
+        <h2>Seguridad</h2>
+        <p class="hint">Cambiar usuario y contraseña del administrador.</p>
+        <div class="grid-3">
+          <div class="field"><label>Contraseña actual</label><input type="password" id="sec-actual"></div>
+          <div class="field"><label>Nuevo usuario</label><input type="text" id="sec-nuevo-user"></div>
+          <div class="field"><label>Nueva contraseña</label><input type="password" id="sec-nueva-pass"></div>
+        </div>
+        <button class="btn btn-outline" onclick="cambiarAdminAuth()">Guardar cambios</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+</div>
+
+<div class="modal-overlay no-print" id="modal-comprobante" style="display:none">
+  <div class="ticket">
+    <div class="ticket-notch left"></div>
+    <div class="ticket-notch right"></div>
+    <div class="ticket-body" id="ticket-content"></div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="cerrarModal()">Cerrar</button>
+      <button class="btn btn-outline" onclick="compartirTicketActual()">Compartir</button>
+      <button class="btn btn-primary" onclick="imprimirTicket()">Imprimir</button>
+    </div>
+  </div>
+</div>
+<div id="print-area"><div class="ticket" style="box-shadow:none; width:100%; max-width:320px; margin:0 auto;"><div class="ticket-body" id="print-ticket-content"></div></div></div>
+
+<div class="modal-overlay no-print" id="modal-confirm" style="display:none; z-index:200;">
+  <div class="ticket" style="width:320px;">
+    <div class="ticket-body">
+      <p id="confirm-mensaje" style="font-size:15px; margin:0 0 14px 0; line-height:1.4;"></p>
+      <div id="confirm-input-wrap" style="display:none; margin-bottom:14px;">
+        <input type="text" id="confirm-input" style="width:100%; padding:10px 12px; border:1px solid var(--line); border-radius:7px; background:var(--paper-dim); font-size:14.5px;">
+      </div>
+      <div class="modal-actions" style="margin-top:0;">
+        <button type="button" class="btn btn-outline" id="confirm-btn-cancelar" onclick="confirmCancelar()">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="confirm-btn-aceptar" onclick="confirmAceptar()">Aceptar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="toast" style="display:none"></div>
+
+<script>
+  window.__cdnCargada = false;
+  window.__mostrarAvisoCarga = function(msg){
+    var b = document.getElementById('login-error');
+    if(b){ b.textContent = msg; b.style.display='block'; }
+  };
+  window.onerror = function(msg, url, line, col, error){
+    window.__mostrarAvisoCarga('ERROR JS: '+msg+' (línea '+line+')');
+    return false;
+  };
+  window.addEventListener('unhandledrejection', function(ev){
+    var razon = ev.reason && ev.reason.message ? ev.reason.message : ev.reason;
+    window.__mostrarAvisoCarga('ERROR (promesa sin atrapar): '+razon);
+  });
+  setTimeout(function(){
+    if(!window.__cdnCargada){
+      window.__mostrarAvisoCarga('No se pudo cargar la conexión a internet necesaria. Prueba con datos móviles, otra red Wi-Fi, u otro navegador (Safari o Chrome).');
+    }
+  }, 7000);
+</script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"
+        onload="window.__cdnCargada=true;"
+        onerror="window.__mostrarAvisoCarga('No se pudo descargar la librería necesaria. Revisa tu conexión a internet.');"></script>
+<script>
+// ---------------- CONEXIÓN A SUPABASE ----------------
+const SUPABASE_URL = 'https://nqtouvsbrcbfdtptdbro.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_svq0DOUmChbojAdSZeKj8Q_dxe-PMmz';
+let db = null;
+try{
+  db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+}catch(e){
+  window.__mostrarAvisoCarga('No se pudo iniciar la conexión a la base de datos: '+(e&&e.message?e.message:e));
+}
+
+// ---------------- ESTADO ----------------
+let vendedores = [];
+let sorteos = [];       // {id,nombre,horaSorteoTexto,horaCierre:'HH:MM',dias:[0..6],notas,excepcionFecha}
+let adminAuth = { username:'admin', password:'admin123' };
+let premios = { chance20:{1:11,2:3,3:2}, chance25:{1:14,2:3,3:2}, pale:{"12":1000,"23":200} };
+let ventasList = [];
+let folioCounter = 1;
+let resultados = [];
+
+let currentUser = null;
+let editingVendedorId = null;
+let editingSorteoId = null;
+
+let modalidadActual = 'chance20';
+let jugadasTicket = [];
+
+const PRECIOS = { chance20: 0.20, chance25: 0.25, pale: 1.00 };
+const NOMBRES_MOD = { chance20: 'Chance $0.20', chance25: 'Chance $0.25', pale: 'Palé $1.00' };
+const TAG_CLASS = { chance20: 'tag-chance20', chance25: 'tag-chance25', pale: 'tag-pale' };
+const DIAS_LABEL = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
+
+let dataLoaded = false;
+
+// ---------------- CARGA / GUARDADO ----------------
+let defaultVendedorCreado = false;
+function filaAVendedor(v){ return { id:v.id, nombre:v.nombre, username:v.username, password:v.password }; }
+function filaASorteo(s){
+  return { id:s.id, nombre:s.nombre, horaSorteoTexto:s.hora_sorteo_texto, horaCierre:s.hora_cierre,
+    dias:s.dias||[], notas:s.notas||'', excepcionFecha:s.excepcion_fecha, paleHabilitado: s.pale_habilitado!==false };
+}
+function filaAVenta(v){
+  return { id:v.id, folio:v.folio, vendedorId:v.vendedor_id, sorteoId:v.sorteo_id, codigoSorteo:v.codigo_sorteo,
+    cliente:v.cliente, fecha:v.fecha, jugadas:v.jugadas, total:+v.total,
+    anulada:v.anulada, anuladaPor:v.anulada_por, anuladaEn:v.anulada_en, motivoAnulacion:v.motivo_anulacion };
+}
+function filaAResultado(r){ return { id:r.id, sorteoId:r.sorteo_id, fechaKey:r.fecha_key, primero:r.primero, segundo:r.segundo, tercero:r.tercero }; }
+
+async function cargarDatos(){
+  try{
+    const { data: cfg } = await db.from('app_config').select('*').eq('id',1).maybeSingle();
+    if(cfg){
+      adminAuth = { username: cfg.admin_username, password: cfg.admin_password };
+      premios = cfg.premios || premios;
+      if(!premios.pale) premios.pale = { "12":1000, "23":200 };
+      defaultVendedorCreado = !!cfg.default_vendedor_creado;
+    }
+  }catch(e){ avisar('No se pudo conectar a la base de datos.'); }
+
+  try{
+    const { data } = await db.from('vendedores').select('*').order('created_at');
+    vendedores = (data||[]).map(filaAVendedor);
+  }catch(e){}
+
+  try{
+    const { data } = await db.from('sorteos').select('*').order('created_at');
+    sorteos = (data||[]).map(filaASorteo);
+  }catch(e){}
+
+  try{
+    const { data } = await db.from('ventas').select('*').order('fecha', { ascending:false });
+    ventasList = (data||[]).map(filaAVenta);
+  }catch(e){}
+
+  try{
+    const { data } = await db.from('folio_counter').select('*').eq('id',1).maybeSingle();
+    folioCounter = data ? data.siguiente : 1;
+  }catch(e){}
+
+  try{
+    const { data } = await db.from('resultados').select('*');
+    resultados = (data||[]).map(filaAResultado);
+  }catch(e){}
+
+  if(!defaultVendedorCreado){
+    const nuevoVendedor = { id: uid(), nombre:'Vendedor Demo', username:'vendedor1', password:'1234' };
+    try{
+      await db.from('vendedores').insert({ id:nuevoVendedor.id, nombre:nuevoVendedor.nombre, username:nuevoVendedor.username, password:nuevoVendedor.password });
+      vendedores.push(nuevoVendedor);
+      await db.from('app_config').update({ default_vendedor_creado:true }).eq('id',1);
+      defaultVendedorCreado = true;
+    }catch(e){}
+  }
+  dataLoaded = true;
+}
+async function guardarConfig(){
+  try{ await db.from('app_config').update({ admin_username: adminAuth.username, admin_password: adminAuth.password, premios }).eq('id',1); }
+  catch(e){ avisar('No se pudo guardar. Intenta de nuevo.'); }
+}
+
+// ---------------- LOGIN ----------------
+function conTiempoLimite(promesa, ms, etiqueta){
+  return Promise.race([
+    promesa,
+    new Promise((_,reject)=>setTimeout(()=>reject(new Error('Tiempo de espera agotado ('+etiqueta+'). Revisa tu conexión a internet.')), ms))
+  ]);
+}
+async function intentarLogin(){
+  const errBox = document.getElementById('login-error');
+  const btnEntrar = document.getElementById('btn-entrar');
+  errBox.style.display='none';
+  if(btnEntrar){ btnEntrar.disabled = true; btnEntrar.textContent = 'Entrando...'; }
+  try{
+    if(!dataLoaded) await conTiempoLimite(cargarDatos(), 10000, 'conectando a la base de datos');
+    const u = document.getElementById('login-username').value.trim();
+    const p = document.getElementById('login-password').value;
+
+    if(u===adminAuth.username && p===adminAuth.password){
+      currentUser = { role:'admin', nombre:'Administrador' };
+    }else{
+      const v = vendedores.find(x=>x.username===u && x.password===p);
+      if(v){ currentUser = { role:'vendedor', vendedorId:v.id, nombre:v.nombre }; }
+    }
+    if(!currentUser){ errBox.textContent = 'Usuario o contraseña incorrectos.'; errBox.style.display='block'; return; }
+
+    document.getElementById('login-password').value='';
+    await guardarSesionActiva();
+    entrarAlApp();
+  }catch(e){
+    errBox.textContent = 'Error técnico: '+(e && e.message ? e.message : e);
+    errBox.style.display='block';
+  }finally{
+    if(btnEntrar){ btnEntrar.disabled = false; btnEntrar.textContent = 'Entrar'; }
+  }
+}
+async function guardarSesionActiva(){
+  try{
+    if(!currentUser){ await window.storage.delete('sesion-activa'); return; }
+    const datos = currentUser.role==='admin'
+      ? { role:'admin' }
+      : { role:'vendedor', vendedorId: currentUser.vendedorId };
+    await window.storage.set('sesion-activa', JSON.stringify(datos));
+  }catch(e){}
+}
+async function intentarAutoLogin(){
+  try{
+    const s = await window.storage.get('sesion-activa');
+    if(!s || !s.value) return false;
+    const sesion = JSON.parse(s.value);
+    if(sesion.role==='admin'){
+      currentUser = { role:'admin', nombre:'Administrador' };
+      return true;
+    }
+    if(sesion.role==='vendedor'){
+      const v = vendedores.find(x=>x.id===sesion.vendedorId);
+      if(v){ currentUser = { role:'vendedor', vendedorId:v.id, nombre:v.nombre }; return true; }
+    }
+  }catch(e){}
+  return false;
+}
+function entrarAlApp(){
+  document.getElementById('login-screen').style.display='none';
+  document.getElementById('app-shell').style.display='block';
+
+  renderDiasCheckboxes();
+  aplicarRol();
+  resetKeypad();
+  renderVendedorSelects();
+  renderSorteoFiltros();
+  renderVentaSorteoSelect();
+  renderConfigLists();
+  renderPremiosForm();
+  renderResultadosSorteoSelect();
+  renderListaResultados();
+  renderHistorial();
+  renderReportes();
+  renderTablaSorteoSelect();
+  onHeaderChange();
+  switchTab('ventas');
+}
+async function cerrarSesion(){
+  currentUser = null;
+  await guardarSesionActiva();
+  document.getElementById('app-shell').style.display='none';
+  document.getElementById('login-screen').style.display='flex';
+  document.getElementById('login-username').value='';
+  document.getElementById('login-password').value='';
+  document.getElementById('login-error').style.display='none';
+}
+function aplicarRol(){
+  document.getElementById('session-nombre').textContent = currentUser.nombre;
+  document.getElementById('session-rol').textContent = currentUser.role==='admin' ? 'Administrador' : 'Vendedor';
+  document.querySelectorAll('.admin-only').forEach(el=>{ el.style.display = currentUser.role==='admin' ? 'flex' : 'none'; });
+  const sel = document.getElementById('sel-vendedor');
+  const locked = document.getElementById('locked-vendedor');
+  if(currentUser.role==='vendedor'){ sel.style.display='none'; locked.style.display='block'; locked.textContent = currentUser.nombre; }
+  else{ sel.style.display='block'; locked.style.display='none'; }
+  const esVendedor = currentUser.role==='vendedor';
+  const fv = document.getElementById('filtro-vendedor'); if(fv) fv.style.display = esVendedor ? 'none' : '';
+  const rv = document.getElementById('rep-vendedor'); if(rv) rv.style.display = esVendedor ? 'none' : '';
+}
+
+// ---------------- NAV ----------------
+function switchTab(tab){
+  if((tab==='config' || tab==='resultados' || tab==='reportes') && currentUser.role!=='admin') return;
+  document.querySelectorAll('.nav-item[data-tab]').forEach(el=>el.classList.toggle('active', el.dataset.tab===tab));
+  ['ventas','historial','reportes','tabla','resultados','config'].forEach(t=>{
+    const el = document.getElementById('tab-'+t);
+    if(el) el.style.display = (t===tab)?'block':'none';
+  });
+  if(tab==='historial') renderHistorial();
+  if(tab==='reportes') renderReportes();
+  if(tab==='tabla'){ renderTablaSorteoSelect(); renderTablaNumeros(); }
+  if(tab==='resultados'){ renderResultadosSorteoSelect(); renderListaResultados(); }
+  if(tab==='ventas'){ renderVentaSorteoSelect(); onHeaderChange(); }
+}
+function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
+
+// ---------------- AVISOS Y CONFIRMACIONES PROPIAS (reemplazan alert/confirm/prompt nativos) ----------------
+function avisar(mensaje){
+  const t = document.getElementById('toast');
+  if(!t){ return; }
+  t.textContent = mensaje;
+  t.style.display='block';
+  clearTimeout(window._toastTimer);
+  window._toastTimer = setTimeout(()=>{ t.style.display='none'; }, 3500);
+}
+let _confirmResolve = null;
+function mostrarConfirmacion(mensaje, opciones){
+  opciones = opciones || {};
+  return new Promise(resolve=>{
+    _confirmResolve = resolve;
+    document.getElementById('confirm-mensaje').textContent = mensaje;
+    const inputWrap = document.getElementById('confirm-input-wrap');
+    const input = document.getElementById('confirm-input');
+    if(opciones.conInput){ inputWrap.style.display='block'; input.value = opciones.valorInput || ''; }
+    else{ inputWrap.style.display='none'; }
+    document.getElementById('confirm-btn-aceptar').textContent = opciones.textoAceptar || 'Aceptar';
+    document.getElementById('confirm-btn-cancelar').textContent = opciones.textoCancelar || 'Cancelar';
+    document.getElementById('modal-confirm').style.display='flex';
+    if(opciones.conInput) setTimeout(()=>input.focus(), 60);
+  });
+}
+function _resolverConfirm(valor){
+  document.getElementById('modal-confirm').style.display='none';
+  const r = _confirmResolve;
+  _confirmResolve = null;
+  if(r) r(valor);
+}
+function confirmAceptar(){
+  const conInput = document.getElementById('confirm-input-wrap').style.display==='block';
+  _resolverConfirm(conInput ? document.getElementById('confirm-input').value : true);
+}
+function confirmCancelar(){ _resolverConfirm(null); }
+function escapeHtml(str){ const d=document.createElement('div'); d.textContent=str; return d.innerHTML; }
+
+// ---------------- VENDEDORES ----------------
+function iniciarEdicionVendedor(id){
+  const v = vendedores.find(x=>x.id===id); if(!v) return;
+  editingVendedorId = id;
+  document.getElementById('in-v-nombre').value = v.nombre;
+  document.getElementById('in-v-username').value = v.username;
+  document.getElementById('in-v-password').value = v.password;
+  document.getElementById('vendedor-form-title').textContent = 'Editar vendedor';
+  document.getElementById('btn-guardar-vendedor').textContent = 'Guardar cambios';
+  document.getElementById('btn-cancelar-edicion').style.display='inline-block';
+}
+function cancelarEdicionVendedor(){
+  editingVendedorId = null;
+  document.getElementById('in-v-nombre').value='';
+  document.getElementById('in-v-username').value='';
+  document.getElementById('in-v-password').value='';
+  document.getElementById('vendedor-form-title').textContent = 'Agregar vendedor';
+  document.getElementById('btn-guardar-vendedor').textContent = 'Agregar vendedor';
+  document.getElementById('btn-cancelar-edicion').style.display='none';
+}
+async function guardarVendedor(){
+  const nombre = document.getElementById('in-v-nombre').value.trim();
+  const username = document.getElementById('in-v-username').value.trim();
+  const password = document.getElementById('in-v-password').value.trim();
+  if(!nombre || !username || !password){ avisar('Completa nombre, usuario y contraseña.'); return; }
+  const usernameEnUso = vendedores.some(v=>v.username===username && v.id!==editingVendedorId) || username===adminAuth.username;
+  if(usernameEnUso){ avisar('Ese usuario ya está en uso.'); return; }
+  try{
+    if(editingVendedorId){
+      await db.from('vendedores').update({ nombre, username, password }).eq('id', editingVendedorId);
+      const v = vendedores.find(x=>x.id===editingVendedorId); v.nombre=nombre; v.username=username; v.password=password;
+    }else{
+      const nuevo = { id: uid(), nombre, username, password };
+      await db.from('vendedores').insert(nuevo);
+      vendedores.push(nuevo);
+    }
+  }catch(e){ avisar('No se pudo guardar el vendedor.'); return; }
+  cancelarEdicionVendedor();
+  renderVendedorSelects();
+  renderConfigLists();
+}
+async function eliminarVendedor(id){
+  if(!(await mostrarConfirmacion('¿Eliminar este vendedor? No podrá volver a iniciar sesión.'))) return;
+  try{ await db.from('vendedores').delete().eq('id', id); }
+  catch(e){ avisar('No se pudo eliminar el vendedor.'); return; }
+  vendedores = vendedores.filter(v=>v.id!==id);
+  if(editingVendedorId===id) cancelarEdicionVendedor();
+  renderVendedorSelects();
+  renderConfigLists();
+}
+
+// ---------------- SORTEOS (horario / cierre / días) ----------------
+function renderDiasCheckboxes(){
+  const cont = document.getElementById('dias-check-container');
+  cont.innerHTML = DIAS_LABEL.map((lbl,i)=>`<label><input type="checkbox" id="chk-dia-${i}"> ${lbl}</label>`).join('');
+}
+function marcarTodosLosDias(){ for(let i=0;i<7;i++) document.getElementById('chk-dia-'+i).checked = true; }
+function leerDiasSeleccionados(){
+  const arr=[]; for(let i=0;i<7;i++){ if(document.getElementById('chk-dia-'+i).checked) arr.push(i); } return arr;
+}
+function pintarDiasSeleccionados(dias){
+  for(let i=0;i<7;i++){ document.getElementById('chk-dia-'+i).checked = dias.includes(i); }
+}
+function minutosDe(hhmm){ if(!hhmm) return 0; const [h,m]=hhmm.split(':').map(Number); return h*60+m; }
+function sorteoAbierto(s){
+  const now = new Date();
+  const dow = now.getDay();
+  const todayKey = toDateKey(now.toISOString());
+  const diaOk = (s.dias && s.dias.includes(dow)) || s.excepcionFecha===todayKey;
+  if(!diaOk) return false;
+  const nowMin = now.getHours()*60+now.getMinutes();
+  return nowMin < minutosDe(s.horaCierre);
+}
+function formatoDias(dias){
+  if(!dias || dias.length===0) return 'Sin días asignados';
+  if(dias.length===7) return 'Todos los días';
+  return dias.slice().sort().map(i=>DIAS_LABEL[i]).join(', ');
+}
+
+function iniciarEdicionSorteo(id){
+  const s = sorteos.find(x=>x.id===id); if(!s) return;
+  editingSorteoId = id;
+  document.getElementById('in-s-nombre').value = s.nombre;
+  document.getElementById('in-s-horasorteo').value = s.horaSorteoTexto;
+  document.getElementById('in-s-cierre').value = s.horaCierre;
+  document.getElementById('in-s-notas').value = s.notas || '';
+  document.getElementById('in-s-pale').checked = s.paleHabilitado !== false;
+  pintarDiasSeleccionados(s.dias || []);
+  document.getElementById('sorteo-form-title').textContent = 'Editar sorteo';
+  document.getElementById('btn-guardar-sorteo').textContent = 'Guardar cambios';
+  document.getElementById('btn-cancelar-edicion-sorteo').style.display='inline-block';
+}
+function cancelarEdicionSorteo(){
+  editingSorteoId = null;
+  document.getElementById('in-s-nombre').value='';
+  document.getElementById('in-s-horasorteo').value='';
+  document.getElementById('in-s-cierre').value='';
+  document.getElementById('in-s-notas').value='';
+  document.getElementById('in-s-pale').checked = true;
+  pintarDiasSeleccionados([]);
+  document.getElementById('sorteo-form-title').textContent = 'Agregar sorteo';
+  document.getElementById('btn-guardar-sorteo').textContent = 'Agregar sorteo';
+  document.getElementById('btn-cancelar-edicion-sorteo').style.display='none';
+}
+function filaSorteoParaDB(s){
+  return { id:s.id, nombre:s.nombre, hora_sorteo_texto:s.horaSorteoTexto, hora_cierre:s.horaCierre,
+    dias:s.dias, notas:s.notas, excepcion_fecha:s.excepcionFecha, pale_habilitado:s.paleHabilitado };
+}
+async function guardarSorteo(){
+  const nombre = document.getElementById('in-s-nombre').value.trim();
+  const horaSorteoTexto = document.getElementById('in-s-horasorteo').value.trim();
+  const horaCierre = document.getElementById('in-s-cierre').value;
+  const notas = document.getElementById('in-s-notas').value.trim();
+  const paleHabilitado = document.getElementById('in-s-pale').checked;
+  const dias = leerDiasSeleccionados();
+  if(!nombre || !horaSorteoTexto || !horaCierre){ avisar('Completa nombre, hora del sorteo y hora de cierre.'); return; }
+  if(dias.length===0){ avisar('Selecciona al menos un día.'); return; }
+  try{
+    if(editingSorteoId){
+      const s = sorteos.find(x=>x.id===editingSorteoId);
+      const actualizado = { ...s, nombre, horaSorteoTexto, horaCierre, notas, dias, paleHabilitado };
+      await db.from('sorteos').update(filaSorteoParaDB(actualizado)).eq('id', editingSorteoId);
+      s.nombre=nombre; s.horaSorteoTexto=horaSorteoTexto; s.horaCierre=horaCierre; s.notas=notas; s.dias=dias; s.paleHabilitado=paleHabilitado;
+    }else{
+      const nuevo = { id: uid(), nombre, horaSorteoTexto, horaCierre, notas, dias, excepcionFecha:null, paleHabilitado };
+      await db.from('sorteos').insert(filaSorteoParaDB(nuevo));
+      sorteos.push(nuevo);
+    }
+  }catch(e){ avisar('No se pudo guardar el sorteo.'); return; }
+  cancelarEdicionSorteo();
+  renderSorteoFiltros(); renderVentaSorteoSelect(); renderConfigLists(); renderResultadosSorteoSelect(); renderTablaSorteoSelect(); actualizarDisponibilidadPale();
+}
+async function eliminarSorteo(id){
+  if(!(await mostrarConfirmacion('¿Eliminar este sorteo?'))) return;
+  try{ await db.from('sorteos').delete().eq('id', id); }
+  catch(e){ avisar('No se pudo eliminar el sorteo.'); return; }
+  sorteos = sorteos.filter(s=>s.id!==id);
+  if(editingSorteoId===id) cancelarEdicionSorteo();
+  renderSorteoFiltros(); renderVentaSorteoSelect(); renderConfigLists(); renderResultadosSorteoSelect(); renderTablaSorteoSelect();
+}
+async function toggleExcepcionHoy(id){
+  const s = sorteos.find(x=>x.id===id); if(!s) return;
+  const todayKey = toDateKey(new Date().toISOString());
+  const nuevoValor = (s.excepcionFecha===todayKey) ? null : todayKey;
+  try{ await db.from('sorteos').update({ excepcion_fecha: nuevoValor }).eq('id', id); }
+  catch(e){ avisar('No se pudo actualizar el sorteo.'); return; }
+  s.excepcionFecha = nuevoValor;
+  renderConfigLists(); renderVentaSorteoSelect();
+}
+async function togglePaleSorteo(id){
+  const s = sorteos.find(x=>x.id===id); if(!s) return;
+  const nuevoValor = !(s.paleHabilitado !== false);
+  try{ await db.from('sorteos').update({ pale_habilitado: nuevoValor }).eq('id', id); }
+  catch(e){ avisar('No se pudo actualizar el sorteo.'); return; }
+  s.paleHabilitado = nuevoValor;
+  renderConfigLists(); actualizarDisponibilidadPale();
+}
+async function cargarSorteosPredefinidos(){
+  const T=[0,1,2,3,4,5,6];
+  const preset = [
+    {nombre:'La Primera', horaSorteoTexto:'11:00 AM', horaCierre:'10:58', dias:T, notas:''},
+    {nombre:'Nica', horaSorteoTexto:'12:00 MD', horaCierre:'11:58', dias:T, notas:''},
+    {nombre:'Honduras', horaSorteoTexto:'12:00 MD', horaCierre:'11:58', dias:T, notas:''},
+    {nombre:'Anguila', horaSorteoTexto:'12:00 MD', horaCierre:'11:57', dias:T, notas:''},
+    {nombre:'New York', horaSorteoTexto:'1:30 PM', horaCierre:'13:27', dias:T, notas:''},
+    {nombre:'Monazo', horaSorteoTexto:'1:55 PM', horaCierre:'13:52', dias:T, notas:''},
+    {nombre:'Nacional', horaSorteoTexto:'3:00 PM', horaCierre:'14:58', dias:[3,0], notas:'+ algunos viernes: usa "Excepción hoy" para habilitarlo ese día', paleHabilitado:false},
+    {nombre:'Nica', horaSorteoTexto:'4:00 PM', horaCierre:'15:58', dias:T, notas:''},
+    {nombre:'Honduras', horaSorteoTexto:'4:00 PM', horaCierre:'15:58', dias:T, notas:''},
+    {nombre:'Anguila', horaSorteoTexto:'5:00 PM', horaCierre:'16:57', dias:T, notas:''},
+    {nombre:'Monazo', horaSorteoTexto:'5:30 PM', horaCierre:'17:28', dias:T, notas:''},
+    {nombre:'La Primera', horaSorteoTexto:'6:00 PM', horaCierre:'17:58', dias:T, notas:''},
+    {nombre:'Nica', horaSorteoTexto:'7:00 PM', horaCierre:'18:58', dias:[6,0], notas:''},
+    {nombre:'Anguila', horaSorteoTexto:'8:00 PM', horaCierre:'19:57', dias:T, notas:''},
+    {nombre:'Monazo', horaSorteoTexto:'8:30 PM', horaCierre:'20:28', dias:[1,3,4,6], notas:''},
+    {nombre:'Tica', horaSorteoTexto:'8:30 PM', horaCierre:'20:28', dias:[2,5,0], notas:''},
+    {nombre:'New York', horaSorteoTexto:'9:30 PM', horaCierre:'21:28', dias:T, notas:''},
+    {nombre:'Nica', horaSorteoTexto:'10:00 PM', horaCierre:'21:58', dias:T, notas:''},
+    {nombre:'Honduras', horaSorteoTexto:'10:00 PM', horaCierre:'21:58', dias:T, notas:''}
+  ];
+  const nuevos = [];
+  preset.forEach(p=>{
+    const existe = sorteos.some(s=>s.nombre===p.nombre && s.horaSorteoTexto===p.horaSorteoTexto);
+    if(!existe){ nuevos.push({ id: uid(), paleHabilitado:true, ...p, excepcionFecha:null }); }
+  });
+  if(nuevos.length){
+    try{ await db.from('sorteos').insert(nuevos.map(filaSorteoParaDB)); }
+    catch(e){ avisar('No se pudieron cargar los sorteos.'); return; }
+    sorteos.push(...nuevos);
+  }
+  renderSorteoFiltros(); renderVentaSorteoSelect(); renderConfigLists(); renderResultadosSorteoSelect(); renderTablaSorteoSelect();
+  avisar(nuevos.length+' sorteo(s) agregados. '+(preset.length-nuevos.length)+' ya existían.');
+}
+
+function renderConfigLists(){
+  const lv = document.getElementById('lista-vendedores');
+  lv.innerHTML = vendedores.length ? vendedores.map(v=>
+    `<div class="pill">${escapeHtml(v.nombre)} <span class="mono" style="color:var(--ink-dim); font-size:11.5px;">@${escapeHtml(v.username)}</span>
+      <button class="edit-btn" onclick="iniciarEdicionVendedor('${v.id}')" title="Editar">✎</button>
+      <button class="del-btn" onclick="eliminarVendedor('${v.id}')" title="Eliminar">×</button>
+    </div>`).join('') : '<div class="empty-state">No hay vendedores agregados todavía.</div>';
+
+  const ls = document.getElementById('lista-sorteos');
+  const todayKey = toDateKey(new Date().toISOString());
+  ls.innerHTML = sorteos.length ? sorteos.map(s=>{
+    const abierto = sorteoAbierto(s);
+    const excActiva = s.excepcionFecha===todayKey;
+    const paleOn = s.paleHabilitado !== false;
+    return `<div class="pill pill-block">
+      <div><span class="dot ${abierto?'abierto':'cerrado'}"></span><strong>${escapeHtml(s.nombre)}</strong> · ${escapeHtml(s.horaSorteoTexto)}</div>
+      <div style="font-size:12px; color:var(--ink-dim)">Cierra ${s.horaCierre} · ${formatoDias(s.dias)}</div>
+      <div style="font-size:11.5px; color:${paleOn?'var(--ink-dim)':'var(--red)'}; font-weight:${paleOn?'400':'600'}">${paleOn? 'Palé habilitado' : 'Palé NO se vende en este sorteo'}</div>
+      ${s.notas? `<div style="font-size:11.5px; color:var(--ink-dim)">${escapeHtml(s.notas)}</div>` : ''}
+      <div class="pill-row-actions">
+        <button class="edit-btn" onclick="iniciarEdicionSorteo('${s.id}')" title="Editar">Editar</button>
+        <button class="exc-btn" onclick="toggleExcepcionHoy('${s.id}')" title="Excepción hoy">${excActiva? 'Quitar excepción hoy':'Excepción hoy'}</button>
+        <button class="exc-btn" onclick="togglePaleSorteo('${s.id}')" title="Palé">${paleOn? 'Desactivar palé':'Activar palé'}</button>
+        <button class="del-btn" onclick="eliminarSorteo('${s.id}')" title="Eliminar">Eliminar</button>
+      </div>
+    </div>`;
+  }).join('') : '<div class="empty-state">No hay sorteos agregados todavía.</div>';
+}
+
+function renderVendedorSelects(){
+  const opts = vendedores.map(v=>`<option value="${v.id}">${escapeHtml(v.nombre)}</option>`).join('');
+  document.getElementById('sel-vendedor').innerHTML = '<option value="">Selecciona un vendedor</option>'+opts;
+  document.getElementById('filtro-vendedor').innerHTML = '<option value="">Todos los vendedores</option>'+opts;
+  document.getElementById('rep-vendedor').innerHTML = '<option value="">Todos los vendedores</option>'+opts;
+}
+function renderSorteoFiltros(){
+  const opts = sorteos.map(s=>`<option value="${s.id}">${escapeHtml(s.nombre+' · '+s.horaSorteoTexto)}</option>`).join('');
+  document.getElementById('filtro-sorteo').innerHTML = '<option value="">Todos los sorteos</option>'+opts;
+  document.getElementById('rep-sorteo').innerHTML = '<option value="">Todos los sorteos</option>'+opts;
+}
+function renderVentaSorteoSelect(){
+  const sel = document.getElementById('sel-sorteo');
+  const valorPrevio = sel.value;
+  const soloAbiertos = currentUser && currentUser.role==='vendedor';
+  sel.innerHTML = '<option value="">Selecciona un sorteo</option>' + sorteos.map(s=>{
+    const abierto = sorteoAbierto(s);
+    const disabled = (soloAbiertos && !abierto) ? 'disabled' : '';
+    const codigo = codigoSorteoParaFecha(s, new Date().toISOString());
+    const etiqueta = `${s.nombre} · ${s.horaSorteoTexto} · ${codigo}${abierto? '' : ' (cerrado)'}`;
+    return `<option value="${s.id}" ${disabled}>${escapeHtml(etiqueta)}</option>`;
+  }).join('');
+  if(valorPrevio && [...sel.options].some(o=>o.value===valorPrevio)) sel.value = valorPrevio;
+  actualizarEstadoSorteo();
+}
+function actualizarEstadoSorteo(){
+  const box = document.getElementById('sorteo-status');
+  const id = document.getElementById('sel-sorteo').value;
+  const s = sorteos.find(x=>x.id===id);
+  if(!s){ box.textContent=''; box.className='sorteo-status'; return; }
+  const abierto = sorteoAbierto(s);
+  const codigo = codigoSorteoParaFecha(s, new Date().toISOString());
+  box.className = 'sorteo-status ' + (abierto?'abierto':'cerrado');
+  box.textContent = (abierto ? `Abierto · cierra a las ${s.horaCierre}` : `Cerrado · cerró a las ${s.horaCierre}`) + ` · Código: ${codigo}`;
+}
+
+// ---------------- PREMIOS ----------------
+function renderPremiosForm(){
+  document.getElementById('premio-c20-1').value = premios.chance20[1];
+  document.getElementById('premio-c20-2').value = premios.chance20[2];
+  document.getElementById('premio-c20-3').value = premios.chance20[3];
+  document.getElementById('premio-c25-1').value = premios.chance25[1];
+  document.getElementById('premio-c25-2').value = premios.chance25[2];
+  document.getElementById('premio-c25-3').value = premios.chance25[3];
+  document.getElementById('premio-pale-12').value = premios.pale ? premios.pale['12'] : 1000;
+  document.getElementById('premio-pale-23').value = premios.pale ? premios.pale['23'] : 200;
+}
+function guardarPremios(){
+  premios = {
+    chance20:{ 1:+document.getElementById('premio-c20-1').value||0, 2:+document.getElementById('premio-c20-2').value||0, 3:+document.getElementById('premio-c20-3').value||0 },
+    chance25:{ 1:+document.getElementById('premio-c25-1').value||0, 2:+document.getElementById('premio-c25-2').value||0, 3:+document.getElementById('premio-c25-3').value||0 },
+    pale:{ "12":+document.getElementById('premio-pale-12').value||0, "23":+document.getElementById('premio-pale-23').value||0 }
+  };
+  guardarConfig();
+  avisar('Premiación actualizada.');
+}
+
+// ---------------- SEGURIDAD ----------------
+function cambiarAdminAuth(){
+  const actual = document.getElementById('sec-actual').value;
+  const nuevoUser = document.getElementById('sec-nuevo-user').value.trim();
+  const nuevaPass = document.getElementById('sec-nueva-pass').value.trim();
+  if(actual !== adminAuth.password){ avisar('La contraseña actual no es correcta.'); return; }
+  if(!nuevoUser && !nuevaPass){ avisar('Escribe el nuevo usuario y/o la nueva contraseña.'); return; }
+  if(nuevoUser) adminAuth.username = nuevoUser;
+  if(nuevaPass) adminAuth.password = nuevaPass;
+  guardarConfig();
+  document.getElementById('sec-actual').value=''; document.getElementById('sec-nuevo-user').value=''; document.getElementById('sec-nueva-pass').value='';
+  avisar('Datos de administrador actualizados.');
+}
+
+// ---------------- MODALIDAD / JUGADA (TECLADO) ----------------
+let pasoActivo = 'cantidad';   // 'cantidad' | 'numero'
+let bufferCantidad = '';
+let bufferNumero = '';
+let duplicadoPendiente = null; // { existente, cantidadNueva }
+
+function paleHabilitadoParaSorteo(sorteoId){
+  const s = sorteos.find(x=>x.id===sorteoId);
+  if(!s) return true;
+  return s.paleHabilitado !== false;
+}
+function maxNumeroLen(){ return modalidadActual==='pale' ? 4 : 2; }
+function setModalidad(mod){
+  modalidadActual = mod;
+  document.querySelectorAll('.modalidad-tab').forEach(el=>el.classList.toggle('active', el.dataset.mod===mod));
+  document.getElementById('kp-label-numero').textContent = mod==='pale' ? 'Palé (4 díg.)' : 'Número';
+  document.getElementById('kp-sum-modalidad').textContent = NOMBRES_MOD[mod];
+  bufferNumero='';
+  ocultarDuplicado();
+  seleccionarCampo('cantidad');
+  refrescarPantallaKeypad();
+}
+function actualizarDisponibilidadPale(){
+  const sorteoId = document.getElementById('sel-sorteo').value;
+  const habilitado = !sorteoId || paleHabilitadoParaSorteo(sorteoId);
+  const tabPale = document.querySelector('.modalidad-tab[data-mod="pale"]');
+  const aviso = document.getElementById('pale-bloqueado-aviso');
+  if(tabPale) tabPale.classList.toggle('deshabilitado', !habilitado);
+  if(aviso) aviso.style.display = habilitado ? 'none' : 'block';
+  if(!habilitado && modalidadActual==='pale') setModalidad('chance20');
+}
+function seleccionarCampo(campo){
+  pasoActivo = campo;
+  document.getElementById('kp-col-cantidad').classList.toggle('active', campo==='cantidad');
+  document.getElementById('kp-col-numero').classList.toggle('active', campo==='numero');
+  if(duplicadoPendiente) ocultarDuplicado();
+}
+function refrescarPantallaKeypad(){
+  document.getElementById('kp-cantidad').textContent = bufferCantidad || '0';
+  document.getElementById('kp-numero').textContent = bufferNumero || '0';
+}
+function tecla(valor){
+  if(duplicadoPendiente) return;
+  if(pasoActivo==='cantidad'){
+    if(valor==='clear'){ bufferCantidad=''; }
+    else if(bufferCantidad.length<3){ bufferCantidad += valor; }
+  }else{
+    if(valor==='clear'){ bufferNumero=''; }
+    else if(bufferNumero.length<maxNumeroLen()){ bufferNumero += valor; }
+  }
+  refrescarPantallaKeypad();
+}
+function presionarOK(){
+  if(duplicadoPendiente) return;
+  if(pasoActivo==='cantidad'){
+    if(!bufferCantidad){ bufferCantidad = '1'; refrescarPantallaKeypad(); }
+    seleccionarCampo('numero');
+  }else{
+    intentarAgregarJugada();
+  }
+}
+function resetKeypad(){
+  bufferCantidad=''; bufferNumero='';
+  ocultarDuplicado();
+  seleccionarCampo('cantidad');
+  refrescarPantallaKeypad();
+  const lblMod = document.getElementById('kp-sum-modalidad');
+  if(lblMod) lblMod.textContent = NOMBRES_MOD[modalidadActual];
+}
+function validarNumero(val){ if(!/^\d{1,2}$/.test(val)) return null; return val.padStart(2,'0'); }
+function formatearNumeroJugada(j){
+  return j.modalidad==='pale' ? (j.numero.slice(0,2)+'-'+j.numero.slice(2,4)) : j.numero;
+}
+function intentarAgregarJugada(){
+  const sorteoId = document.getElementById('sel-sorteo').value;
+  const sorteo = sorteos.find(s=>s.id===sorteoId);
+  if(currentUser.role==='vendedor' && (!sorteo || !sorteoAbierto(sorteo))){ avisar('Este sorteo ya cerró. No puedes agregar jugadas.'); return; }
+  if(modalidadActual==='pale' && sorteoId && !paleHabilitadoParaSorteo(sorteoId)){ avisar('Este sorteo no vende Palé.'); return; }
+
+  let numeroGuardado;
+  if(modalidadActual==='pale'){
+    if(bufferNumero.length!==4){ avisar('Ingresa los 4 dígitos del palé (dos pares, ej. 4556).'); return; }
+    numeroGuardado = bufferNumero;
+  }else{
+    const n1 = validarNumero(bufferNumero);
+    if(!n1){ avisar('Ingresa un número válido de 00 a 99.'); return; }
+    numeroGuardado = n1;
+  }
+  const cantidad = parseInt(bufferCantidad)||0;
+  if(cantidad<1){ avisar('Ingresa la cantidad de tiempos.'); return; }
+
+  const existente = jugadasTicket.find(j=>j.modalidad===modalidadActual && j.numero===numeroGuardado);
+  if(existente){
+    duplicadoPendiente = { existente, cantidadNueva: cantidad };
+    mostrarDuplicado();
+    return;
+  }
+  agregarJugadaDirecta(modalidadActual, numeroGuardado, cantidad);
+}
+function agregarJugadaDirecta(modalidad, numero, cantidad){
+  const precioUnit = PRECIOS[modalidad];
+  const monto = +(precioUnit*cantidad).toFixed(2);
+  jugadasTicket.push({ id: uid(), modalidad, numero, cantidad, monto });
+  resetKeypad();
+  renderJugadas();
+}
+function mostrarDuplicado(){
+  document.getElementById('kp-teclado-normal').style.display='none';
+  document.getElementById('kp-teclado-duplicado').style.display='flex';
+  document.getElementById('kp-dup-aviso').style.display='block';
+}
+function ocultarDuplicado(){
+  duplicadoPendiente = null;
+  document.getElementById('kp-teclado-normal').style.display='grid';
+  document.getElementById('kp-teclado-duplicado').style.display='none';
+  document.getElementById('kp-dup-aviso').style.display='none';
+}
+function resolverDuplicado(accion){
+  if(!duplicadoPendiente) return;
+  const { existente, cantidadNueva } = duplicadoPendiente;
+  const precioUnit = PRECIOS[existente.modalidad];
+  if(accion==='reemplazar'){ existente.cantidad = cantidadNueva; }
+  else{ existente.cantidad += cantidadNueva; }
+  existente.monto = +(precioUnit*existente.cantidad).toFixed(2);
+  ocultarDuplicado();
+  resetKeypad();
+  renderJugadas();
+}
+async function cancelarTicketActual(){
+  if(jugadasTicket.length===0){ resetKeypad(); return; }
+  if(!(await mostrarConfirmacion('¿Anular este ticket? Se perderán las jugadas que aún no se han confirmado.'))) return;
+  jugadasTicket = [];
+  resetKeypad();
+  renderJugadas();
+}
+function quitarJugada(id){ jugadasTicket = jugadasTicket.filter(j=>j.id!==id); renderJugadas(); }
+function renderJugadas(){
+  const cont = document.getElementById('jugadas-list');
+  if(jugadasTicket.length===0){ cont.innerHTML = '<div class="empty-state">Aún no has agregado jugadas a este ticket.</div>'; }
+  else{
+    cont.innerHTML = jugadasTicket.map(j=>`
+      <div class="jugada-row">
+        <div><span class="jugada-tag ${TAG_CLASS[j.modalidad]}">${NOMBRES_MOD[j.modalidad]}</span> <span class="jugada-num">${formatearNumeroJugada(j)}</span>
+          <span style="color:var(--ink-dim); font-size:12.5px;"> × ${j.cantidad}</span></div>
+        <div style="display:flex; align-items:center; gap:10px;"><span class="mono" style="font-weight:600;">$${j.monto.toFixed(2)}</span>
+          <button class="btn-danger-text" onclick="quitarJugada('${j.id}')">Quitar</button></div>
+      </div>`).join('');
+  }
+  const total = jugadasTicket.reduce((s,j)=>s+j.monto,0);
+  document.getElementById('kp-sum-jugadas').textContent = jugadasTicket.length;
+  document.getElementById('kp-sum-total').textContent = '$'+total.toFixed(2);
+  onHeaderChange();
+}
+function vendedorIdSeleccionado(){ return currentUser.role==='vendedor' ? currentUser.vendedorId : document.getElementById('sel-vendedor').value; }
+function onHeaderChange(){
+  const v = vendedorIdSeleccionado();
+  const s = document.getElementById('sel-sorteo').value;
+  const sorteo = sorteos.find(x=>x.id===s);
+  const bloqueadoPorCierre = currentUser.role==='vendedor' && sorteo && !sorteoAbierto(sorteo);
+  document.getElementById('btn-confirmar').disabled = !(v && s && jugadasTicket.length>0) || bloqueadoPorCierre;
+  actualizarEstadoSorteo();
+  actualizarDisponibilidadPale();
+  sincronizarFiltroHistorialConSorteo(s);
+}
+function sincronizarFiltroHistorialConSorteo(sorteoId){
+  const filtro = document.getElementById('filtro-sorteo');
+  if(filtro){
+    if(!sorteoId){ filtro.value=''; renderHistorial(); }
+    else if([...filtro.options].some(o=>o.value===sorteoId)){ filtro.value = sorteoId; renderHistorial(); }
+  }
+  const repSorteo = document.getElementById('rep-sorteo');
+  if(repSorteo){
+    if(!sorteoId){ repSorteo.value=''; renderReportes(); }
+    else if([...repSorteo.options].some(o=>o.value===sorteoId)){ repSorteo.value = sorteoId; renderReportes(); }
+  }
+  const tablaSorteo = document.getElementById('tabla-sorteo');
+  if(tablaSorteo){
+    if(!sorteoId){ tablaSorteo.value=''; renderTablaNumeros(); }
+    else if([...tablaSorteo.options].some(o=>o.value===sorteoId)){ tablaSorteo.value = sorteoId; renderTablaNumeros(); }
+  }
+}
+
+// ---------------- CONFIRMAR VENTA ----------------
+async function confirmarVenta(){
+  const vendedorId = vendedorIdSeleccionado();
+  const sorteoId = document.getElementById('sel-sorteo').value;
+  const sorteo = sorteos.find(s=>s.id===sorteoId);
+  if(!vendedorId || !sorteoId || jugadasTicket.length===0) return;
+  if(currentUser.role==='vendedor' && (!sorteo || !sorteoAbierto(sorteo))){ avisar('Este sorteo ya cerró. No puedes registrar esta venta.'); renderVentaSorteoSelect(); return; }
+
+  const total = jugadasTicket.reduce((s,j)=>s+j.monto,0);
+  const cliente = document.getElementById('in-cliente').value.trim();
+  const fechaVenta = new Date().toISOString();
+  const codigoSorteo = sorteo ? codigoSorteoParaFecha(sorteo, fechaVenta) : '';
+  const folioAsignado = folioCounter;
+  const venta = { id: uid(), folio: folioAsignado, vendedorId, sorteoId, codigoSorteo, cliente, fecha: fechaVenta, jugadas: jugadasTicket, total: +total.toFixed(2), anulada:false };
+
+  const btn = document.getElementById('btn-confirmar');
+  btn.disabled = true; btn.textContent = 'Guardando...';
+  try{
+    await db.from('ventas').insert({
+      id: venta.id, folio: venta.folio, vendedor_id: venta.vendedorId, sorteo_id: venta.sorteoId,
+      codigo_sorteo: venta.codigoSorteo, cliente: venta.cliente, fecha: venta.fecha,
+      jugadas: venta.jugadas, total: venta.total, anulada: false
+    });
+    await db.from('folio_counter').update({ siguiente: folioAsignado+1 }).eq('id',1);
+    folioCounter = folioAsignado+1;
+    ventasList.unshift(venta);
+  }catch(e){
+    avisar('No se pudo guardar la venta. Verifica tu conexión e intenta de nuevo.');
+    btn.textContent = '▶▶ Cerrar venta';
+    onHeaderChange();
+    return;
+  }
+  btn.textContent = '▶▶ Cerrar venta';
+
+  mostrarComprobante(venta);
+  jugadasTicket = [];
+  renderJugadas();
+  document.getElementById('in-cliente').value='';
+  renderVentaSorteoSelect();
+}
+
+// ---------------- COMPROBANTE ----------------
+function nombreVendedor(id){ const v = vendedores.find(x=>x.id===id); return v? v.nombre : '(eliminado)'; }
+function nombreSorteo(id){ const s = sorteos.find(x=>x.id===id); return s? (s.nombre+' · '+s.horaSorteoTexto) : '(eliminado)'; }
+function formatearFecha(iso){
+  const d = new Date(iso);
+  return d.toLocaleDateString('es-DO', {day:'2-digit', month:'2-digit', year:'numeric'}) + ' · ' + d.toLocaleTimeString('es-DO', {hour:'2-digit', minute:'2-digit'});
+}
+function toDateKey(iso){ const d = new Date(iso); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function folioTexto(venta){
+  const d = new Date(venta.fecha);
+  const ddmmyy = String(d.getDate()).padStart(2,'0')+String(d.getMonth()+1).padStart(2,'0')+String(d.getFullYear()).slice(2);
+  return ddmmyy+'-'+String(venta.folio).padStart(5,'0');
+}
+function abreviarSorteo(nombre){
+  const stop = ['la','el','los','las','de'];
+  let palabras = nombre.trim().split(/\s+/).filter(w=>!stop.includes(w.toLowerCase()));
+  if(palabras.length===0) palabras = [nombre];
+  if(palabras.length>=2) return palabras.map(w=>w[0].toUpperCase()).join('').slice(0,4);
+  return palabras[0].slice(0,3).toUpperCase();
+}
+function codigoSorteoParaFecha(sorteo, fechaISO){
+  const d = new Date(fechaISO);
+  const ddmm = String(d.getDate()).padStart(2,'0')+String(d.getMonth()+1).padStart(2,'0');
+  return abreviarSorteo(sorteo.nombre)+'-'+ddmm+'-'+(sorteo.horaCierre||'').replace(':','');
+}
+function codigoTextoDeVenta(venta){
+  const s = sorteos.find(x=>x.id===venta.sorteoId);
+  return s ? codigoSorteoParaFecha(s, venta.fecha) : '—';
+}
+
+function construirTicketHTML(venta){
+  const jugadasHtml = venta.jugadas.map(j=>`
+    <div class="ticket-jugada"><span><span class="jugada-tag ${TAG_CLASS[j.modalidad]}" style="font-size:9px;">${NOMBRES_MOD[j.modalidad]}</span> ${formatearNumeroJugada(j)} ×${j.cantidad}</span><span>$${j.monto.toFixed(2)}</span></div>`).join('');
+  const clienteRow = venta.cliente ? `<div class="ticket-row"><span class="k">Cliente</span><span class="v">${escapeHtml(venta.cliente)}</span></div>` : '';
+  return `
+    <div class="ticket-header"><div class="logo-badge">L4P</div><div class="name">LotC4Pa</div><div class="folio">Comprobante N.° ${folioTexto(venta)}</div></div>
+    <div class="ticket-divider"></div>
+    ${clienteRow}
+    <div class="ticket-row"><span class="k">Vendedor</span><span class="v">${escapeHtml(nombreVendedor(venta.vendedorId))}</span></div>
+    <div class="ticket-row"><span class="k">Sorteo</span><span class="v">${escapeHtml(nombreSorteo(venta.sorteoId))}</span></div>
+    <div class="ticket-row"><span class="k">Código</span><span class="v mono">${escapeHtml(venta.codigoSorteo || codigoTextoDeVenta(venta))}</span></div>
+    <div class="ticket-row"><span class="k">Fecha</span><span class="v">${formatearFecha(venta.fecha)}</span></div>
+    <div class="ticket-divider"></div>
+    ${jugadasHtml}
+    <div class="ticket-total"><span class="display" style="font-weight:600; font-size:14px;">Total</span><span class="v">$${venta.total.toFixed(2)}</span></div>
+    <div class="ticket-footer">Verifique su jugada, buena suerte</div>`;
+}
+function construirBannerPremio(venta){
+  if(venta.anulada) return '';
+  const premio = premioDeVenta(venta);
+  if(premio===null || premio<=0) return '';
+  return `<div class="ticket-anulado-banner" style="background:var(--gold);">🏆 Ganó $${premio.toFixed(2)}</div>`;
+}
+function construirBannerAnulado(venta){
+  if(!venta.anulada) return '';
+  return `<div class="ticket-anulado-banner">Ticket anulado${venta.motivoAnulacion? ' — '+escapeHtml(venta.motivoAnulacion) : ''}</div>`;
+}
+let ventaEnModal = null;
+function mostrarComprobante(venta){
+  ventaEnModal = venta;
+  const html = construirBannerAnulado(venta) + construirBannerPremio(venta) + construirTicketHTML(venta);
+  document.getElementById('ticket-content').innerHTML = html;
+  document.getElementById('print-ticket-content').innerHTML = html;
+  document.getElementById('modal-comprobante').style.display='flex';
+}
+function cerrarModal(){ document.getElementById('modal-comprobante').style.display='none'; }
+function imprimirTicket(){ window.print(); }
+function verComprobante(ventaId){ const venta = ventasList.find(v=>v.id===ventaId); if(venta) mostrarComprobante(venta); }
+function construirTextoTicket(venta){
+  let t = `🎟️ LotC4Pa — Comprobante #${folioTexto(venta)}\n`;
+  if(venta.cliente) t += `Cliente: ${venta.cliente}\n`;
+  t += `Vendedor: ${nombreVendedor(venta.vendedorId)}\n`;
+  t += `Sorteo: ${nombreSorteo(venta.sorteoId)}\n`;
+  t += `Código: ${venta.codigoSorteo || codigoTextoDeVenta(venta)}\n`;
+  t += `Fecha: ${formatearFecha(venta.fecha)}\n\n`;
+  venta.jugadas.forEach(j=>{ t += `${NOMBRES_MOD[j.modalidad]} · ${formatearNumeroJugada(j)} ×${j.cantidad} = $${j.monto.toFixed(2)}\n`; });
+  t += `\nTotal: $${venta.total.toFixed(2)}`;
+  if(venta.anulada){ t += `\n\n⚠️ TICKET ANULADO`; if(venta.motivoAnulacion) t += ` (${venta.motivoAnulacion})`; }
+  else{ const premio = premioDeVenta(venta); if(premio && premio>0) t += `\n\n🏆 Ganó: $${premio.toFixed(2)}`; }
+  return t;
+}
+async function compartirTicketActual(){
+  if(!ventaEnModal) return;
+  const texto = construirTextoTicket(ventaEnModal);
+  if(navigator.share){
+    try{ await navigator.share({ title:'Comprobante LotC4Pa', text: texto }); }
+    catch(e){ /* el usuario cerró el diálogo de compartir */ }
+  }else if(navigator.clipboard && navigator.clipboard.writeText){
+    try{ await navigator.clipboard.writeText(texto); avisar('Comprobante copiado. Pégalo en WhatsApp o donde lo necesites.'); }
+    catch(e){ avisar(texto); }
+  }else{
+    avisar(texto);
+  }
+}
+
+// ---------------- ANULAR VENTA ----------------
+function puedeAnular(venta){
+  if(venta.anulada) return false;
+  if(currentUser.role==='admin') return true;
+  if(currentUser.role==='vendedor' && venta.vendedorId===currentUser.vendedorId){
+    const sorteo = sorteos.find(s=>s.id===venta.sorteoId);
+    const esHoy = toDateKey(venta.fecha)===toDateKey(new Date().toISOString());
+    return esHoy && !!sorteo && sorteoAbierto(sorteo);
+  }
+  return false;
+}
+async function anularVenta(id){
+  const venta = ventasList.find(v=>v.id===id);
+  if(!venta || !puedeAnular(venta)){ avisar('Ya no puedes anular este ticket: el sorteo cerró o no tienes permiso.'); renderHistorial(); return; }
+  const ok = await mostrarConfirmacion('¿Anular el ticket #'+folioTexto(venta)+'? Esta acción no se puede deshacer.', { textoAceptar:'Sí, anular' });
+  if(!ok) return;
+  const motivo = await mostrarConfirmacion('Motivo de anulación (opcional):', { conInput:true, valorInput:'Cliente canceló la jugada', textoAceptar:'Anular ticket' });
+  if(motivo===null) return;
+  const anuladaEn = new Date().toISOString();
+  try{
+    await db.from('ventas').update({ anulada:true, anulada_por: currentUser.nombre, anulada_en: anuladaEn, motivo_anulacion: motivo }).eq('id', id);
+  }catch(e){ avisar('No se pudo anular el ticket. Intenta de nuevo.'); return; }
+  venta.anulada = true;
+  venta.anuladaPor = currentUser.nombre;
+  venta.anuladaEn = anuladaEn;
+  venta.motivoAnulacion = motivo;
+  renderHistorial();
+  avisar('Ticket #'+folioTexto(venta)+' anulado.');
+}
+
+// ---------------- PREMIOS / RESULTADOS ----------------
+function calcularPremioJugada(j, resultado){
+  if(!resultado) return { pos:null, monto:0 };
+  if(j.modalidad==='pale'){
+    const par1 = j.numero.slice(0,2), par2 = j.numero.slice(2,4);
+    const comboJugado = [par1,par2].sort().join('-');
+    const combo12 = [resultado.primero, resultado.segundo].sort().join('-');
+    const combo23 = [resultado.segundo, resultado.tercero].sort().join('-');
+    let unit=0, pos=null;
+    if(comboJugado===combo12){ unit = (premios.pale && premios.pale['12']) || 0; pos = '1ro-2do'; }
+    else if(comboJugado===combo23){ unit = (premios.pale && premios.pale['23']) || 0; pos = '2do-3ro'; }
+    if(!pos || unit<=0) return { pos:null, monto:0 };
+    return { pos, monto: +(unit*j.cantidad).toFixed(2) };
+  }
+  let pos=null;
+  if(j.numero===resultado.primero) pos=1; else if(j.numero===resultado.segundo) pos=2; else if(j.numero===resultado.tercero) pos=3;
+  if(!pos) return { pos:null, monto:0 };
+  const unit = premios[j.modalidad] ? premios[j.modalidad][pos] : 0;
+  return { pos, monto: +((unit||0)*j.cantidad).toFixed(2) };
+}
+function resultadoDe(sorteoId, fechaKey){ return resultados.find(r=>r.sorteoId===sorteoId && r.fechaKey===fechaKey) || null; }
+function premioDeVenta(venta){
+  if(venta.anulada) return null;
+  const resultado = resultadoDe(venta.sorteoId, toDateKey(venta.fecha));
+  if(!resultado) return null;
+  let total = 0;
+  venta.jugadas.forEach(j=>{ total += calcularPremioJugada(j, resultado).monto; });
+  return +total.toFixed(2);
+}
+function renderResultadosSorteoSelect(){
+  const opts = sorteos.map(s=>`<option value="${s.id}">${escapeHtml(s.nombre+' · '+s.horaSorteoTexto)}</option>`).join('');
+  document.getElementById('res-sorteo').innerHTML = '<option value="">Selecciona un sorteo</option>'+opts;
+  const fecha = document.getElementById('res-fecha');
+  if(!fecha.value) fecha.value = toDateKey(new Date().toISOString());
+}
+async function guardarResultado(){
+  const sorteoId = document.getElementById('res-sorteo').value;
+  const fechaKey = document.getElementById('res-fecha').value;
+  const p1 = validarNumero(document.getElementById('res-primero').value.trim());
+  const p2 = validarNumero(document.getElementById('res-segundo').value.trim());
+  const p3 = validarNumero(document.getElementById('res-tercero').value.trim());
+  if(!sorteoId || !fechaKey){ avisar('Selecciona el sorteo y la fecha.'); return; }
+  if(!p1 || !p2 || !p3){ avisar('Ingresa los 3 números ganadores (00-99).'); return; }
+  let r = resultadoDe(sorteoId, fechaKey);
+  const idAUsar = r ? r.id : uid();
+  try{
+    await db.from('resultados').upsert(
+      { id: idAUsar, sorteo_id: sorteoId, fecha_key: fechaKey, primero:p1, segundo:p2, tercero:p3 },
+      { onConflict: 'sorteo_id,fecha_key' }
+    );
+  }catch(e){ avisar('No se pudo guardar el resultado.'); return; }
+  if(r){ r.primero=p1; r.segundo=p2; r.tercero=p3; }
+  else{ r = { id: idAUsar, sorteoId, fechaKey, primero:p1, segundo:p2, tercero:p3 }; resultados.unshift(r); }
+  renderListaResultados();
+  mostrarGanadores(sorteoId, fechaKey);
+  renderHistorial();
+}
+function mostrarGanadores(sorteoId, fechaKey){
+  const resultado = resultadoDe(sorteoId, fechaKey); if(!resultado) return;
+  document.getElementById('res-sorteo').value = sorteoId;
+  document.getElementById('res-fecha').value = fechaKey;
+  document.getElementById('res-primero').value = resultado.primero;
+  document.getElementById('res-segundo').value = resultado.segundo;
+  document.getElementById('res-tercero').value = resultado.tercero;
+
+  const ganadores = [];
+  ventasList.filter(v=>v.sorteoId===sorteoId && toDateKey(v.fecha)===fechaKey && !v.anulada).forEach(v=>{
+    v.jugadas.forEach(j=>{ const { pos, monto } = calcularPremioJugada(j, resultado); if(pos){ ganadores.push({ folioTexto:folioTexto(v), cliente:v.cliente, vendedor:nombreVendedor(v.vendedorId), numero:j.numero, numeroTexto:formatearNumeroJugada(j), modalidad:j.modalidad, pos, monto }); } });
+  });
+
+  document.getElementById('ganadores-card').style.display='block';
+  document.getElementById('ganadores-sorteo-fecha').textContent = `— ${nombreSorteo(sorteoId)} · ${fechaKey}`;
+  const body = document.getElementById('ganadores-body'); const empty = document.getElementById('ganadores-empty');
+  if(ganadores.length===0){ body.innerHTML=''; empty.style.display='block'; }
+  else{
+    empty.style.display='none';
+    body.innerHTML = ganadores.sort((a,b)=>b.monto-a.monto).map(g=>`
+      <tr><td class="mono">#${g.folioTexto}</td><td>${g.cliente? escapeHtml(g.cliente) : '<span style="color:var(--ink-dim)">—</span>'}</td><td>${escapeHtml(g.vendedor)}</td><td class="mono">${g.numeroTexto}</td>
+      <td>${NOMBRES_MOD[g.modalidad]}</td><td>${typeof g.pos==='number' ? g.pos+'° lugar' : g.pos}</td><td class="premio-tag">$${g.monto.toFixed(2)}</td></tr>`).join('');
+  }
+  const totalPagar = ganadores.reduce((s,g)=>s+g.monto,0);
+  document.getElementById('ganadores-summary').innerHTML = `
+    <div class="summary-box"><div class="num mono">$${totalPagar.toFixed(2)}</div><div class="lbl">Total a pagar</div></div>
+    <div class="summary-box"><div class="num mono">${ganadores.length}</div><div class="lbl">Jugadas ganadoras</div></div>
+    <div class="summary-box"><div class="num mono" style="font-size:16px;">${resultado.primero} · ${resultado.segundo} · ${resultado.tercero}</div><div class="lbl">Resultado (1ro · 2do · 3ro)</div></div>`;
+}
+function renderListaResultados(){
+  const cont = document.getElementById('lista-resultados');
+  if(resultados.length===0){ cont.innerHTML = '<div class="empty-state">Aún no has registrado resultados.</div>'; return; }
+  cont.innerHTML = `<table><thead><tr><th>Sorteo</th><th>Fecha</th><th>1ro</th><th>2do</th><th>3ro</th><th></th></tr></thead><tbody>
+    ${resultados.map(r=>`<tr><td>${escapeHtml(nombreSorteo(r.sorteoId))}</td><td>${r.fechaKey}</td><td class="mono">${r.primero}</td><td class="mono">${r.segundo}</td><td class="mono">${r.tercero}</td>
+    <td><button class="btn btn-outline btn-sm" onclick="mostrarGanadores('${r.sorteoId}','${r.fechaKey}')">Ver ganadores</button></td></tr>`).join('')}</tbody></table>`;
+}
+
+// ---------------- HISTORIAL ----------------
+function renderHistorial(){
+  if(!dataLoaded || !currentUser) return;
+  let fv = document.getElementById('filtro-vendedor').value;
+  if(currentUser.role==='vendedor') fv = currentUser.vendedorId;
+  const fs = document.getElementById('filtro-sorteo').value;
+  const ff = document.getElementById('filtro-fecha').value.trim();
+  const fc = document.getElementById('filtro-cliente').value.trim().toLowerCase();
+  let filtradas = ventasList.filter(v=>{
+    if(fv && v.vendedorId!==fv) return false;
+    if(fs && v.sorteoId!==fs) return false;
+    if(ff){ const fechaLocal = new Date(v.fecha).toLocaleDateString('es-DO', {day:'2-digit',month:'2-digit',year:'numeric'}); if(!fechaLocal.includes(ff)) return false; }
+    if(fc && !(v.cliente||'').toLowerCase().includes(fc)) return false;
+    return true;
+  });
+  const tbody = document.getElementById('tabla-historial-body'); const tabla = document.getElementById('tabla-historial'); const empty = document.getElementById('historial-empty');
+  if(filtradas.length===0){ tabla.style.display='none'; empty.style.display='block'; }
+  else{
+    tabla.style.display='table'; empty.style.display='none';
+    tbody.innerHTML = filtradas.map(v=>{
+      let premioCell;
+      if(v.anulada){ premioCell = '<span class="tag-anulado">Anulado</span>'; }
+      else{
+        const premio = premioDeVenta(v);
+        premioCell = premio===null ? '<span style="color:var(--ink-dim)">—</span>' : (premio>0 ? `<span class="premio-tag">$${premio.toFixed(2)}</span>` : '$0.00');
+      }
+      const botonAnular = puedeAnular(v) ? `<button class="btn-danger-text" onclick="anularVenta('${v.id}')">Anular</button>` : '';
+      const tituloAnulado = v.anulada ? `title="Anulado por ${escapeHtml(v.anuladaPor||'')}${v.motivoAnulacion? ': '+escapeHtml(v.motivoAnulacion):''}"` : '';
+      return `<tr class="${v.anulada?'row-anulada':''}" ${tituloAnulado}><td class="mono">#${folioTexto(v)}</td><td>${formatearFecha(v.fecha)}</td><td>${v.cliente? escapeHtml(v.cliente) : '<span style="color:var(--ink-dim)">—</span>'}</td><td>${escapeHtml(nombreVendedor(v.vendedorId))}</td>
+      <td>${escapeHtml(nombreSorteo(v.sorteoId))}</td><td>${v.jugadas.length}</td><td class="mono" style="font-weight:600;">$${v.total.toFixed(2)}</td><td>${premioCell}</td>
+      <td style="display:flex; gap:6px; flex-wrap:wrap;"><button class="btn btn-outline btn-sm" onclick="verComprobante('${v.id}')">Ver / Imprimir</button>${botonAnular}</td></tr>`;
+    }).join('');
+  }
+  const activas = filtradas.filter(v=>!v.anulada);
+  const totalGeneral = activas.reduce((s,v)=>s+v.total,0);
+  const totalPerdido = activas.reduce((s,v)=>s+(premioDeVenta(v)||0),0);
+  let cajaTercera;
+  if(currentUser.role==='vendedor'){
+    cajaTercera = `<div class="summary-box"><div class="num mono">$${totalPerdido.toFixed(2)}</div><div class="lbl">Total perdido de este sorteo</div></div>`;
+  }else{
+    const porVendedor = {}; activas.forEach(v=>{ porVendedor[v.vendedorId] = (porVendedor[v.vendedorId]||0)+v.total; });
+    const topVendedorId = Object.keys(porVendedor).sort((a,b)=>porVendedor[b]-porVendedor[a])[0];
+    cajaTercera = `<div class="summary-box"><div class="num mono" style="font-size:16px;">${topVendedorId? escapeHtml(nombreVendedor(topVendedorId)) : '—'}</div><div class="lbl">Vendedor con más ventas</div></div>`;
+  }
+  document.getElementById('summary-strip').innerHTML = `
+    <div class="summary-box"><div class="num mono">$${totalGeneral.toFixed(2)}</div><div class="lbl">Total vendido (filtro actual)</div></div>
+    <div class="summary-box"><div class="num mono">${activas.length}</div><div class="lbl">Tickets registrados</div></div>
+    ${cajaTercera}`;
+}
+
+// ---------------- REPORTES (GANANCIAS Y PÉRDIDAS) ----------------
+function fechaLocalKey(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function aplicarPresetReportes(tipo){
+  const hoy = new Date();
+  let desde=null, hasta=null;
+  if(tipo==='hoy'){ desde=new Date(hoy); hasta=new Date(hoy); }
+  else if(tipo==='semana'){
+    const dia = hoy.getDay();
+    const diffLunes = (dia===0? -6 : 1-dia);
+    desde = new Date(hoy); desde.setDate(hoy.getDate()+diffLunes);
+    hasta = new Date(desde); hasta.setDate(desde.getDate()+6);
+  }else if(tipo==='mes'){
+    desde = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
+    hasta = new Date(hoy.getFullYear(), hoy.getMonth()+1, 0);
+  }
+  document.getElementById('rep-desde').value = desde ? fechaLocalKey(desde) : '';
+  document.getElementById('rep-hasta').value = hasta ? fechaLocalKey(hasta) : '';
+  renderReportes();
+}
+function calcularReportes(fechaDesde, fechaHasta, filtroVendedorId, filtroSorteoId){
+  const activas = ventasList.filter(v=>{
+    if(v.anulada) return false;
+    if(filtroVendedorId && v.vendedorId!==filtroVendedorId) return false;
+    if(filtroSorteoId && v.sorteoId!==filtroSorteoId) return false;
+    const dk = toDateKey(v.fecha);
+    if(fechaDesde && dk<fechaDesde) return false;
+    if(fechaHasta && dk>fechaHasta) return false;
+    return true;
+  });
+  const porVendedor = {}; const porSorteo = {};
+  let totalVendido=0, totalPremios=0;
+  activas.forEach(v=>{
+    const premio = premioDeVenta(v) || 0;
+    totalVendido += v.total; totalPremios += premio;
+    if(!porVendedor[v.vendedorId]) porVendedor[v.vendedorId] = { vendido:0, premios:0 };
+    porVendedor[v.vendedorId].vendido += v.total; porVendedor[v.vendedorId].premios += premio;
+    if(!porSorteo[v.sorteoId]) porSorteo[v.sorteoId] = { vendido:0, premios:0 };
+    porSorteo[v.sorteoId].vendido += v.total; porSorteo[v.sorteoId].premios += premio;
+  });
+  return { totalVendido, totalPremios, porVendedor, porSorteo };
+}
+function celdaGanancia(vendido, premios){
+  const g = +(vendido-premios).toFixed(2);
+  const cls = g>=0 ? 'ganancia-pos' : 'ganancia-neg';
+  const signo = g>=0 ? '' : '-';
+  return `<span class="${cls}">${signo}$${Math.abs(g).toFixed(2)}</span>`;
+}
+function renderReportes(){
+  if(!dataLoaded || !currentUser) return;
+  let fv = document.getElementById('rep-vendedor').value;
+  if(currentUser.role==='vendedor') fv = currentUser.vendedorId;
+  const fs = document.getElementById('rep-sorteo').value;
+  const desde = document.getElementById('rep-desde').value;
+  const hasta = document.getElementById('rep-hasta').value;
+  const { totalVendido, totalPremios, porVendedor, porSorteo } = calcularReportes(desde, hasta, fv, fs);
+
+  document.getElementById('reportes-global').innerHTML = `
+    <div class="summary-box"><div class="num mono">$${totalVendido.toFixed(2)}</div><div class="lbl">Total vendido</div></div>
+    <div class="summary-box"><div class="num mono">$${totalPremios.toFixed(2)}</div><div class="lbl">Total premios pagados</div></div>
+    <div class="summary-box" style="border-left-color:${(totalVendido-totalPremios)>=0?'var(--green)':'var(--red)'}">
+      <div class="num mono">${celdaGanancia(totalVendido,totalPremios)}</div><div class="lbl">Ganancia / pérdida global</div></div>`;
+
+  const idsVendedor = Object.keys(porVendedor).sort((a,b)=>porVendedor[b].vendido-porVendedor[a].vendido);
+  const bodyV = document.getElementById('reportes-vendedor-body');
+  const emptyV = document.getElementById('reportes-vendedor-empty');
+  if(idsVendedor.length===0){ bodyV.innerHTML=''; emptyV.style.display='block'; }
+  else{
+    emptyV.style.display='none';
+    bodyV.innerHTML = idsVendedor.map(id=>{
+      const d = porVendedor[id];
+      return `<tr><td>${escapeHtml(nombreVendedor(id))}</td><td class="mono">$${d.vendido.toFixed(2)}</td><td class="mono premio-tag">$${d.premios.toFixed(2)}</td><td>${celdaGanancia(d.vendido,d.premios)}</td></tr>`;
+    }).join('');
+  }
+
+  const idsSorteo = Object.keys(porSorteo).sort((a,b)=>porSorteo[b].vendido-porSorteo[a].vendido);
+  const bodyS = document.getElementById('reportes-sorteo-body');
+  const emptyS = document.getElementById('reportes-sorteo-empty');
+  if(idsSorteo.length===0){ bodyS.innerHTML=''; emptyS.style.display='block'; }
+  else{
+    emptyS.style.display='none';
+    bodyS.innerHTML = idsSorteo.map(id=>{
+      const d = porSorteo[id];
+      return `<tr><td>${escapeHtml(nombreSorteo(id))}</td><td class="mono">$${d.vendido.toFixed(2)}</td><td class="mono premio-tag">$${d.premios.toFixed(2)}</td><td>${celdaGanancia(d.vendido,d.premios)}</td></tr>`;
+    }).join('');
+  }
+}
+
+// ---------------- TABLA DE NÚMEROS ----------------
+function renderTablaSorteoSelect(){
+  const opts = sorteos.map(s=>`<option value="${s.id}">${escapeHtml(s.nombre+' · '+s.horaSorteoTexto)}</option>`).join('');
+  const sel = document.getElementById('tabla-sorteo');
+  const valorPrevio = sel.value;
+  sel.innerHTML = '<option value="">Selecciona un sorteo</option>'+opts;
+  if(valorPrevio && [...sel.options].some(o=>o.value===valorPrevio)) sel.value = valorPrevio;
+  const fecha = document.getElementById('tabla-fecha');
+  if(!fecha.value) fecha.value = toDateKey(new Date().toISOString());
+}
+function nivelChance(cant){ if(cant>=300) return 'nivel-rojo'; if(cant>=100) return 'nivel-naranja'; return ''; }
+function nivelPale(cant){ if(cant>=4) return 'nivel-rojo'; if(cant>=2) return 'nivel-naranja'; return ''; }
+function calcularTablaNumeros(sorteoId, fechaKey){
+  const porNumero = {};
+  const porPale = {};
+  ventasList.filter(v=>v.sorteoId===sorteoId && toDateKey(v.fecha)===fechaKey && !v.anulada).forEach(v=>{
+    v.jugadas.forEach(j=>{
+      if(j.modalidad==='pale'){
+        const key = formatearNumeroJugada(j);
+        porPale[key] = (porPale[key]||0) + j.cantidad;
+      }else{
+        porNumero[j.numero] = (porNumero[j.numero]||0) + j.cantidad;
+      }
+    });
+  });
+  return { porNumero, porPale };
+}
+function renderTablaNumeros(){
+  if(!dataLoaded || !currentUser) return;
+  const sorteoId = document.getElementById('tabla-sorteo').value;
+  const fechaKey = document.getElementById('tabla-fecha').value || toDateKey(new Date().toISOString());
+  const gridChance = document.getElementById('tabla-chance-grid');
+  const gridPale = document.getElementById('tabla-pale-grid');
+  const resumen = document.getElementById('tabla-resumen');
+
+  if(!sorteoId){
+    gridChance.innerHTML = '<div class="empty-state">Selecciona un sorteo para ver la tabla.</div>';
+    gridPale.innerHTML = '';
+    resumen.innerHTML = '';
+    return;
+  }
+
+  const { porNumero, porPale } = calcularTablaNumeros(sorteoId, fechaKey);
+  const numeros = Object.keys(porNumero).sort();
+  const combos = Object.keys(porPale).sort();
+
+  gridChance.innerHTML = numeros.length ? numeros.map(n=>{
+    const cant = porNumero[n];
+    return `<div class="num-chip ${nivelChance(cant)}"><span class="num">${n}</span><span class="cant">${cant}</span></div>`;
+  }).join('') : '<div class="empty-state">Sin ventas de chance todavía para este sorteo y fecha.</div>';
+
+  gridPale.innerHTML = combos.length ? combos.map(c=>{
+    const cant = porPale[c];
+    return `<div class="num-chip ${nivelPale(cant)}"><span class="num">${c}</span><span class="cant">${cant}</span></div>`;
+  }).join('') : '<div class="empty-state">Sin ventas de palé todavía para este sorteo y fecha.</div>';
+
+  const totalTiemposChance = numeros.reduce((s,n)=>s+porNumero[n],0);
+  const totalTiemposPale = combos.reduce((s,c)=>s+porPale[c],0);
+  const masVendidoChance = numeros.slice().sort((a,b)=>porNumero[b]-porNumero[a])[0];
+  resumen.innerHTML = `
+    <div class="summary-box"><div class="num mono">${numeros.length}</div><div class="lbl">Números distintos jugados</div></div>
+    <div class="summary-box"><div class="num mono">${totalTiemposChance}</div><div class="lbl">Tiempos de chance vendidos</div></div>
+    <div class="summary-box"><div class="num mono">${totalTiemposPale}</div><div class="lbl">Tiempos de palé vendidos</div></div>
+    <div class="summary-box"><div class="num mono" style="font-size:16px;">${masVendidoChance? masVendidoChance+' ('+porNumero[masVendidoChance]+')' : '—'}</div><div class="lbl">Número más vendido</div></div>`;
+}
+
+// ---------------- REFRESCO DE CIERRE Y DATOS COMPARTIDOS EN VIVO ----------------
+async function refrescarConfigCompartida(){
+  try{ await cargarDatos(); }catch(e){ return; }
+
+  if(currentUser && currentUser.role==='vendedor'){
+    const sigoExistiendo = vendedores.some(v=>v.id===currentUser.vendedorId);
+    if(!sigoExistiendo){ cerrarSesion(); avisar('Tu usuario fue eliminado por el administrador.'); return; }
+  }
+  renderVendedorSelects();
+  renderSorteoFiltros();
+  renderVentaSorteoSelect();
+  renderResultadosSorteoSelect();
+  renderTablaSorteoSelect();
+  if(currentUser && currentUser.role==='admin') renderConfigLists();
+  renderHistorial();
+  renderReportes();
+  renderTablaNumeros();
+  onHeaderChange();
+}
+setInterval(()=>{
+  if(!currentUser) return;
+  refrescarConfigCompartida();
+}, 30000);
+
+// ---------------- INIT ----------------
+(async function iniciarApp(){
+  await cargarDatos();
+  const huboSesion = await intentarAutoLogin();
+  if(huboSesion){ entrarAlApp(); }
+})();
+</script>
+
+</body>
+</html>

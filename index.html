@@ -827,18 +827,18 @@ async function intentarLogin(){
 }
 async function guardarSesionActiva(){
   try{
-    if(!currentUser){ await window.storage.delete('sesion-activa'); return; }
+    if(!currentUser){ localStorage.removeItem('lotc4pa_sesion'); return; }
     const datos = currentUser.role==='admin'
       ? { role:'admin' }
       : { role:'vendedor', vendedorId: currentUser.vendedorId };
-    await window.storage.set('sesion-activa', JSON.stringify(datos));
+    localStorage.setItem('lotc4pa_sesion', JSON.stringify(datos));
   }catch(e){}
 }
 async function intentarAutoLogin(){
   try{
-    const s = await window.storage.get('sesion-activa');
-    if(!s || !s.value) return false;
-    const sesion = JSON.parse(s.value);
+    const raw = localStorage.getItem('lotc4pa_sesion');
+    if(!raw) return false;
+    const sesion = JSON.parse(raw);
     if(sesion.role==='admin'){
       currentUser = { role:'admin', nombre:'Administrador' };
       return true;

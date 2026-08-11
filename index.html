@@ -900,7 +900,7 @@ function toggleMenu(){
   const abrir = !document.getElementById('menu-drawer').classList.contains('abierto');
   document.getElementById('menu-drawer').classList.toggle('abierto');
   document.getElementById('menu-overlay').classList.toggle('abierto');
-  if(abrir && !manejandoPopstate) history.pushState({tipo:'menu'}, '', '');
+  if(abrir && !manejandoPopstate) history.pushState(null, '', '');
 }
 function cerrarMenu(){
   document.getElementById('menu-drawer').classList.remove('abierto');
@@ -912,17 +912,41 @@ function irATab(tab){
 }
 
 // ---------------- NAV (con soporte para el botón "atrás" de Android) ----------------
+// La app mantiene su propia pila de pantallas (no depende de leer event.state,
+// que Android/TWA a veces maneja de forma rara). Cada vez que "atrás" se presiona,
+// quitamos el tope de la pila, mostramos la pantalla anterior, y reponemos un
+// escalón en el historial del navegador para que Android nunca se quede sin
+// historial y cierre la app de golpe.
 let manejandoPopstate = false;
-let ultimoEstadoNav = null;
-function registrarNavegacion(){
-  if(manejandoPopstate || !currentUser) return;
+let pilaNavegacion = [];
+function estadoNavActual(){
   const activoEl = document.querySelector('.nav-item[data-tab].active');
   const tabActivo = activoEl ? activoEl.dataset.tab : 'ventas';
-  const estado = { tipo:'app', tab: tabActivo, pantallaVenta: pantallaVentaActual };
+  return { tab: tabActivo, pantallaVenta: pantallaVentaActual, modalAbierto: document.getElementById('modal-comprobante').style.display==='flex' };
+}
+function registrarNavegacion(){
+  if(manejandoPopstate || !currentUser) return;
+  const estado = estadoNavActual();
   const clave = JSON.stringify(estado);
-  if(clave === ultimoEstadoNav) return;
-  ultimoEstadoNav = clave;
-  history.pushState(estado, '', '');
+  const tope = pilaNavegacion[pilaNavegacion.length-1];
+  if(tope && JSON.stringify(tope)===clave) return;
+  pilaNavegacion.push(estado);
+  history.pushState(null, '', '');
+}
+function aplicarEstadoNav(estado){
+  cerrarModal();
+  cerrarMenu();
+  mostrarTabInterno(estado.tab);
+  if(estado.tab==='historial') renderHistorial();
+  if(estado.tab==='reportes') renderReportes();
+  if(estado.tab==='tabla'){ renderTablaSorteoSelect(); renderTablaNumeros(); }
+  if(estado.tab==='resultados'){ renderResultadosSorteoSelect(); renderListaResultados(); }
+  if(estado.tab==='ventas'){
+    renderVentaSorteoSelect();
+    mostrarPantallaVenta(estado.pantallaVenta || 'sorteo');
+    if(estado.pantallaVenta==='sorteo') renderListaSorteosVenta();
+    if(estado.pantallaVenta==='historial') renderHistorialSorteoActual();
+  }
 }
 function mostrarTabInterno(tab){
   document.querySelectorAll('.nav-item[data-tab]').forEach(el=>el.classList.toggle('active', el.dataset.tab===tab));
@@ -941,27 +965,43 @@ function switchTab(tab){
   if(tab==='ventas'){ renderVentaSorteoSelect(); mostrarPantallaVenta('sorteo'); renderListaSorteosVenta(); }
   registrarNavegacion();
 }
-window.addEventListener('popstate', (event)=>{
+let ultimoIntentoSalir = 0;
+window.addEventListener('popstate', ()=>{
   if(!currentUser) return;
-  const estado = event.state;
-  if(!estado){ return; }
   manejandoPopstate = true;
-  if(estado.tipo==='modal'){ cerrarModal(); manejandoPopstate=false; return; }
-  if(estado.tipo==='menu'){ cerrarMenu(); manejandoPopstate=false; return; }
-  if(estado.tipo==='app' && estado.tab){
-    mostrarTabInterno(estado.tab);
-    if(estado.tab==='historial') renderHistorial();
-    if(estado.tab==='reportes') renderReportes();
-    if(estado.tab==='tabla'){ renderTablaSorteoSelect(); renderTablaNumeros(); }
-    if(estado.tab==='resultados'){ renderResultadosSorteoSelect(); renderListaResultados(); }
-    if(estado.tab==='ventas'){
-      renderVentaSorteoSelect();
-      mostrarPantallaVenta(estado.pantallaVenta || 'sorteo');
-      if(pantallaVentaActual==='sorteo') renderListaSorteosVenta();
-      if(pantallaVentaActual==='historial') renderHistorialSorteoActual();
-    }
-    ultimoEstadoNav = JSON.stringify(estado);
+  const modalAbierto = document.getElementById('modal-comprobante').style.display==='flex';
+  const menuAbierto = document.getElementById('menu-drawer').classList.contains('abierto');
+
+  if(modalAbierto){
+    cerrarModal();
+    history.pushState(null, '', '');
+    manejandoPopstate = false;
+    return;
   }
+  if(menuAbierto){
+    cerrarMenu();
+    history.pushState(null, '', '');
+    manejandoPopstate = false;
+    return;
+  }
+  if(pilaNavegacion.length>1){
+    pilaNavegacion.pop();
+    const anterior = pilaNavegacion[pilaNavegacion.length-1];
+    aplicarEstadoNav(anterior);
+    history.pushState(null, '', '');
+    manejandoPopstate = false;
+    return;
+  }
+  // Ya estamos en la pantalla principal: pide un segundo toque de "atrás"
+  // para salir de verdad, así no se cierra la app por accidente.
+  const ahora = Date.now();
+  if(ahora - ultimoIntentoSalir < 2000){
+    manejandoPopstate = false;
+    return; // deja que esta vez sí se cierre/salga
+  }
+  ultimoIntentoSalir = ahora;
+  avisar('Toca "atrás" de nuevo para salir.');
+  history.pushState(null, '', '');
   manejandoPopstate = false;
 });
 function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
@@ -1354,6 +1394,13 @@ function actualizarDisponibilidadPale(){
   if(!habilitado && modalidadActual==='pale') setModalidad('chance20');
 }
 function seleccionarCampo(campo){
+  if(pasoActivo===campo && !duplicadoPendiente){
+    // Ya estaba en este campo: al volver a tocarlo, se "selecciona" para que
+    // el próximo número escrito lo reemplace, sin tener que tocar "C" antes.
+    if(campo==='cantidad') bufferCantidad='';
+    else bufferNumero='';
+    refrescarPantallaKeypad();
+  }
   pasoActivo = campo;
   document.getElementById('kp-col-cantidad').classList.toggle('active', campo==='cantidad');
   document.getElementById('kp-col-numero').classList.toggle('active', campo==='numero');
@@ -1370,7 +1417,16 @@ function tecla(valor){
     else if(bufferCantidad.length<3){ bufferCantidad += valor; }
   }else{
     if(valor==='clear'){ bufferNumero=''; }
-    else if(bufferNumero.length<maxNumeroLen()){ bufferNumero += valor; }
+    else{
+      const maxLen = maxNumeroLen();
+      if(bufferNumero.length<maxLen){
+        bufferNumero += valor;
+      }else{
+        // Ya está completo: si te equivocaste, sigue escribiendo y se va
+        // corrigiendo solo (se descarta el dígito más viejo), sin tocar "C".
+        bufferNumero = bufferNumero.slice(1) + valor;
+      }
+    }
   }
   refrescarPantallaKeypad();
 }
@@ -1751,7 +1807,7 @@ function mostrarComprobante(venta){
   document.getElementById('ticket-content').innerHTML = html;
   document.getElementById('print-ticket-content').innerHTML = html;
   document.getElementById('modal-comprobante').style.display='flex';
-  if(!manejandoPopstate) history.pushState({tipo:'modal'}, '', '');
+  if(!manejandoPopstate) history.pushState(null, '', '');
 }
 function cerrarModal(){ document.getElementById('modal-comprobante').style.display='none'; }
 function imprimirTicket(){ window.print(); }

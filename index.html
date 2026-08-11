@@ -26,7 +26,8 @@
   .mono{font-family:'IBM Plex Mono',monospace;}
   .display{font-family:'Fraunces',serif;}
 
-  #login-screen{ min-height:100vh; display:flex; align-items:center; justify-content:center; background:linear-gradient(160deg, var(--green) 0%, #123D26 100%); padding:20px; }
+  #login-screen{ min-height:100vh; display:none; align-items:center; justify-content:center; background:linear-gradient(160deg, var(--green) 0%, #123D26 100%); padding:20px; }
+  #pantalla-cargando{ min-height:100vh; display:flex; align-items:center; justify-content:center; background:linear-gradient(160deg, var(--green) 0%, #123D26 100%); color:#fff; font-family:'Fraunces',serif; font-size:18px; }
   .login-card{ background:var(--paper); width:100%; max-width:360px; border-radius:14px; padding:34px 30px; box-shadow:0 30px 60px rgba(0,0,0,0.35); border-top:5px solid var(--gold); }
   .login-brand{ text-align:center; margin-bottom:26px; }
   .login-brand .name{ font-family:'Fraunces',serif; font-weight:700; font-size:24px; color:var(--green); }
@@ -250,6 +251,7 @@
 </head>
 <body>
 
+<div id="pantalla-cargando">Cargando…</div>
 <div id="login-screen">
   <div class="login-card">
     <div class="login-brand">
@@ -1688,7 +1690,7 @@ function construirTicketHTML(venta){
     <div class="ticket-divider"></div>
     ${jugadasHtml}
     <div class="ticket-total"><span class="display" style="font-weight:600; font-size:14px;">Total</span><span class="v">$${venta.total.toFixed(2)}</span></div>
-    <div class="ticket-footer">Verifique su jugada, buena suerte</div>`;
+    <div class="ticket-footer">⚠️ Verifique su jugada. Después del cierre no se aceptan reclamos. Buena suerte🍀</div>`;
 }
 function construirBannerPremio(venta){
   if(venta.anulada) return '';
@@ -1746,7 +1748,7 @@ async function compartirTicketActual(){
   if(blob){
     const archivo = new File([blob], nombreArchivo, { type:'image/png' });
     if(navigator.canShare && navigator.canShare({ files:[archivo] })){
-      try{ await navigator.share({ title:'Comprobante LotC4Pa', text: texto, files:[archivo] }); return; }
+      try{ await navigator.share({ files:[archivo] }); return; }
       catch(e){ if(e && e.name==='AbortError') return; /* si falla, seguimos a los métodos de respaldo */ }
     }
     // Respaldo: el navegador no permite compartir imágenes, así que la descargamos
@@ -2137,7 +2139,12 @@ if('serviceWorker' in navigator){
 (async function iniciarApp(){
   await cargarDatos();
   const huboSesion = await intentarAutoLogin();
-  if(huboSesion){ entrarAlApp(); }
+  document.getElementById('pantalla-cargando').style.display = 'none';
+  if(huboSesion){
+    entrarAlApp();
+  }else{
+    document.getElementById('login-screen').style.display = 'flex';
+  }
 })();
 </script>
 

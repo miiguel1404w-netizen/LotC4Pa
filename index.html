@@ -103,13 +103,10 @@
   .kp-summary-col .val{ font-size:18px; font-weight:700; color:#3A2705; font-family:'IBM Plex Mono',monospace; }
   .kp-summary-col .lbl{ font-size:10.5px; color:#5C4009; text-transform:uppercase; letter-spacing:0.4px; margin-top:2px; }
   .kp-grid3{ display:grid; grid-template-columns:repeat(3, 1fr); }
-  .ventas-3zonas{ display:flex; flex-direction:column; height:calc(100vh - 64px); max-height:calc(100vh - 64px); }
-  .ventas-zona-superior{ flex-shrink:0; overflow-y:auto; max-height:34vh; padding-right:2px; }
-  .ventas-zona-teclado{ flex-shrink:0; }
-  .ventas-zona-lista{ flex:1; min-height:0; overflow-y:auto; padding-top:12px; padding-right:2px; }
-  @media (max-width:820px){
-    .ventas-3zonas{ height:calc(100vh - 150px); max-height:calc(100vh - 150px); }
-  }
+  .ventas-3zonas{ display:block; }
+  .ventas-zona-superior{ }
+  .ventas-zona-teclado{ position:sticky; top:0; z-index:6; background:var(--paper); padding-top:6px; margin-top:-6px; }
+  .ventas-zona-lista{ padding-top:14px; }
   .kp-key{ font-family:'IBM Plex Mono',monospace; font-size:34px; font-weight:700; padding:34px 0; border:none; border-right:1px solid var(--line); border-bottom:1px solid var(--line); background:#fff; color:var(--ink); cursor:pointer; touch-action:manipulation; }
   .kp-key:nth-child(3n){ border-right:none; }
   .kp-key:active{ background:var(--paper-dim); }
@@ -1125,14 +1122,32 @@ function renderConfigLists(){
 
 function renderVendedorSelects(){
   const opts = vendedores.map(v=>`<option value="${v.id}">${escapeHtml(v.nombre)}</option>`).join('');
-  document.getElementById('sel-vendedor').innerHTML = '<option value="">Selecciona un vendedor</option>'+opts;
-  document.getElementById('filtro-vendedor').innerHTML = '<option value="">Todos los vendedores</option>'+opts;
-  document.getElementById('rep-vendedor').innerHTML = '<option value="">Todos los vendedores</option>'+opts;
+  const selV = document.getElementById('sel-vendedor');
+  const valorPrevioV = selV.value;
+  selV.innerHTML = '<option value="">Selecciona un vendedor</option>'+opts;
+  if(valorPrevioV && [...selV.options].some(o=>o.value===valorPrevioV)) selV.value = valorPrevioV;
+
+  const filtroV = document.getElementById('filtro-vendedor');
+  const valorPrevioFiltro = filtroV.value;
+  filtroV.innerHTML = '<option value="">Todos los vendedores</option>'+opts;
+  if(valorPrevioFiltro && [...filtroV.options].some(o=>o.value===valorPrevioFiltro)) filtroV.value = valorPrevioFiltro;
+
+  const repV = document.getElementById('rep-vendedor');
+  const valorPrevioRep = repV.value;
+  repV.innerHTML = '<option value="">Todos los vendedores</option>'+opts;
+  if(valorPrevioRep && [...repV.options].some(o=>o.value===valorPrevioRep)) repV.value = valorPrevioRep;
 }
 function renderSorteoFiltros(){
   const opts = sorteos.map(s=>`<option value="${s.id}">${escapeHtml(s.nombre+' · '+s.horaSorteoTexto)}</option>`).join('');
-  document.getElementById('filtro-sorteo').innerHTML = '<option value="">Todos los sorteos</option>'+opts;
-  document.getElementById('rep-sorteo').innerHTML = '<option value="">Todos los sorteos</option>'+opts;
+  const filtroS = document.getElementById('filtro-sorteo');
+  const valorPrevioFS = filtroS.value;
+  filtroS.innerHTML = '<option value="">Todos los sorteos</option>'+opts;
+  if(valorPrevioFS && [...filtroS.options].some(o=>o.value===valorPrevioFS)) filtroS.value = valorPrevioFS;
+
+  const repS = document.getElementById('rep-sorteo');
+  const valorPrevioRS = repS.value;
+  repS.innerHTML = '<option value="">Todos los sorteos</option>'+opts;
+  if(valorPrevioRS && [...repS.options].some(o=>o.value===valorPrevioRS)) repS.value = valorPrevioRS;
 }
 function renderVentaSorteoSelect(){
   const sel = document.getElementById('sel-sorteo');

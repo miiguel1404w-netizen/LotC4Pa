@@ -562,7 +562,7 @@
     <div class="ticket-body" id="ticket-content"></div>
     <div class="modal-actions">
       <button class="btn btn-outline" onclick="cerrarModal()">Cerrar</button>
-      <button class="btn btn-outline" onclick="compartirTicketActual()">Compartir</button>
+      <button class="btn btn-outline" id="btn-compartir-ticket" onclick="compartirTicketActual()">Compartir</button>
       <button class="btn btn-primary" onclick="imprimirTicket()">Imprimir</button>
     </div>
   </div>
@@ -609,6 +609,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"
         onload="window.__cdnCargada=true;"
         onerror="window.__mostrarAvisoCarga('No se pudo descargar la librería necesaria. Revisa tu conexión a internet.');"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 <script>
 // ---------------- CONEXIÓN A SUPABASE ----------------
 const SUPABASE_URL = 'https://nqtouvsbrcbfdtptdbro.supabase.co';
@@ -1481,9 +1482,42 @@ function construirTextoTicket(venta){
   else{ const premio = premioDeVenta(venta); if(premio && premio>0) t += `\n\n🏆 Ganó: $${premio.toFixed(2)}`; }
   return t;
 }
+async function generarImagenTicket(){
+  const el = document.getElementById('ticket-content');
+  const canvas = await html2canvas(el, { scale: 2, backgroundColor: '#ffffff', useCORS: true });
+  return await new Promise(resolve => canvas.toBlob(blob => resolve(blob), 'image/png'));
+}
 async function compartirTicketActual(){
   if(!ventaEnModal) return;
+  const btn = document.getElementById('btn-compartir-ticket');
+  const textoOriginalBtn = btn ? btn.textContent : '';
+  if(btn){ btn.disabled = true; btn.textContent = 'Generando...'; }
   const texto = construirTextoTicket(ventaEnModal);
+  const nombreArchivo = 'comprobante-'+folioTexto(ventaEnModal)+'.png';
+
+  let blob = null;
+  try{ blob = await generarImagenTicket(); }
+  catch(e){ /* si falla la imagen, seguimos con el texto solo */ }
+
+  if(btn){ btn.disabled = false; btn.textContent = textoOriginalBtn; }
+
+  if(blob){
+    const archivo = new File([blob], nombreArchivo, { type:'image/png' });
+    if(navigator.canShare && navigator.canShare({ files:[archivo] })){
+      try{ await navigator.share({ title:'Comprobante LotC4Pa', text: texto, files:[archivo] }); return; }
+      catch(e){ if(e && e.name==='AbortError') return; /* si falla, seguimos a los métodos de respaldo */ }
+    }
+    // Respaldo: el navegador no permite compartir imágenes, así que la descargamos
+    // para que el vendedor la comparta manualmente desde su galería.
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = nombreArchivo;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(()=>URL.revokeObjectURL(url), 5000);
+    avisar('Se descargó la imagen del comprobante. Compártela desde tu galería.');
+    return;
+  }
+
   if(navigator.share){
     try{ await navigator.share({ title:'Comprobante LotC4Pa', text: texto }); }
     catch(e){ /* el usuario cerró el diálogo de compartir */ }

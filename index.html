@@ -641,6 +641,23 @@ let dataLoaded = false;
 
 // ---------------- CARGA / GUARDADO ----------------
 let defaultVendedorCreado = false;
+
+// ---------------- HORA CONFIABLE DEL SERVIDOR (anti-manipulación de reloj) ----------------
+let refServidorMs = null;
+let refPerfMs = null;
+async function actualizarHoraServidor(){
+  try{
+    const { data, error } = await db.rpc('hora_servidor');
+    if(!error && data){
+      refServidorMs = new Date(data).getTime();
+      refPerfMs = performance.now();
+    }
+  }catch(e){}
+}
+function ahoraServidor(){
+  if(refServidorMs===null) return new Date();
+  return new Date(refServidorMs + (performance.now() - refPerfMs));
+}
 function filaAVendedor(v){ return { id:v.id, nombre:v.nombre, username:v.username, password:v.password }; }
 function filaASorteo(s){
   return { id:s.id, nombre:s.nombre, horaSorteoTexto:s.hora_sorteo_texto, horaCierre:s.hora_cierre,
@@ -698,6 +715,7 @@ async function cargarDatos(){
       defaultVendedorCreado = true;
     }catch(e){}
   }
+  await actualizarHoraServidor();
   dataLoaded = true;
 }
 async function guardarConfig(){
@@ -926,7 +944,7 @@ function pintarDiasSeleccionados(dias){
 }
 function minutosDe(hhmm){ if(!hhmm) return 0; const [h,m]=hhmm.split(':').map(Number); return h*60+m; }
 function sorteoAbierto(s){
-  const now = new Date();
+  const now = ahoraServidor();
   const dow = now.getDay();
   const todayKey = toDateKey(now.toISOString());
   const diaOk = (s.dias && s.dias.includes(dow)) || s.excepcionFecha===todayKey;
@@ -1102,7 +1120,7 @@ function renderVentaSorteoSelect(){
   sel.innerHTML = '<option value="">Selecciona un sorteo</option>' + sorteos.map(s=>{
     const abierto = sorteoAbierto(s);
     const disabled = (soloAbiertos && !abierto) ? 'disabled' : '';
-    const codigo = codigoSorteoParaFecha(s, new Date().toISOString());
+    const codigo = codigoSorteoParaFecha(s, ahoraServidor().toISOString());
     const etiqueta = `${s.nombre} · ${s.horaSorteoTexto} · ${codigo}${abierto? '' : ' (cerrado)'}`;
     return `<option value="${s.id}" ${disabled}>${escapeHtml(etiqueta)}</option>`;
   }).join('');
@@ -1115,7 +1133,7 @@ function actualizarEstadoSorteo(){
   const s = sorteos.find(x=>x.id===id);
   if(!s){ box.textContent=''; box.className='sorteo-status'; return; }
   const abierto = sorteoAbierto(s);
-  const codigo = codigoSorteoParaFecha(s, new Date().toISOString());
+  const codigo = codigoSorteoParaFecha(s, ahoraServidor().toISOString());
   box.className = 'sorteo-status ' + (abierto?'abierto':'cerrado');
   box.textContent = (abierto ? `Abierto · cierra a las ${s.horaCierre}` : `Cerrado · cerró a las ${s.horaCierre}`) + ` · Código: ${codigo}`;
 }
@@ -1347,7 +1365,7 @@ async function confirmarVenta(){
 
   const total = jugadasTicket.reduce((s,j)=>s+j.monto,0);
   const cliente = document.getElementById('in-cliente').value.trim();
-  const fechaVenta = new Date().toISOString();
+  const fechaVenta = ahoraServidor().toISOString();
   const codigoSorteo = sorteo ? codigoSorteoParaFecha(sorteo, fechaVenta) : '';
   const folioAsignado = folioCounter;
   const venta = { id: uid(), folio: folioAsignado, vendedorId, sorteoId, codigoSorteo, cliente, fecha: fechaVenta, jugadas: jugadasTicket, total: +total.toFixed(2), anulada:false };
@@ -1355,16 +1373,16 @@ async function confirmarVenta(){
   const btn = document.getElementById('btn-confirmar');
   btn.disabled = true; btn.textContent = 'Guardando...';
   try{
-    await db.from('ventas').insert({
+    await conTiempoLimite(db.from('ventas').insert({
       id: venta.id, folio: venta.folio, vendedor_id: venta.vendedorId, sorteo_id: venta.sorteoId,
       codigo_sorteo: venta.codigoSorteo, cliente: venta.cliente, fecha: venta.fecha,
       jugadas: venta.jugadas, total: venta.total, anulada: false
-    });
-    await db.from('folio_counter').update({ siguiente: folioAsignado+1 }).eq('id',1);
+    }), 15000, 'guardando la venta');
+    await conTiempoLimite(db.from('folio_counter').update({ siguiente: folioAsignado+1 }).eq('id',1), 15000, 'guardando la venta');
     folioCounter = folioAsignado+1;
     ventasList.unshift(venta);
   }catch(e){
-    avisar('No se pudo guardar la venta. Verifica tu conexión e intenta de nuevo.');
+    avisar('No se pudo guardar la venta ('+(e&&e.message?e.message:'sin conexión')+'). Tus jugadas siguen en el ticket, revisa tu señal e intenta de nuevo.');
     btn.textContent = '▶▶ Cerrar venta';
     onHeaderChange();
     return;
@@ -1479,7 +1497,7 @@ function puedeAnular(venta){
   if(currentUser.role==='admin') return true;
   if(currentUser.role==='vendedor' && venta.vendedorId===currentUser.vendedorId){
     const sorteo = sorteos.find(s=>s.id===venta.sorteoId);
-    const esHoy = toDateKey(venta.fecha)===toDateKey(new Date().toISOString());
+    const esHoy = toDateKey(venta.fecha)===toDateKey(ahoraServidor().toISOString());
     return esHoy && !!sorteo && sorteoAbierto(sorteo);
   }
   return false;
@@ -1491,7 +1509,7 @@ async function anularVenta(id){
   if(!ok) return;
   const motivo = await mostrarConfirmacion('Motivo de anulación (opcional):', { conInput:true, valorInput:'Cliente canceló la jugada', textoAceptar:'Anular ticket' });
   if(motivo===null) return;
-  const anuladaEn = new Date().toISOString();
+  const anuladaEn = ahoraServidor().toISOString();
   try{
     await db.from('ventas').update({ anulada:true, anulada_por: currentUser.nombre, anulada_en: anuladaEn, motivo_anulacion: motivo }).eq('id', id);
   }catch(e){ avisar('No se pudo anular el ticket. Intenta de nuevo.'); return; }
@@ -1536,7 +1554,7 @@ function renderResultadosSorteoSelect(){
   const opts = sorteos.map(s=>`<option value="${s.id}">${escapeHtml(s.nombre+' · '+s.horaSorteoTexto)}</option>`).join('');
   document.getElementById('res-sorteo').innerHTML = '<option value="">Selecciona un sorteo</option>'+opts;
   const fecha = document.getElementById('res-fecha');
-  if(!fecha.value) fecha.value = toDateKey(new Date().toISOString());
+  if(!fecha.value) fecha.value = toDateKey(ahoraServidor().toISOString());
 }
 async function guardarResultado(){
   const sorteoId = document.getElementById('res-sorteo').value;
@@ -1742,7 +1760,7 @@ function renderTablaSorteoSelect(){
   sel.innerHTML = '<option value="">Selecciona un sorteo</option>'+opts;
   if(valorPrevio && [...sel.options].some(o=>o.value===valorPrevio)) sel.value = valorPrevio;
   const fecha = document.getElementById('tabla-fecha');
-  if(!fecha.value) fecha.value = toDateKey(new Date().toISOString());
+  if(!fecha.value) fecha.value = toDateKey(ahoraServidor().toISOString());
 }
 function nivelChance(cant){ if(cant>=300) return 'nivel-rojo'; if(cant>=100) return 'nivel-naranja'; return ''; }
 function nivelPale(cant){ if(cant>=4) return 'nivel-rojo'; if(cant>=2) return 'nivel-naranja'; return ''; }
@@ -1764,7 +1782,7 @@ function calcularTablaNumeros(sorteoId, fechaKey){
 function renderTablaNumeros(){
   if(!dataLoaded || !currentUser) return;
   const sorteoId = document.getElementById('tabla-sorteo').value;
-  const fechaKey = document.getElementById('tabla-fecha').value || toDateKey(new Date().toISOString());
+  const fechaKey = document.getElementById('tabla-fecha').value || toDateKey(ahoraServidor().toISOString());
   const gridChance = document.getElementById('tabla-chance-grid');
   const gridPale = document.getElementById('tabla-pale-grid');
   const resumen = document.getElementById('tabla-resumen');

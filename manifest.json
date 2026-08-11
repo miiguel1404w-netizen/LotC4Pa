@@ -1,0 +1,15 @@
+{
+  "name": "LotC4Pa - Control de Chances",
+  "short_name": "LotC4Pa",
+  "description": "Registro de ventas de chances y palé, por sorteo y vendedor.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#FFF6E2",
+  "theme_color": "#2E8B57",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

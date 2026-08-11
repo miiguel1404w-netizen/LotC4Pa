@@ -157,7 +157,7 @@
   th{ text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:0.5px; color:var(--ink-dim); padding:8px 10px; border-bottom:2px solid var(--ink); }
   td{ padding:10px; border-bottom:1px solid var(--line); vertical-align:middle; }
   tr:hover td{ background:var(--paper-dim); }
-  .premio-tag{ font-family:'IBM Plex Mono',monospace; font-weight:700; color:var(--gold); }
+  .premio-tag{ font-family:'IBM Plex Mono',monospace; font-weight:700; color:var(--green); }
   .tag-pendiente{ display:inline-block; font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:0.4px; padding:3px 8px; border-radius:20px; color:#fff; background:#B8860B; }
   .jugada-row.row-pendiente{ background:#FFF7E6; border-left:4px solid #B8860B; margin:0 -8px; padding-left:12px; padding-right:8px; border-radius:6px; }
   .ganancia-pos{ font-family:'IBM Plex Mono',monospace; font-weight:700; color:var(--green); }
@@ -233,8 +233,9 @@
   .spc-detalle{ font-size:12.5px; color:var(--ink-dim); margin-top:2px; }
   .spc-codigo{ font-size:11px; color:var(--ink-dim); margin-top:4px; }
   .shc-card{ background:var(--green); color:#fff; border-radius:10px; padding:16px 18px; margin-bottom:16px; }
-  .shc-card .btn-text{ color:rgba(255,255,255,0.85); }
-  .shc-top{ display:flex; justify-content:space-between; align-items:baseline; font-family:'Fraunces',serif; font-weight:700; font-size:20px; }
+  .btn-cambiar-sorteo{ display:inline-block; background:rgba(255,255,255,0.18); color:#fff; border:1px solid rgba(255,255,255,0.35); border-radius:8px; padding:6px 12px; font-size:13px; font-weight:700; cursor:pointer; margin-bottom:8px; }
+  .btn-cambiar-sorteo:active{ background:rgba(255,255,255,0.3); }
+  .shc-top{ display:flex; justify-content:space-between; align-items:baseline; font-family:'Fraunces',serif; font-weight:700; font-size:20px; color:var(--gold); }
   .shc-sub{ font-size:12.5px; color:rgba(255,255,255,0.8); margin-top:4px; }
   .shc-card .sorteo-status{ margin-top:6px; }
   .shc-card .sorteo-status.abierto{ color:var(--gold-light,#F2D08A); }
@@ -314,7 +315,7 @@
       <!-- PANTALLA 2: HISTORIAL DEL SORTEO ELEGIDO -->
       <div id="pantalla-historial-sorteo" style="display:none">
         <div class="shc-card">
-          <button class="btn-text" style="padding:0 0 6px 0;" onclick="volverASeleccionarSorteo()">← Cambiar sorteo</button>
+          <button class="btn-cambiar-sorteo" onclick="volverASeleccionarSorteo()">← Cambiar sorteo</button>
           <div class="shc-top"><span id="hs-nombre">--</span><span id="hs-hora">--</span></div>
           <div class="shc-sub"><span id="hs-fecha">--</span> · <span id="hs-codigo">--</span></div>
           <div class="sorteo-status" id="hs-estado"></div>
@@ -399,7 +400,7 @@
           </div>
           <div class="field" style="margin-top:14px;">
             <label>Cliente (opcional)</label>
-            <input type="text" id="vp-cliente" placeholder="Nombre del cliente, para identificar el comprobante">
+            <input type="text" id="vp-cliente" placeholder="Nombre del cliente, para identificar el comprobante" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
             <input type="text" id="in-cliente" style="display:none">
           </div>
           <div class="modal-actions" style="margin-top:16px;">
@@ -1540,11 +1541,15 @@ function renderJugadas(){
   onHeaderChange();
 }
 function vendedorIdSeleccionado(){ return currentUser.role==='vendedor' ? currentUser.vendedorId : document.getElementById('sel-vendedor').value; }
+let ultimoSorteoSincronizado;
 function onHeaderChange(){
   const s = document.getElementById('sel-sorteo').value;
   actualizarEstadoSorteo();
   actualizarDisponibilidadPale();
-  sincronizarFiltroHistorialConSorteo(s);
+  if(s !== ultimoSorteoSincronizado){
+    ultimoSorteoSincronizado = s;
+    sincronizarFiltroHistorialConSorteo(s);
+  }
 }
 function sincronizarFiltroHistorialConSorteo(sorteoId){
   const filtro = document.getElementById('filtro-sorteo');
@@ -1658,7 +1663,7 @@ function renderHistorialSorteoActual(){
       const nombreCliente = v.cliente?escapeHtml(v.cliente):'<span style="color:var(--ink-dim); font-weight:500;">Sin nombre</span>';
       return `<div class="jugada-row ${esGanador?'row-ganadora':''} ${v.pendienteSync?'row-pendiente':''}">
         <div>
-          <div style="font-size:15.5px; font-weight:700; color:var(--ink);">${v.pendienteSync?'⏳ ':''}${nombreCliente}</div>
+          <div style="font-size:15.5px; font-weight:700; color:${esGanador?'var(--green)':'var(--ink)'};">${v.pendienteSync?'⏳ ':''}${esGanador?'🏆 ':''}${nombreCliente}</div>
           <div style="color:var(--ink-dim); font-size:11.5px; margin-top:1px;" class="mono">#${folioTexto(v)} · ${escapeHtml(nombreVendedor(v.vendedorId))}</div>
         </div>
         <div style="display:flex; align-items:center; gap:8px;"><span class="mono" style="font-weight:600">$${v.total.toFixed(2)}</span>${premioTxt}
@@ -2038,7 +2043,10 @@ function premioDeVenta(venta){
 }
 function renderResultadosSorteoSelect(){
   const opts = sorteos.map(s=>`<option value="${s.id}">${escapeHtml(s.nombre+' · '+s.horaSorteoTexto)}</option>`).join('');
-  document.getElementById('res-sorteo').innerHTML = '<option value="">Selecciona un sorteo</option>'+opts;
+  const sel = document.getElementById('res-sorteo');
+  const valorPrevio = sel.value;
+  sel.innerHTML = '<option value="">Selecciona un sorteo</option>'+opts;
+  if(valorPrevio && [...sel.options].some(o=>o.value===valorPrevio)) sel.value = valorPrevio;
   const fecha = document.getElementById('res-fecha');
   if(!fecha.value) fecha.value = toDateKey(ahoraServidor().toISOString());
 }
@@ -2063,6 +2071,12 @@ async function guardarResultado(){
   renderListaResultados();
   mostrarGanadores(sorteoId, fechaKey);
   renderHistorial();
+  // Vuelve los números a 00 como confirmación visual de que ya se guardó,
+  // así no quedan los mismos números puestos como si faltara guardar.
+  document.getElementById('res-primero').value = '00';
+  document.getElementById('res-segundo').value = '00';
+  document.getElementById('res-tercero').value = '00';
+  avisar('Resultado guardado.');
 }
 function mostrarGanadores(sorteoId, fechaKey){
   const resultado = resultadoDe(sorteoId, fechaKey); if(!resultado) return;
@@ -2308,16 +2322,24 @@ function renderTablaNumeros(){
 }
 
 // ---------------- REFRESCO DE CIERRE Y DATOS COMPARTIDOS EN VIVO ----------------
+let vecesSeguidasSinEncontrarVendedor = 0;
 async function refrescarConfigCompartida(){
   try{ await cargarDatos(); }catch(e){ return; }
 
   // Solo revisamos "¿sigo existiendo?" si la lista de vendedores se descargó
-  // bien esta vez. Si hubo un fallo de red al traerla, NO cerramos sesión por
-  // error — nos quedamos con lo que ya teníamos y lo intentamos de nuevo en
-  // el siguiente refresco, para no expulsar a nadie por una señal débil.
+  // bien esta vez. Además, exigimos que falle 3 veces SEGUIDAS (más o menos
+  // 90 segundos) antes de cerrar la sesión — así una señal débil puntual
+  // nunca expulsa a nadie; solo lo hace si de verdad ya no existe.
   if(currentUser && currentUser.role==='vendedor' && cargaOk.vendedores){
     const sigoExistiendo = vendedores.some(v=>v.id===currentUser.vendedorId);
-    if(!sigoExistiendo){ cerrarSesion(); avisar('Tu usuario fue eliminado por el administrador.'); return; }
+    if(!sigoExistiendo){
+      vecesSeguidasSinEncontrarVendedor++;
+      if(vecesSeguidasSinEncontrarVendedor>=3){
+        cerrarSesion(); avisar('Tu usuario fue eliminado por el administrador.'); return;
+      }
+    }else{
+      vecesSeguidasSinEncontrarVendedor = 0;
+    }
   }
   renderVendedorSelects();
   renderSorteoFiltros();

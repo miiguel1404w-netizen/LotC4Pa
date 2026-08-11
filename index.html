@@ -41,6 +41,8 @@
   #app{ display:flex; min-height:100vh; }
 
   #topbar{ display:flex; align-items:center; gap:12px; background:var(--green); color:var(--paper); padding:10px 16px; position:sticky; top:0; z-index:50; }
+  html.sin-scroll, body.sin-scroll{ overflow:hidden; height:100%; overscroll-behavior:none; }
+  body.sin-scroll .main{ overflow:hidden; }
   #btn-hamburguesa{ background:rgba(255,255,255,0.12); border:none; color:#fff; font-size:20px; width:38px; height:38px; border-radius:8px; cursor:pointer; flex-shrink:0; }
   .topbar-titulos{ line-height:1.2; }
   .topbar-nombre{ font-family:'Fraunces',serif; font-weight:700; font-size:16px; color:var(--gold); }
@@ -156,6 +158,8 @@
   td{ padding:10px; border-bottom:1px solid var(--line); vertical-align:middle; }
   tr:hover td{ background:var(--paper-dim); }
   .premio-tag{ font-family:'IBM Plex Mono',monospace; font-weight:700; color:var(--gold); }
+  .tag-pendiente{ display:inline-block; font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:0.4px; padding:3px 8px; border-radius:20px; color:#fff; background:#B8860B; }
+  .jugada-row.row-pendiente{ background:#FFF7E6; border-left:4px solid #B8860B; margin:0 -8px; padding-left:12px; padding-right:8px; border-radius:6px; }
   .ganancia-pos{ font-family:'IBM Plex Mono',monospace; font-weight:700; color:var(--green); }
   .ganancia-neg{ font-family:'IBM Plex Mono',monospace; font-weight:700; color:var(--red); }
   .tag-anulado{ display:inline-block; font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:0.4px; padding:3px 8px; border-radius:20px; color:#fff; background:var(--red); }
@@ -325,7 +329,7 @@
 
       <!-- PANTALLA 3: TECLADO A PANTALLA COMPLETA -->
       <div id="pantalla-teclado" style="display:none">
-        <div class="card" style="padding:0; overflow:hidden; margin-bottom:0; display:flex; flex-direction:column; min-height:calc(100vh - 110px);">
+        <div class="card" style="padding:0; overflow:hidden; margin-bottom:0; display:flex; flex-direction:column; height:calc(100vh - 110px);">
           <div style="padding:14px 22px 0 22px; display:flex; align-items:center; justify-content:space-between;">
             <button class="btn-text" style="padding:0;" onclick="salirTecladoSinGuardar()">← Salir</button>
             <span style="font-size:12.5px; color:var(--ink-dim);" id="tk-sorteo-nombre"></span>
@@ -739,6 +743,7 @@ function filaAVenta(v){
 }
 function filaAResultado(r){ return { id:r.id, sorteoId:r.sorteo_id, fechaKey:r.fecha_key, primero:r.primero, segundo:r.segundo, tercero:r.tercero }; }
 
+let cargaOk = { vendedores:true, sorteos:true, ventas:true };
 async function cargarDatos(){
   try{
     const { data: cfg } = await db.from('app_config').select('*').eq('id',1).maybeSingle();
@@ -753,17 +758,23 @@ async function cargarDatos(){
   try{
     const { data } = await db.from('vendedores').select('*').order('created_at');
     vendedores = (data||[]).map(filaAVendedor);
-  }catch(e){}
+    cargaOk.vendedores = true;
+  }catch(e){ cargaOk.vendedores = false; }
 
   try{
     const { data } = await db.from('sorteos').select('*').order('created_at');
     sorteos = (data||[]).map(filaASorteo);
-  }catch(e){}
+    cargaOk.sorteos = true;
+  }catch(e){ cargaOk.sorteos = false; }
 
   try{
     const { data } = await db.from('ventas').select('*').order('fecha', { ascending:false });
     ventasList = (data||[]).map(filaAVenta);
-  }catch(e){}
+    cargaOk.ventas = true;
+  }catch(e){ cargaOk.ventas = false; }
+  // Vuelve a poner encima las ventas que aún no se han podido subir por falta
+  // de señal, para que no desaparezcan de la pantalla mientras se reintenta.
+  cargarPendientesLocal().forEach(p=>{ if(!ventasList.some(v=>v.id===p.id)) ventasList.unshift(p); });
 
   try{
     const { data } = await db.from('folio_counter').select('*').eq('id',1).maybeSingle();
@@ -786,6 +797,7 @@ async function cargarDatos(){
   }
   await actualizarHoraServidor();
   dataLoaded = true;
+  sincronizarPendientes();
 }
 async function guardarConfig(){
   try{ await db.from('app_config').update({ admin_username: adminAuth.username, admin_password: adminAuth.password, premios }).eq('id',1); }
@@ -875,6 +887,8 @@ function entrarAlApp(){
 async function cerrarSesion(){
   currentUser = null;
   await guardarSesionActiva();
+  document.documentElement.classList.remove('sin-scroll');
+  document.body.classList.remove('sin-scroll');
   document.getElementById('app-shell').style.display='none';
   document.getElementById('login-screen').style.display='flex';
   document.getElementById('login-username').value='';
@@ -957,6 +971,7 @@ function mostrarTabInterno(tab){
 }
 function switchTab(tab){
   if((tab==='config' || tab==='resultados' || tab==='reportes') && currentUser.role!=='admin') return;
+  if(tab!=='ventas'){ document.documentElement.classList.remove('sin-scroll'); document.body.classList.remove('sin-scroll'); }
   mostrarTabInterno(tab);
   if(tab==='historial') renderHistorial();
   if(tab==='reportes') renderReportes();
@@ -1560,6 +1575,8 @@ function mostrarPantallaVenta(p){
   });
   const cajaAdminVend = document.getElementById('admin-vendedor-box');
   if(cajaAdminVend) cajaAdminVend.style.display = (p==='sorteo' && currentUser.role==='admin') ? 'block' : 'none';
+  document.documentElement.classList.toggle('sin-scroll', p==='teclado');
+  document.body.classList.toggle('sin-scroll', p==='teclado');
   registrarNavegacion();
 }
 function renderListaSorteosVenta(){
@@ -1628,16 +1645,20 @@ function renderHistorialSorteoActual(){
     cont.innerHTML = '<div class="empty-state">Aún no hay tickets para este sorteo hoy. Toca ✎ para anotar.</div>';
   }else{
     cont.innerHTML = activas.map(v=>{
-      const premio = premioDeVenta(v);
+      const premio = v.pendienteSync ? null : premioDeVenta(v);
       let premioTxt;
-      if(premio===null) premioTxt = '<span style="color:var(--ink-dim)">—</span>';
+      if(v.pendienteSync) premioTxt = '<span class="tag-pendiente">⏳ Pendiente</span>';
+      else if(premio===null) premioTxt = '<span style="color:var(--ink-dim)">—</span>';
       else if(premio>0) premioTxt = `<span class="premio-tag">$${premio.toFixed(2)}</span>`;
       else premioTxt = '$0.00';
-      const esGanador = premio!==null && premio>0;
-      const botonAnular = puedeAnular(v) ? `<button class="btn-danger-text" onclick="anularDesdeHistorialSorteo('${v.id}')">Anular</button>` : '';
-      return `<div class="jugada-row ${esGanador?'row-ganadora':''}">
+      const esGanador = !v.pendienteSync && premio!==null && premio>0;
+      const botonAnular = v.pendienteSync
+        ? `<button class="btn-danger-text" onclick="quitarVentaPendiente('${v.id}')">Quitar</button>`
+        : (puedeAnular(v) ? `<button class="btn-danger-text" onclick="anularDesdeHistorialSorteo('${v.id}')">Anular</button>` : '');
+      const nombreCliente = v.cliente?escapeHtml(v.cliente):'<span style="color:var(--ink-dim); font-weight:500;">Sin nombre</span>';
+      return `<div class="jugada-row ${esGanador?'row-ganadora':''} ${v.pendienteSync?'row-pendiente':''}">
         <div>
-          <div style="font-size:15.5px; font-weight:700; color:var(--ink);">${v.cliente?escapeHtml(v.cliente):'<span style="color:var(--ink-dim); font-weight:500;">Sin nombre</span>'}</div>
+          <div style="font-size:15.5px; font-weight:700; color:var(--ink);">${v.pendienteSync?'⏳ ':''}${nombreCliente}</div>
           <div style="color:var(--ink-dim); font-size:11.5px; margin-top:1px;" class="mono">#${folioTexto(v)} · ${escapeHtml(nombreVendedor(v.vendedorId))}</div>
         </div>
         <div style="display:flex; align-items:center; gap:8px;"><span class="mono" style="font-weight:600">$${v.total.toFixed(2)}</span>${premioTxt}
@@ -1703,6 +1724,68 @@ async function completarVentaDesdeVistaPrevia(){
 }
 
 // ---------------- CONFIRMAR VENTA ----------------
+async function intentarGuardarVentaOnline(datos, idExistente){
+  const folioAsignado = folioCounter;
+  const venta = { id: idExistente || uid(), folio: folioAsignado, vendedorId:datos.vendedorId, sorteoId:datos.sorteoId,
+    codigoSorteo:datos.codigoSorteo, cliente:datos.cliente, fecha:datos.fecha, jugadas:datos.jugadas,
+    total: datos.total, anulada:false };
+  try{
+    await conTiempoLimite(db.from('ventas').insert({
+      id: venta.id, folio: venta.folio, vendedor_id: venta.vendedorId, sorteo_id: venta.sorteoId,
+      codigo_sorteo: venta.codigoSorteo, cliente: venta.cliente, fecha: venta.fecha,
+      jugadas: venta.jugadas, total: venta.total, anulada: false
+    }), 15000, 'guardando la venta');
+    await conTiempoLimite(db.from('folio_counter').update({ siguiente: folioAsignado+1 }).eq('id',1), 15000, 'guardando la venta');
+    folioCounter = folioAsignado+1;
+    return { ok:true, venta };
+  }catch(e){
+    return { ok:false };
+  }
+}
+// ---------------- COLA DE VENTAS SIN CONEXIÓN ----------------
+function cargarPendientesLocal(){
+  try{ return JSON.parse(localStorage.getItem('lotc4pa_pendientes')||'[]'); }catch(e){ return []; }
+}
+function guardarPendientesLocal(lista){
+  try{ localStorage.setItem('lotc4pa_pendientes', JSON.stringify(lista)); }catch(e){}
+}
+function agregarPendienteLocal(venta){
+  const lista = cargarPendientesLocal();
+  lista.push(venta);
+  guardarPendientesLocal(lista);
+}
+function quitarPendienteLocal(id){
+  guardarPendientesLocal(cargarPendientesLocal().filter(v=>v.id!==id));
+}
+let sincronizandoPendientes = false;
+async function sincronizarPendientes(){
+  if(sincronizandoPendientes) return;
+  const pendientes = cargarPendientesLocal();
+  if(pendientes.length===0) return;
+  sincronizandoPendientes = true;
+  let algunoSincronizado = false;
+  for(const p of pendientes){
+    const resultado = await intentarGuardarVentaOnline({
+      vendedorId:p.vendedorId, sorteoId:p.sorteoId, codigoSorteo:p.codigoSorteo,
+      cliente:p.cliente, fecha:p.fecha, jugadas:p.jugadas, total:p.total
+    }, p.id);
+    if(resultado.ok){
+      ventasList = ventasList.filter(v=>v.id!==p.id);
+      ventasList.unshift(resultado.venta);
+      quitarPendienteLocal(p.id);
+      algunoSincronizado = true;
+    }else{
+      break; // sin señal todavía: paramos aquí y respetamos el orden
+    }
+  }
+  sincronizandoPendientes = false;
+  if(algunoSincronizado){
+    if(pantallaVentaActual==='historial') renderHistorialSorteoActual();
+    renderHistorial();
+  }
+}
+window.addEventListener('online', ()=>{ if(currentUser) sincronizarPendientes(); });
+
 async function confirmarVenta(){
   const vendedorId = vendedorIdSeleccionado();
   const sorteoId = document.getElementById('sel-sorteo').value;
@@ -1714,29 +1797,29 @@ async function confirmarVenta(){
   const cliente = document.getElementById('in-cliente').value.trim();
   const fechaVenta = ahoraServidor().toISOString();
   const codigoSorteo = sorteo ? codigoSorteoParaFecha(sorteo, fechaVenta) : '';
-  const folioAsignado = folioCounter;
-  const venta = { id: uid(), folio: folioAsignado, vendedorId, sorteoId, codigoSorteo, cliente, fecha: fechaVenta, jugadas: jugadasTicket, total: +total.toFixed(2), anulada:false };
+  const datos = { vendedorId, sorteoId, codigoSorteo, cliente, fecha: fechaVenta, jugadas: jugadasTicket, total: +total.toFixed(2) };
 
   const btn = document.getElementById('btn-completar-venta');
   if(btn){ btn.disabled = true; btn.textContent = 'Guardando...'; }
-  try{
-    await conTiempoLimite(db.from('ventas').insert({
-      id: venta.id, folio: venta.folio, vendedor_id: venta.vendedorId, sorteo_id: venta.sorteoId,
-      codigo_sorteo: venta.codigoSorteo, cliente: venta.cliente, fecha: venta.fecha,
-      jugadas: venta.jugadas, total: venta.total, anulada: false
-    }), 15000, 'guardando la venta');
-    await conTiempoLimite(db.from('folio_counter').update({ siguiente: folioAsignado+1 }).eq('id',1), 15000, 'guardando la venta');
-    folioCounter = folioAsignado+1;
-    ventasList.unshift(venta);
-  }catch(e){
-    avisar('No se pudo guardar la venta ('+(e&&e.message?e.message:'sin conexión')+'). Tus jugadas siguen en el ticket, revisa tu señal e intenta de nuevo.');
-    if(btn){ btn.disabled = false; btn.textContent = 'Completar venta'; }
-    onHeaderChange();
-    return;
-  }
+
+  const resultado = await intentarGuardarVentaOnline(datos);
+
   if(btn){ btn.disabled = false; btn.textContent = 'Completar venta'; }
 
-  mostrarComprobante(venta);
+  let ventaParaComprobante;
+  if(resultado.ok){
+    ventasList.unshift(resultado.venta);
+    ventaParaComprobante = resultado.venta;
+  }else{
+    const pendiente = { id: uid(), vendedorId:datos.vendedorId, sorteoId:datos.sorteoId, codigoSorteo:datos.codigoSorteo,
+      cliente:datos.cliente, fecha:datos.fecha, jugadas:datos.jugadas, total:datos.total, anulada:false, pendienteSync:true };
+    agregarPendienteLocal(pendiente);
+    ventasList.unshift(pendiente);
+    ventaParaComprobante = pendiente;
+    avisar('Sin conexión: la venta quedó guardada en tu celular (⏳ Pendiente) y se subirá sola cuando regrese la señal.');
+  }
+
+  mostrarComprobante(ventaParaComprobante);
   jugadasTicket = [];
   renderJugadas();
   document.getElementById('in-cliente').value='';
@@ -1752,6 +1835,7 @@ function formatearFecha(iso){
 }
 function toDateKey(iso){ const d = new Date(iso); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
 function folioTexto(venta){
+  if(venta.pendienteSync) return 'PENDIENTE';
   const d = new Date(venta.fecha);
   const ddmmyy = String(d.getDate()).padStart(2,'0')+String(d.getMonth()+1).padStart(2,'0')+String(d.getFullYear()).slice(2);
   return ddmmyy+'-'+String(venta.folio).padStart(5,'0');
@@ -1791,7 +1875,7 @@ function construirTicketHTML(venta){
     <div class="ticket-footer">⚠️ Verifique su jugada. Después del cierre no se aceptan reclamos. Buena suerte🍀</div>`;
 }
 function construirBannerPremio(venta){
-  if(venta.anulada) return '';
+  if(venta.anulada || venta.pendienteSync) return '';
   const premio = premioDeVenta(venta);
   if(premio===null || premio<=0) return '';
   return `<div class="ticket-anulado-banner" style="background:var(--gold);">🏆 Ganó $${premio.toFixed(2)}</div>`;
@@ -1800,10 +1884,14 @@ function construirBannerAnulado(venta){
   if(!venta.anulada) return '';
   return `<div class="ticket-anulado-banner">Ticket anulado${venta.motivoAnulacion? ' — '+escapeHtml(venta.motivoAnulacion) : ''}</div>`;
 }
+function construirBannerPendiente(venta){
+  if(!venta.pendienteSync) return '';
+  return `<div class="ticket-anulado-banner" style="background:#B8860B;">⏳ Pendiente de subir — se subirá sola cuando regrese la señal</div>`;
+}
 let ventaEnModal = null;
 function mostrarComprobante(venta){
   ventaEnModal = venta;
-  const html = construirBannerAnulado(venta) + construirBannerPremio(venta) + construirTicketHTML(venta);
+  const html = construirBannerAnulado(venta) + construirBannerPendiente(venta) + construirBannerPremio(venta) + construirTicketHTML(venta);
   document.getElementById('ticket-content').innerHTML = html;
   document.getElementById('print-ticket-content').innerHTML = html;
   document.getElementById('modal-comprobante').style.display='flex';
@@ -1822,6 +1910,7 @@ function construirTextoTicket(venta){
   venta.jugadas.forEach(j=>{ t += `${NOMBRES_MOD[j.modalidad]} · ${formatearNumeroJugada(j)} ×${j.cantidad} = $${j.monto.toFixed(2)}\n`; });
   t += `\nTotal: $${venta.total.toFixed(2)}`;
   if(venta.anulada){ t += `\n\n⚠️ TICKET ANULADO`; if(venta.motivoAnulacion) t += ` (${venta.motivoAnulacion})`; }
+  else if(venta.pendienteSync){ t += `\n\n⏳ PENDIENTE DE SUBIR (sin conexión)`; }
   else{ const premio = premioDeVenta(venta); if(premio && premio>0) t += `\n\n🏆 Ganó: $${premio.toFixed(2)}`; }
   return t;
 }
@@ -1876,6 +1965,16 @@ async function compartirTicketActual(){
 function vendedorEnEquipo(vendedorId){
   const v = vendedores.find(x=>x.id===vendedorId);
   return v ? (v.enEquipo !== false) : false;
+}
+async function quitarVentaPendiente(id){
+  const venta = ventasList.find(v=>v.id===id);
+  if(!venta) return;
+  const ok = await mostrarConfirmacion('¿Quitar este ticket pendiente? Como todavía no se subió, se borrará por completo y no se podrá recuperar.', { textoAceptar:'Sí, quitar' });
+  if(!ok) return;
+  quitarPendienteLocal(id);
+  ventasList = ventasList.filter(v=>v.id!==id);
+  if(pantallaVentaActual==='historial') renderHistorialSorteoActual();
+  renderHistorial();
 }
 function puedeAnular(venta){
   if(venta.anulada) return false;
@@ -2024,11 +2123,14 @@ function renderHistorial(){
     tbody.innerHTML = filtradas.map(v=>{
       let premioCell;
       if(v.anulada){ premioCell = '<span class="tag-anulado">Anulado</span>'; }
+      else if(v.pendienteSync){ premioCell = '<span class="tag-pendiente">⏳ Pendiente</span>'; }
       else{
         const premio = premioDeVenta(v);
         premioCell = premio===null ? '<span style="color:var(--ink-dim)">—</span>' : (premio>0 ? `<span class="premio-tag">$${premio.toFixed(2)}</span>` : '$0.00');
       }
-      const botonAnular = puedeAnular(v) ? `<button class="btn-danger-text" onclick="anularVenta('${v.id}')">Anular</button>` : '';
+      const botonAnular = v.pendienteSync
+        ? `<button class="btn-danger-text" onclick="quitarVentaPendiente('${v.id}')">Quitar</button>`
+        : (puedeAnular(v) ? `<button class="btn-danger-text" onclick="anularVenta('${v.id}')">Anular</button>` : '');
       const tituloAnulado = v.anulada ? `title="Anulado por ${escapeHtml(v.anuladaPor||'')}${v.motivoAnulacion? ': '+escapeHtml(v.motivoAnulacion):''}"` : '';
       return `<tr class="${v.anulada?'row-anulada':''}" ${tituloAnulado}><td class="mono">#${folioTexto(v)}</td><td>${formatearFecha(v.fecha)}</td><td>${v.cliente? escapeHtml(v.cliente) : '<span style="color:var(--ink-dim)">—</span>'}</td><td>${escapeHtml(nombreVendedor(v.vendedorId))}</td>
       <td>${escapeHtml(nombreSorteo(v.sorteoId))}</td><td>${v.jugadas.length}</td><td class="mono" style="font-weight:600;">$${v.total.toFixed(2)}</td><td>${premioCell}</td>
@@ -2209,7 +2311,11 @@ function renderTablaNumeros(){
 async function refrescarConfigCompartida(){
   try{ await cargarDatos(); }catch(e){ return; }
 
-  if(currentUser && currentUser.role==='vendedor'){
+  // Solo revisamos "¿sigo existiendo?" si la lista de vendedores se descargó
+  // bien esta vez. Si hubo un fallo de red al traerla, NO cerramos sesión por
+  // error — nos quedamos con lo que ya teníamos y lo intentamos de nuevo en
+  // el siguiente refresco, para no expulsar a nadie por una señal débil.
+  if(currentUser && currentUser.role==='vendedor' && cargaOk.vendedores){
     const sigoExistiendo = vendedores.some(v=>v.id===currentUser.vendedorId);
     if(!sigoExistiendo){ cerrarSesion(); avisar('Tu usuario fue eliminado por el administrador.'); return; }
   }
@@ -2237,6 +2343,16 @@ if('serviceWorker' in navigator){
 }
 (async function iniciarApp(){
   await cargarDatos();
+  // Si había una sesión guardada pero la lista de vendedores no cargó bien
+  // (mala señal justo al abrir), reintentamos un par de veces antes de darnos
+  // por vencidos — así no mandamos a alguien al login solo por una señal débil.
+  const haySesionGuardada = !!localStorage.getItem('lotc4pa_sesion');
+  let intentos = 0;
+  while(haySesionGuardada && !cargaOk.vendedores && intentos<3){
+    await new Promise(r=>setTimeout(r, 1500));
+    await cargarDatos();
+    intentos++;
+  }
   const huboSesion = await intentarAutoLogin();
   document.getElementById('pantalla-cargando').style.display = 'none';
   if(huboSesion){

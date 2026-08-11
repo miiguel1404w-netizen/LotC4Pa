@@ -897,8 +897,10 @@ function aplicarRol(){
 
 // ---------------- MENÚ DESPLEGABLE ----------------
 function toggleMenu(){
+  const abrir = !document.getElementById('menu-drawer').classList.contains('abierto');
   document.getElementById('menu-drawer').classList.toggle('abierto');
   document.getElementById('menu-overlay').classList.toggle('abierto');
+  if(abrir && !manejandoPopstate) history.pushState({tipo:'menu'}, '', '');
 }
 function cerrarMenu(){
   document.getElementById('menu-drawer').classList.remove('abierto');
@@ -909,20 +911,59 @@ function irATab(tab){
   switchTab(tab);
 }
 
-// ---------------- NAV ----------------
-function switchTab(tab){
-  if((tab==='config' || tab==='resultados' || tab==='reportes') && currentUser.role!=='admin') return;
+// ---------------- NAV (con soporte para el botón "atrás" de Android) ----------------
+let manejandoPopstate = false;
+let ultimoEstadoNav = null;
+function registrarNavegacion(){
+  if(manejandoPopstate || !currentUser) return;
+  const activoEl = document.querySelector('.nav-item[data-tab].active');
+  const tabActivo = activoEl ? activoEl.dataset.tab : 'ventas';
+  const estado = { tipo:'app', tab: tabActivo, pantallaVenta: pantallaVentaActual };
+  const clave = JSON.stringify(estado);
+  if(clave === ultimoEstadoNav) return;
+  ultimoEstadoNav = clave;
+  history.pushState(estado, '', '');
+}
+function mostrarTabInterno(tab){
   document.querySelectorAll('.nav-item[data-tab]').forEach(el=>el.classList.toggle('active', el.dataset.tab===tab));
   ['ventas','historial','reportes','tabla','resultados','config'].forEach(t=>{
     const el = document.getElementById('tab-'+t);
     if(el) el.style.display = (t===tab)?'block':'none';
   });
+}
+function switchTab(tab){
+  if((tab==='config' || tab==='resultados' || tab==='reportes') && currentUser.role!=='admin') return;
+  mostrarTabInterno(tab);
   if(tab==='historial') renderHistorial();
   if(tab==='reportes') renderReportes();
   if(tab==='tabla'){ renderTablaSorteoSelect(); renderTablaNumeros(); }
   if(tab==='resultados'){ renderResultadosSorteoSelect(); renderListaResultados(); }
   if(tab==='ventas'){ renderVentaSorteoSelect(); mostrarPantallaVenta('sorteo'); renderListaSorteosVenta(); }
+  registrarNavegacion();
 }
+window.addEventListener('popstate', (event)=>{
+  if(!currentUser) return;
+  const estado = event.state;
+  if(!estado){ return; }
+  manejandoPopstate = true;
+  if(estado.tipo==='modal'){ cerrarModal(); manejandoPopstate=false; return; }
+  if(estado.tipo==='menu'){ cerrarMenu(); manejandoPopstate=false; return; }
+  if(estado.tipo==='app' && estado.tab){
+    mostrarTabInterno(estado.tab);
+    if(estado.tab==='historial') renderHistorial();
+    if(estado.tab==='reportes') renderReportes();
+    if(estado.tab==='tabla'){ renderTablaSorteoSelect(); renderTablaNumeros(); }
+    if(estado.tab==='resultados'){ renderResultadosSorteoSelect(); renderListaResultados(); }
+    if(estado.tab==='ventas'){
+      renderVentaSorteoSelect();
+      mostrarPantallaVenta(estado.pantallaVenta || 'sorteo');
+      if(pantallaVentaActual==='sorteo') renderListaSorteosVenta();
+      if(pantallaVentaActual==='historial') renderHistorialSorteoActual();
+    }
+    ultimoEstadoNav = JSON.stringify(estado);
+  }
+  manejandoPopstate = false;
+});
 function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
 
 // ---------------- AVISOS Y CONFIRMACIONES PROPIAS (reemplazan alert/confirm/prompt nativos) ----------------
@@ -1463,6 +1504,7 @@ function mostrarPantallaVenta(p){
   });
   const cajaAdminVend = document.getElementById('admin-vendedor-box');
   if(cajaAdminVend) cajaAdminVend.style.display = (p==='sorteo' && currentUser.role==='admin') ? 'block' : 'none';
+  registrarNavegacion();
 }
 function renderListaSorteosVenta(){
   const cont = document.getElementById('lista-sorteos-venta');
@@ -1709,6 +1751,7 @@ function mostrarComprobante(venta){
   document.getElementById('ticket-content').innerHTML = html;
   document.getElementById('print-ticket-content').innerHTML = html;
   document.getElementById('modal-comprobante').style.display='flex';
+  if(!manejandoPopstate) history.pushState({tipo:'modal'}, '', '');
 }
 function cerrarModal(){ document.getElementById('modal-comprobante').style.display='none'; }
 function imprimirTicket(){ window.print(); }

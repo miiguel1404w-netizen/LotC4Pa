@@ -111,15 +111,15 @@
   .kp-summary-col:last-child{ border-right:none; }
   .kp-summary-col .val{ font-size:18px; font-weight:700; color:#3A2705; font-family:'IBM Plex Mono',monospace; }
   .kp-summary-col .lbl{ font-size:10.5px; color:#5C4009; text-transform:uppercase; letter-spacing:0.4px; margin-top:2px; }
-  .kp-grid3{ display:grid; grid-template-columns:repeat(3, 1fr); }
+  .kp-grid3{ display:grid; grid-template-columns:repeat(3, 1fr); grid-auto-rows:1fr; flex:1; }
   .ventas-3zonas{ display:block; }
   .ventas-zona-superior{ }
   .ventas-zona-teclado{ margin-top:6px; }
   .ventas-zona-lista{ padding-top:14px; }
-  .kp-key{ font-family:'IBM Plex Mono',monospace; font-size:20px; font-weight:700; padding:14px 0; border:none; border-right:1px solid var(--line); border-bottom:1px solid var(--line); background:#fff; color:var(--ink); cursor:pointer; touch-action:manipulation; }
+  .kp-key{ font-family:'IBM Plex Mono',monospace; font-size:26px; font-weight:700; padding:22px 0; border:none; border-right:1px solid var(--line); border-bottom:1px solid var(--line); background:#fff; color:var(--ink); cursor:pointer; touch-action:manipulation; }
   .kp-key:nth-child(3n){ border-right:none; }
   .kp-key:active{ background:var(--paper-dim); }
-  .kp-key-clear{ background:var(--paper-dim); color:var(--ink-dim); font-size:17px; }
+  .kp-key-clear{ background:var(--paper-dim); color:var(--ink-dim); font-size:20px; }
   .kp-key-ok{ background:var(--green); color:#fff; }
   .kp-dup-row{ display:flex; }
   .kp-dup-btn{ flex:1; padding:16px 0; text-align:center; font-weight:700; font-size:15px; border:none; cursor:pointer; color:#fff; touch-action:manipulation; }
@@ -159,6 +159,7 @@
   .ganancia-neg{ font-family:'IBM Plex Mono',monospace; font-weight:700; color:var(--red); }
   .tag-anulado{ display:inline-block; font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:0.4px; padding:3px 8px; border-radius:20px; color:#fff; background:var(--red); }
   tr.row-anulada td{ opacity:0.55; }
+  .jugada-row.row-ganadora{ background:#FDF3D9; border-left:4px solid var(--gold); margin:0 -8px; padding-left:12px; padding-right:8px; border-radius:6px; }
   .ticket-anulado-banner{ text-align:center; background:var(--red); color:#fff; font-weight:700; font-size:12px; letter-spacing:0.6px; text-transform:uppercase; padding:6px; border-radius:5px; margin-bottom:12px; }
 
   .pill-list{ display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }
@@ -322,7 +323,7 @@
 
       <!-- PANTALLA 3: TECLADO A PANTALLA COMPLETA -->
       <div id="pantalla-teclado" style="display:none">
-        <div class="card" style="padding:0; overflow:hidden; margin-bottom:0;">
+        <div class="card" style="padding:0; overflow:hidden; margin-bottom:0; display:flex; flex-direction:column; min-height:calc(100vh - 110px);">
           <div style="padding:14px 22px 0 22px; display:flex; align-items:center; justify-content:space-between;">
             <button class="btn-text" style="padding:0;" onclick="salirTecladoSinGuardar()">← Salir</button>
             <span style="font-size:12.5px; color:var(--ink-dim);" id="tk-sorteo-nombre"></span>
@@ -540,6 +541,10 @@
           <div class="field"><label>Usuario</label><input type="text" id="in-v-username"></div>
           <div class="field"><label>Contraseña</label><input type="text" id="in-v-password"></div>
         </div>
+        <label style="display:flex; align-items:center; gap:7px; text-transform:none; font-size:13.5px; color:var(--ink); cursor:pointer;">
+          <input type="checkbox" id="in-v-equipo" style="width:auto" checked> Es parte de mi equipo (comparte y puede anular tickets con los demás del equipo)
+        </label>
+        <p class="hint" style="margin-top:6px;">Si lo desmarcas, este vendedor queda independiente: solo ve y anula sus propias ventas, sin mezclarse con tu equipo.</p>
         <div class="btn-row">
           <button class="btn btn-primary" id="btn-guardar-vendedor" onclick="guardarVendedor()">Agregar vendedor</button>
           <button class="btn btn-text" id="btn-cancelar-edicion" onclick="cancelarEdicionVendedor()" style="display:none">Cancelar</button>
@@ -720,7 +725,7 @@ function ahoraServidor(){
   if(refServidorMs===null) return new Date();
   return new Date(refServidorMs + (performance.now() - refPerfMs));
 }
-function filaAVendedor(v){ return { id:v.id, nombre:v.nombre, username:v.username, password:v.password }; }
+function filaAVendedor(v){ return { id:v.id, nombre:v.nombre, username:v.username, password:v.password, enEquipo: v.en_equipo !== false }; }
 function filaASorteo(s){
   return { id:s.id, nombre:s.nombre, horaSorteoTexto:s.hora_sorteo_texto, horaCierre:s.hora_cierre,
     dias:s.dias||[], notas:s.notas||'', excepcionFecha:s.excepcion_fecha, paleHabilitado: s.pale_habilitado!==false };
@@ -963,6 +968,7 @@ function iniciarEdicionVendedor(id){
   document.getElementById('in-v-nombre').value = v.nombre;
   document.getElementById('in-v-username').value = v.username;
   document.getElementById('in-v-password').value = v.password;
+  document.getElementById('in-v-equipo').checked = v.enEquipo !== false;
   document.getElementById('vendedor-form-title').textContent = 'Editar vendedor';
   document.getElementById('btn-guardar-vendedor').textContent = 'Guardar cambios';
   document.getElementById('btn-cancelar-edicion').style.display='inline-block';
@@ -972,6 +978,7 @@ function cancelarEdicionVendedor(){
   document.getElementById('in-v-nombre').value='';
   document.getElementById('in-v-username').value='';
   document.getElementById('in-v-password').value='';
+  document.getElementById('in-v-equipo').checked = true;
   document.getElementById('vendedor-form-title').textContent = 'Agregar vendedor';
   document.getElementById('btn-guardar-vendedor').textContent = 'Agregar vendedor';
   document.getElementById('btn-cancelar-edicion').style.display='none';
@@ -980,16 +987,17 @@ async function guardarVendedor(){
   const nombre = document.getElementById('in-v-nombre').value.trim();
   const username = document.getElementById('in-v-username').value.trim();
   const password = document.getElementById('in-v-password').value.trim();
+  const enEquipo = document.getElementById('in-v-equipo').checked;
   if(!nombre || !username || !password){ avisar('Completa nombre, usuario y contraseña.'); return; }
   const usernameEnUso = vendedores.some(v=>v.username===username && v.id!==editingVendedorId) || username===adminAuth.username;
   if(usernameEnUso){ avisar('Ese usuario ya está en uso.'); return; }
   try{
     if(editingVendedorId){
-      await db.from('vendedores').update({ nombre, username, password }).eq('id', editingVendedorId);
-      const v = vendedores.find(x=>x.id===editingVendedorId); v.nombre=nombre; v.username=username; v.password=password;
+      await db.from('vendedores').update({ nombre, username, password, en_equipo: enEquipo }).eq('id', editingVendedorId);
+      const v = vendedores.find(x=>x.id===editingVendedorId); v.nombre=nombre; v.username=username; v.password=password; v.enEquipo=enEquipo;
     }else{
-      const nuevo = { id: uid(), nombre, username, password };
-      await db.from('vendedores').insert(nuevo);
+      const nuevo = { id: uid(), nombre, username, password, enEquipo };
+      await db.from('vendedores').insert({ id:nuevo.id, nombre:nuevo.nombre, username:nuevo.username, password:nuevo.password, en_equipo:enEquipo });
       vendedores.push(nuevo);
     }
   }catch(e){ avisar('No se pudo guardar el vendedor.'); return; }
@@ -1152,11 +1160,13 @@ async function cargarSorteosPredefinidos(){
 
 function renderConfigLists(){
   const lv = document.getElementById('lista-vendedores');
-  lv.innerHTML = vendedores.length ? vendedores.map(v=>
-    `<div class="pill">${escapeHtml(v.nombre)} <span class="mono" style="color:var(--ink-dim); font-size:11.5px;">@${escapeHtml(v.username)}</span>
+  lv.innerHTML = vendedores.length ? vendedores.map(v=>{
+    const equipoTxt = v.enEquipo!==false ? '<span style="color:var(--green); font-weight:600;">· Equipo</span>' : '<span style="color:var(--ink-dim);">· Independiente</span>';
+    return `<div class="pill">${escapeHtml(v.nombre)} <span class="mono" style="color:var(--ink-dim); font-size:11.5px;">@${escapeHtml(v.username)}</span> ${equipoTxt}
       <button class="edit-btn" onclick="iniciarEdicionVendedor('${v.id}')" title="Editar">✎</button>
       <button class="del-btn" onclick="eliminarVendedor('${v.id}')" title="Eliminar">×</button>
-    </div>`).join('') : '<div class="empty-state">No hay vendedores agregados todavía.</div>';
+    </div>`;
+  }).join('') : '<div class="empty-state">No hay vendedores agregados todavía.</div>';
 
   const ls = document.getElementById('lista-sorteos');
   const todayKey = toDateKey(new Date().toISOString());
@@ -1494,33 +1504,51 @@ function renderHistorialSorteoActual(){
 
   const hoyKey = toDateKey(ahoraServidor().toISOString());
   let ventasHoy = ventasList.filter(v=>v.sorteoId===sorteoId && toDateKey(v.fecha)===hoyKey);
-  if(currentUser.role==='vendedor') ventasHoy = ventasHoy.filter(v=>v.vendedorId===currentUser.vendedorId);
+  // Si eres del equipo, ves los tickets de todos los del equipo (para poder reenviar
+  // un comprobante aunque lo haya anotado un compañero). Si eres independiente,
+  // solo ves los tuyos, sin mezclarte con el equipo del admin.
+  if(currentUser.role==='vendedor'){
+    if(vendedorEnEquipo(currentUser.vendedorId)){
+      ventasHoy = ventasHoy.filter(v=>vendedorEnEquipo(v.vendedorId));
+    }else{
+      ventasHoy = ventasHoy.filter(v=>v.vendedorId===currentUser.vendedorId);
+    }
+  }
   const activas = ventasHoy.filter(v=>!v.anulada);
   const total = activas.reduce((s,v)=>s+v.total,0);
+  const totalPremios = activas.reduce((s,v)=>s+(premioDeVenta(v)||0),0);
+  const cajaPremios = totalPremios>0
+    ? `<div class="summary-box" style="border-left-color:var(--red)"><div class="num mono" style="color:var(--red)">$${totalPremios.toFixed(2)}</div><div class="lbl">Total premios</div></div>`
+    : `<div class="summary-box"><div class="num mono" style="color:var(--ink-dim)">$0.00</div><div class="lbl">Total premios</div></div>`;
 
   document.getElementById('hs-resumen').innerHTML = `
     <div class="summary-box"><div class="num mono">$${total.toFixed(2)}</div><div class="lbl">Vendido hoy</div></div>
-    <div class="summary-box"><div class="num mono">${activas.length}</div><div class="lbl">Tickets</div></div>`;
+    ${cajaPremios}`;
 
   const cont = document.getElementById('hs-lista-tickets');
-  if(ventasHoy.length===0){
+  if(activas.length===0){
     cont.innerHTML = '<div class="empty-state">Aún no hay tickets para este sorteo hoy. Toca ✎ para anotar.</div>';
   }else{
-    cont.innerHTML = ventasHoy.map(v=>{
+    cont.innerHTML = activas.map(v=>{
       const premio = premioDeVenta(v);
       let premioTxt;
-      if(v.anulada) premioTxt = '<span class="tag-anulado">Anulado</span>';
-      else if(premio===null) premioTxt = '<span style="color:var(--ink-dim)">—</span>';
+      if(premio===null) premioTxt = '<span style="color:var(--ink-dim)">—</span>';
       else if(premio>0) premioTxt = `<span class="premio-tag">$${premio.toFixed(2)}</span>`;
       else premioTxt = '$0.00';
-      return `<div class="jugada-row ${v.anulada?'row-anulada':''}">
+      const esGanador = premio!==null && premio>0;
+      const botonAnular = puedeAnular(v) ? `<button class="btn-danger-text" onclick="anularDesdeHistorialSorteo('${v.id}')">Anular</button>` : '';
+      return `<div class="jugada-row ${esGanador?'row-ganadora':''}">
         <div><span class="mono" style="font-weight:600">#${folioTexto(v)}</span> ${v.cliente?escapeHtml(v.cliente):''}
           <span style="color:var(--ink-dim); font-size:12px;"> · ${escapeHtml(nombreVendedor(v.vendedorId))}</span></div>
         <div style="display:flex; align-items:center; gap:8px;"><span class="mono" style="font-weight:600">$${v.total.toFixed(2)}</span>${premioTxt}
-          <button class="btn btn-outline btn-sm" onclick="verComprobante('${v.id}')">Ver</button></div>
+          <button class="btn btn-outline btn-sm" onclick="verComprobante('${v.id}')">Ver</button>${botonAnular}</div>
       </div>`;
     }).join('');
   }
+}
+async function anularDesdeHistorialSorteo(id){
+  await anularVenta(id);
+  renderHistorialSorteoActual();
 }
 function abrirTecladoFullscreen(){
   const sorteoId = document.getElementById('sel-sorteo').value;
@@ -1744,13 +1772,19 @@ async function compartirTicketActual(){
 }
 
 // ---------------- ANULAR VENTA ----------------
+function vendedorEnEquipo(vendedorId){
+  const v = vendedores.find(x=>x.id===vendedorId);
+  return v ? (v.enEquipo !== false) : false;
+}
 function puedeAnular(venta){
   if(venta.anulada) return false;
   if(currentUser.role==='admin') return true;
-  if(currentUser.role==='vendedor' && venta.vendedorId===currentUser.vendedorId){
+  if(currentUser.role==='vendedor'){
     const sorteo = sorteos.find(s=>s.id===venta.sorteoId);
     const esHoy = toDateKey(venta.fecha)===toDateKey(ahoraServidor().toISOString());
-    return esHoy && !!sorteo && sorteoAbierto(sorteo);
+    if(!esHoy || !sorteo || !sorteoAbierto(sorteo)) return false;
+    if(venta.vendedorId===currentUser.vendedorId) return true;
+    return vendedorEnEquipo(currentUser.vendedorId) && vendedorEnEquipo(venta.vendedorId);
   }
   return false;
 }

@@ -847,7 +847,7 @@ function filaAVendedor(v){ return { id:v.id, nombre:v.nombre, username:v.usernam
 function filaALiquidacion(l){ return { id:l.id, vendedorId:l.vendedor_id, fecha:l.fecha, monto:+l.monto, direccion:l.direccion, nota:l.nota||'' }; }
 function filaASorteo(s){
   return { id:s.id, nombre:s.nombre, horaSorteoTexto:s.hora_sorteo_texto, horaCierre:s.hora_cierre,
-    dias:s.dias||[], notas:s.notas||'', excepcionFecha:s.excepcion_fecha, paleHabilitado: s.pale_habilitado!==false,
+    dias:s.dias||[], notas:s.notas||'', excepcionFecha:s.excepcion_fecha, pausaFecha:s.pausa_fecha, paleHabilitado: s.pale_habilitado!==false,
     tipoBillete: s.tipo_billete || 'ninguno' };
 }
 function filaAVenta(v){
@@ -1292,6 +1292,7 @@ function sorteoAbierto(s){
   const now = ahoraServidor();
   const dow = now.getDay();
   const todayKey = toDateKey(now.toISOString());
+  if(s.pausaFecha===todayKey) return false;
   const diaOk = (s.dias && s.dias.includes(dow)) || s.excepcionFecha===todayKey;
   if(!diaOk) return false;
   const nowMin = now.getHours()*60+now.getMinutes();
@@ -1332,7 +1333,7 @@ function cancelarEdicionSorteo(){
 }
 function filaSorteoParaDB(s){
   return { id:s.id, nombre:s.nombre, hora_sorteo_texto:s.horaSorteoTexto, hora_cierre:s.horaCierre,
-    dias:s.dias, notas:s.notas, excepcion_fecha:s.excepcionFecha, pale_habilitado:s.paleHabilitado, tipo_billete:s.tipoBillete };
+    dias:s.dias, notas:s.notas, excepcion_fecha:s.excepcionFecha, pausa_fecha:s.pausaFecha, pale_habilitado:s.paleHabilitado, tipo_billete:s.tipoBillete };
 }
 async function guardarSorteo(){
   const nombre = document.getElementById('in-s-nombre').value.trim();
@@ -1351,7 +1352,7 @@ async function guardarSorteo(){
       await db.from('sorteos').update(filaSorteoParaDB(actualizado)).eq('id', editingSorteoId);
       s.nombre=nombre; s.horaSorteoTexto=horaSorteoTexto; s.horaCierre=horaCierre; s.notas=notas; s.dias=dias; s.paleHabilitado=paleHabilitado; s.tipoBillete=tipoBillete;
     }else{
-      const nuevo = { id: uid(), nombre, horaSorteoTexto, horaCierre, notas, dias, excepcionFecha:null, paleHabilitado, tipoBillete };
+      const nuevo = { id: uid(), nombre, horaSorteoTexto, horaCierre, notas, dias, excepcionFecha:null, pausaFecha:null, paleHabilitado, tipoBillete };
       await db.from('sorteos').insert(filaSorteoParaDB(nuevo));
       sorteos.push(nuevo);
     }
@@ -1377,6 +1378,15 @@ async function toggleExcepcionHoy(id){
   catch(e){ avisar('No se pudo actualizar el sorteo.'); return; }
   s.excepcionFecha = nuevoValor;
   renderConfigLists(); renderVentaSorteoSelect();
+}
+async function togglePausaHoy(id){
+  const s = sorteos.find(x=>x.id===id); if(!s) return;
+  const todayKey = toDateKey(new Date().toISOString());
+  const nuevoValor = (s.pausaFecha===todayKey) ? null : todayKey;
+  try{ await db.from('sorteos').update({ pausa_fecha: nuevoValor }).eq('id', id); }
+  catch(e){ avisar('No se pudo actualizar el sorteo.'); return; }
+  s.pausaFecha = nuevoValor;
+  renderConfigLists(); renderVentaSorteoSelect(); renderListaSorteosVenta();
 }
 async function togglePaleSorteo(id){
   const s = sorteos.find(x=>x.id===id); if(!s) return;
@@ -1412,7 +1422,7 @@ async function cargarSorteosPredefinidos(){
   const nuevos = [];
   preset.forEach(p=>{
     const existe = sorteos.some(s=>s.nombre===p.nombre && s.horaSorteoTexto===p.horaSorteoTexto);
-    if(!existe){ nuevos.push({ id: uid(), paleHabilitado:true, tipoBillete:'ninguno', ...p, excepcionFecha:null }); }
+    if(!existe){ nuevos.push({ id: uid(), paleHabilitado:true, tipoBillete:'ninguno', ...p, excepcionFecha:null, pausaFecha:null }); }
   });
   if(nuevos.length){
     try{ await db.from('sorteos').insert(nuevos.map(filaSorteoParaDB)); }
@@ -1438,17 +1448,20 @@ function renderConfigLists(){
   ls.innerHTML = sorteos.length ? sorteos.map(s=>{
     const abierto = sorteoAbierto(s);
     const excActiva = s.excepcionFecha===todayKey;
+    const pausaActiva = s.pausaFecha===todayKey;
     const paleOn = s.paleHabilitado !== false;
     return `<div class="pill pill-block">
       <div><span class="dot ${abierto?'abierto':'cerrado'}"></span><strong>${escapeHtml(s.nombre)}</strong> · ${escapeHtml(s.horaSorteoTexto)}</div>
       <div style="font-size:12px; color:var(--ink-dim)">Cierra ${s.horaCierre} · ${formatoDias(s.dias)}</div>
       <div style="font-size:11.5px; color:${paleOn?'var(--ink-dim)':'var(--red)'}; font-weight:${paleOn?'400':'600'}">${paleOn? 'Palé habilitado' : 'Palé NO se vende en este sorteo'}</div>
+      ${pausaActiva? `<div style="font-size:11.5px; color:var(--red); font-weight:600;">⏸ Pausado solo por hoy — no se puede anotar hasta mañana</div>` : ''}
       ${s.notas? `<div style="font-size:11.5px; color:var(--ink-dim)">${escapeHtml(s.notas)}</div>` : ''}
       <div class="pill-row-actions">
         <button class="edit-btn" onclick="iniciarEdicionSorteo('${s.id}')" title="Editar">Editar</button>
         <button class="exc-btn" onclick="toggleExcepcionHoy('${s.id}')" title="Excepción hoy">${excActiva? 'Quitar excepción hoy':'Excepción hoy'}</button>
+        <button class="exc-btn" onclick="togglePausaHoy('${s.id}')" title="Pausar solo hoy">${pausaActiva? '▶ Reactivar hoy':'⏸ Pausar solo hoy'}</button>
         <button class="exc-btn" onclick="togglePaleSorteo('${s.id}')" title="Palé">${paleOn? 'Desactivar palé':'Activar palé'}</button>
-        <button class="del-btn" onclick="eliminarSorteo('${s.id}')" title="Eliminar">Eliminar</button>
+        <button class="del-btn" onclick="eliminarSorteo('${s.id}')" title="Eliminar para siempre">Eliminar para siempre</button>
       </div>
     </div>`;
   }).join('') : '<div class="empty-state">No hay sorteos agregados todavía.</div>';
@@ -2204,6 +2217,11 @@ async function confirmarVenta(){
 // ---------------- COMPROBANTE ----------------
 function nombreVendedor(id){ const v = vendedores.find(x=>x.id===id); return v? v.nombre : '(eliminado)'; }
 function nombreSorteo(id){ const s = sorteos.find(x=>x.id===id); return s? (s.nombre+' · '+s.horaSorteoTexto) : '(eliminado)'; }
+function nombreSorteoVenta(v){
+  const s = sorteos.find(x=>x.id===v.sorteoId);
+  if(s) return s.nombre+' · '+s.horaSorteoTexto;
+  return v.codigoSorteo ? `(sorteo eliminado · código ${escapeHtml(v.codigoSorteo)})` : '(eliminado)';
+}
 function formatearFecha(iso){
   const d = new Date(iso);
   return d.toLocaleDateString('es-DO', {day:'2-digit', month:'2-digit', year:'numeric'}) + ' · ' + d.toLocaleTimeString('es-DO', {hour:'2-digit', minute:'2-digit'});
@@ -2666,7 +2684,7 @@ function renderHistorial(){
       const botonEditar = (!v.pendienteSync && puedeAnular(v)) ? `<button class="btn btn-outline btn-sm" onclick="editarDesdeHistorialGeneral('${v.id}')">Editar</button>` : '';
       const tituloAnulado = v.anulada ? `title="Anulado por ${escapeHtml(v.anuladaPor||'')}${v.motivoAnulacion? ': '+escapeHtml(v.motivoAnulacion):''}"` : '';
       return `<tr class="${v.anulada?'row-anulada':''}" ${tituloAnulado}><td class="mono">#${folioTexto(v)}</td><td>${formatearFecha(v.fecha)}</td><td>${v.cliente? escapeHtml(v.cliente) : '<span style="color:var(--ink-dim)">—</span>'}</td><td>${escapeHtml(nombreVendedor(v.vendedorId))}</td>
-      <td>${escapeHtml(nombreSorteo(v.sorteoId))}</td><td>${v.jugadas.length}</td><td class="mono" style="font-weight:600;">$${v.total.toFixed(2)}</td><td>${premioCell}</td>
+      <td>${nombreSorteoVenta(v)}</td><td>${v.jugadas.length}</td><td class="mono" style="font-weight:600;">$${v.total.toFixed(2)}</td><td>${premioCell}</td>
       <td style="display:flex; gap:6px; flex-wrap:wrap;"><button class="btn btn-outline btn-sm" onclick="verComprobante('${v.id}')">Ver / Imprimir</button>${botonEditar}${botonAnular}</td></tr>`;
     }).join('');
   }

@@ -297,6 +297,8 @@
   <div class="nav-item" data-tab="tabla" onclick="irATab('tabla')">🔢 Tabla de números</div>
   <div class="nav-item admin-only" data-tab="reportes" onclick="irATab('reportes')">📊 Reportes</div>
   <div class="nav-item admin-only" data-tab="resultados" onclick="irATab('resultados')">🏆 Resultados</div>
+  <div class="nav-item admin-only" data-tab="independientes" onclick="irATab('independientes')">💵 Vendedores Independientes</div>
+  <div class="nav-item" data-tab="micomision" id="nav-micomision" style="display:none" onclick="irATab('micomision')">💵 Mi comisión</div>
   <div class="nav-item admin-only" data-tab="config" onclick="irATab('config')">⚙️ Administración</div>
   <div class="nav-item logout" onclick="cerrarSesion()">⎋ Cerrar sesión</div>
 </div>
@@ -552,6 +554,18 @@
     </div>
 
     <!-- ===== CONFIG ===== -->
+    <div id="tab-independientes" style="display:none">
+      <h1 class="page-title">Vendedores Independientes</h1>
+      <div class="page-sub">Comisión, ventas, premios pagados y balance pendiente de cada uno.</div>
+      <div id="lista-independientes"></div>
+    </div>
+
+    <div id="tab-micomision" style="display:none">
+      <h1 class="page-title">Mi comisión</h1>
+      <div class="page-sub">Tu % de comisión, lo vendido, los premios que has pagado, y el balance con el admin.</div>
+      <div id="tab-micomision-contenido"></div>
+    </div>
+
     <div id="tab-config" style="display:none">
       <h1 class="page-title">Administración</h1>
       <div class="page-sub">Vendedores, sorteos, premiación y seguridad.</div>
@@ -565,9 +579,13 @@
           <div class="field"><label>Contraseña</label><input type="text" id="in-v-password"></div>
         </div>
         <label style="display:flex; align-items:center; gap:7px; text-transform:none; font-size:13.5px; color:var(--ink); cursor:pointer;">
-          <input type="checkbox" id="in-v-equipo" style="width:auto" checked> Es parte de mi equipo (comparte y puede anular tickets con los demás del equipo)
+          <input type="checkbox" id="in-v-equipo" style="width:auto" checked onchange="onCambioEquipoVendedor()"> Es parte de mi equipo (comparte y puede anular tickets con los demás del equipo)
         </label>
         <p class="hint" style="margin-top:6px;">Si lo desmarcas, este vendedor queda independiente: solo ve y anula sus propias ventas, sin mezclarse con tu equipo.</p>
+        <div class="field" id="campo-v-porcentaje" style="display:none; max-width:220px; margin-top:10px;">
+          <label>Comisión del vendedor (%)</label>
+          <input type="number" step="0.01" min="0" max="100" id="in-v-porcentaje" placeholder="20">
+        </div>
         <div class="btn-row">
           <button class="btn btn-primary" id="btn-guardar-vendedor" onclick="guardarVendedor()">Agregar vendedor</button>
           <button class="btn btn-text" id="btn-cancelar-edicion" onclick="cancelarEdicionVendedor()" style="display:none">Cancelar</button>
@@ -693,6 +711,28 @@
 </div>
 <div id="print-area"><div class="ticket" style="box-shadow:none; width:100%; max-width:320px; margin:0 auto;"><div class="ticket-body" id="print-ticket-content"></div></div></div>
 
+<div class="modal-overlay no-print" id="modal-liquidacion" style="display:none">
+  <div class="ticket" style="width:340px;">
+    <div class="ticket-body">
+      <h2 style="margin-top:0;">Registrar pago</h2>
+      <p class="hint" id="liq-vendedor-nombre" style="margin-top:-8px;"></p>
+      <div class="field">
+        <label>¿Quién le entrega a quién?</label>
+        <select id="liq-direccion">
+          <option value="vendedor_a_admin">El vendedor me entrega a mí</option>
+          <option value="admin_a_vendedor">Yo le entrego al vendedor</option>
+        </select>
+      </div>
+      <div class="field"><label>Monto</label><input type="number" step="0.01" id="liq-monto" placeholder="0.00"></div>
+      <div class="field"><label>Nota (opcional)</label><input type="text" id="liq-nota" placeholder="Ej. pago semanal" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="cerrarModalLiquidacion()">Cancelar</button>
+      <button class="btn btn-gold" onclick="guardarLiquidacion()">Guardar</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay no-print" id="modal-confirm" style="display:none; z-index:200;">
   <div class="ticket" style="width:320px;">
     <div class="ticket-body">
@@ -757,6 +797,7 @@ let premios = { chance20:{1:11,2:3,3:2}, chance25:{1:14,2:3,3:2}, pale:{"12":100
 let ventasList = [];
 let folioCounter = 1;
 let resultados = [];
+let liquidaciones = [];
 
 let currentUser = null;
 let editingVendedorId = null;
@@ -791,7 +832,8 @@ function ahoraServidor(){
   if(refServidorMs===null) return new Date();
   return new Date(refServidorMs + (performance.now() - refPerfMs));
 }
-function filaAVendedor(v){ return { id:v.id, nombre:v.nombre, username:v.username, password:v.password, enEquipo: v.en_equipo !== false }; }
+function filaAVendedor(v){ return { id:v.id, nombre:v.nombre, username:v.username, password:v.password, enEquipo: v.en_equipo !== false, porcentaje: +v.porcentaje || 0 }; }
+function filaALiquidacion(l){ return { id:l.id, vendedorId:l.vendedor_id, fecha:l.fecha, monto:+l.monto, direccion:l.direccion, nota:l.nota||'' }; }
 function filaASorteo(s){
   return { id:s.id, nombre:s.nombre, horaSorteoTexto:s.hora_sorteo_texto, horaCierre:s.hora_cierre,
     dias:s.dias||[], notas:s.notas||'', excepcionFecha:s.excepcion_fecha, paleHabilitado: s.pale_habilitado!==false,
@@ -851,6 +893,11 @@ async function cargarDatos(){
   try{
     const { data } = await db.from('resultados').select('*');
     resultados = (data||[]).map(filaAResultado);
+  }catch(e){}
+
+  try{
+    const { data } = await db.from('liquidaciones').select('*').order('fecha', { ascending:false });
+    liquidaciones = (data||[]).map(filaALiquidacion);
   }catch(e){}
 
   if(!defaultVendedorCreado){
@@ -946,6 +993,8 @@ function entrarAlApp(){
   renderPremiosBilleteForm();
   renderResultadosSorteoSelect();
   renderListaResultados();
+  renderListaIndependientes();
+  renderMiComision();
   renderHistorial();
   renderReportes();
   renderTablaSorteoSelect();
@@ -963,6 +1012,10 @@ async function cerrarSesion(){
   document.getElementById('login-password').value='';
   document.getElementById('login-error').style.display='none';
 }
+function esVendedorIndependiente(vendedorId){
+  const v = vendedores.find(x=>x.id===vendedorId);
+  return !!v && v.enEquipo===false;
+}
 function aplicarRol(){
   document.getElementById('session-nombre').textContent = currentUser.nombre;
   document.getElementById('topbar-sesion-nombre').textContent = currentUser.nombre + ' · ' + (currentUser.role==='admin' ? 'Admin' : 'Vendedor');
@@ -975,6 +1028,8 @@ function aplicarRol(){
   const esVendedor = currentUser.role==='vendedor';
   const fv = document.getElementById('filtro-vendedor'); if(fv) fv.style.display = esVendedor ? 'none' : '';
   const rv = document.getElementById('rep-vendedor'); if(rv) rv.style.display = esVendedor ? 'none' : '';
+  const navMiComision = document.getElementById('nav-micomision');
+  if(navMiComision) navMiComision.style.display = (esVendedor && esVendedorIndependiente(currentUser.vendedorId)) ? 'flex' : 'none';
 }
 
 // ---------------- MENÚ DESPLEGABLE ----------------
@@ -1032,13 +1087,14 @@ function aplicarEstadoNav(estado){
 }
 function mostrarTabInterno(tab){
   document.querySelectorAll('.nav-item[data-tab]').forEach(el=>el.classList.toggle('active', el.dataset.tab===tab));
-  ['ventas','historial','reportes','tabla','resultados','config'].forEach(t=>{
+  ['ventas','historial','reportes','tabla','resultados','config','independientes','micomision'].forEach(t=>{
     const el = document.getElementById('tab-'+t);
     if(el) el.style.display = (t===tab)?'block':'none';
   });
 }
 function switchTab(tab){
-  if((tab==='config' || tab==='resultados' || tab==='reportes') && currentUser.role!=='admin') return;
+  if((tab==='config' || tab==='resultados' || tab==='reportes' || tab==='independientes') && currentUser.role!=='admin') return;
+  if(tab==='micomision' && !(currentUser.role==='vendedor' && esVendedorIndependiente(currentUser.vendedorId))) return;
   if(tab!=='ventas'){ document.documentElement.classList.remove('sin-scroll'); document.body.classList.remove('sin-scroll'); }
   mostrarTabInterno(tab);
   if(tab==='historial') renderHistorial();
@@ -1046,6 +1102,8 @@ function switchTab(tab){
   if(tab==='tabla'){ renderTablaSorteoSelect(); renderTablaNumeros(); }
   if(tab==='resultados'){ renderResultadosSorteoSelect(); renderListaResultados(); }
   if(tab==='ventas'){ renderVentaSorteoSelect(); mostrarPantallaVenta('sorteo'); renderListaSorteosVenta(); }
+  if(tab==='independientes') renderListaIndependientes();
+  if(tab==='micomision') renderMiComision();
   registrarNavegacion();
 }
 let ultimoIntentoSalir = 0;
@@ -1053,10 +1111,17 @@ window.addEventListener('popstate', ()=>{
   if(!currentUser) return;
   manejandoPopstate = true;
   const modalAbierto = document.getElementById('modal-comprobante').style.display==='flex';
+  const modalLiqAbierto = document.getElementById('modal-liquidacion').style.display==='flex';
   const menuAbierto = document.getElementById('menu-drawer').classList.contains('abierto');
 
   if(modalAbierto){
     cerrarModal();
+    history.pushState(null, '', '');
+    manejandoPopstate = false;
+    return;
+  }
+  if(modalLiqAbierto){
+    cerrarModalLiquidacion();
     history.pushState(null, '', '');
     manejandoPopstate = false;
     return;
@@ -1128,6 +1193,10 @@ function confirmCancelar(){ _resolverConfirm(null); }
 function escapeHtml(str){ const d=document.createElement('div'); d.textContent=str; return d.innerHTML; }
 
 // ---------------- VENDEDORES ----------------
+function onCambioEquipoVendedor(){
+  const esIndependiente = !document.getElementById('in-v-equipo').checked;
+  document.getElementById('campo-v-porcentaje').style.display = esIndependiente ? 'block' : 'none';
+}
 function iniciarEdicionVendedor(id){
   const v = vendedores.find(x=>x.id===id); if(!v) return;
   editingVendedorId = id;
@@ -1135,6 +1204,8 @@ function iniciarEdicionVendedor(id){
   document.getElementById('in-v-username').value = v.username;
   document.getElementById('in-v-password').value = v.password;
   document.getElementById('in-v-equipo').checked = v.enEquipo !== false;
+  document.getElementById('in-v-porcentaje').value = v.porcentaje || 0;
+  onCambioEquipoVendedor();
   document.getElementById('vendedor-form-title').textContent = 'Editar vendedor';
   document.getElementById('btn-guardar-vendedor').textContent = 'Guardar cambios';
   document.getElementById('btn-cancelar-edicion').style.display='inline-block';
@@ -1145,6 +1216,8 @@ function cancelarEdicionVendedor(){
   document.getElementById('in-v-username').value='';
   document.getElementById('in-v-password').value='';
   document.getElementById('in-v-equipo').checked = true;
+  document.getElementById('in-v-porcentaje').value = '';
+  onCambioEquipoVendedor();
   document.getElementById('vendedor-form-title').textContent = 'Agregar vendedor';
   document.getElementById('btn-guardar-vendedor').textContent = 'Agregar vendedor';
   document.getElementById('btn-cancelar-edicion').style.display='none';
@@ -1154,22 +1227,24 @@ async function guardarVendedor(){
   const username = document.getElementById('in-v-username').value.trim();
   const password = document.getElementById('in-v-password').value.trim();
   const enEquipo = document.getElementById('in-v-equipo').checked;
+  const porcentaje = enEquipo ? 0 : (+document.getElementById('in-v-porcentaje').value || 0);
   if(!nombre || !username || !password){ avisar('Completa nombre, usuario y contraseña.'); return; }
   const usernameEnUso = vendedores.some(v=>v.username===username && v.id!==editingVendedorId) || username===adminAuth.username;
   if(usernameEnUso){ avisar('Ese usuario ya está en uso.'); return; }
   try{
     if(editingVendedorId){
-      await db.from('vendedores').update({ nombre, username, password, en_equipo: enEquipo }).eq('id', editingVendedorId);
-      const v = vendedores.find(x=>x.id===editingVendedorId); v.nombre=nombre; v.username=username; v.password=password; v.enEquipo=enEquipo;
+      await db.from('vendedores').update({ nombre, username, password, en_equipo: enEquipo, porcentaje }).eq('id', editingVendedorId);
+      const v = vendedores.find(x=>x.id===editingVendedorId); v.nombre=nombre; v.username=username; v.password=password; v.enEquipo=enEquipo; v.porcentaje=porcentaje;
     }else{
-      const nuevo = { id: uid(), nombre, username, password, enEquipo };
-      await db.from('vendedores').insert({ id:nuevo.id, nombre:nuevo.nombre, username:nuevo.username, password:nuevo.password, en_equipo:enEquipo });
+      const nuevo = { id: uid(), nombre, username, password, enEquipo, porcentaje };
+      await db.from('vendedores').insert({ id:nuevo.id, nombre:nuevo.nombre, username:nuevo.username, password:nuevo.password, en_equipo:enEquipo, porcentaje });
       vendedores.push(nuevo);
     }
   }catch(e){ avisar('No se pudo guardar el vendedor.'); return; }
   cancelarEdicionVendedor();
   renderVendedorSelects();
   renderConfigLists();
+  renderListaIndependientes();
 }
 async function eliminarVendedor(id){
   if(!(await mostrarConfirmacion('¿Eliminar este vendedor? No podrá volver a iniciar sesión.'))) return;
@@ -1330,7 +1405,7 @@ async function cargarSorteosPredefinidos(){
 function renderConfigLists(){
   const lv = document.getElementById('lista-vendedores');
   lv.innerHTML = vendedores.length ? vendedores.map(v=>{
-    const equipoTxt = v.enEquipo!==false ? '<span style="color:var(--green); font-weight:600;">· Equipo</span>' : '<span style="color:var(--ink-dim);">· Independiente</span>';
+    const equipoTxt = v.enEquipo!==false ? '<span style="color:var(--green); font-weight:600;">· Equipo</span>' : `<span style="color:var(--ink-dim);">· Independiente (${v.porcentaje||0}% comisión)</span>`;
     return `<div class="pill">${escapeHtml(v.nombre)} <span class="mono" style="color:var(--ink-dim); font-size:11.5px;">@${escapeHtml(v.username)}</span> ${equipoTxt}
       <button class="edit-btn" onclick="iniciarEdicionVendedor('${v.id}')" title="Editar">✎</button>
       <button class="del-btn" onclick="eliminarVendedor('${v.id}')" title="Eliminar">×</button>
@@ -2334,6 +2409,120 @@ function premioDeVenta(venta){
   venta.jugadas.forEach(j=>{ total += calcularPremioJugada(j, resultado).monto; });
   return +total.toFixed(2);
 }
+
+// ---------------- VENDEDORES INDEPENDIENTES: COMISIÓN Y BALANCE ----------------
+function calcularBalanceVendedor(vendedorId){
+  const v = vendedores.find(x=>x.id===vendedorId);
+  const porcentaje = v ? (v.porcentaje||0) : 0;
+  const ventasVendedor = ventasList.filter(x=>x.vendedorId===vendedorId && !x.anulada && !x.pendienteSync);
+  const totalVendido = ventasVendedor.reduce((s,x)=>s+x.total,0);
+  // Los premios de sorteos que aún no tienen resultado cargado no cuentan
+  // todavía (premioDeVenta devuelve null en ese caso).
+  const totalPremios = ventasVendedor.reduce((s,x)=>s+(premioDeVenta(x)||0),0);
+  const comisionVendedor = +(totalVendido*(porcentaje/100)).toFixed(2);
+  const netoGenerado = +(totalVendido - comisionVendedor - totalPremios).toFixed(2);
+  const liqVendedor = liquidaciones.filter(l=>l.vendedorId===vendedorId);
+  const totalLiquidado = +liqVendedor.reduce((s,l)=> s + (l.direccion==='vendedor_a_admin'? l.monto : -l.monto), 0).toFixed(2);
+  const balancePendiente = +(netoGenerado - totalLiquidado).toFixed(2);
+  return { porcentaje, totalVendido:+totalVendido.toFixed(2), totalPremios:+totalPremios.toFixed(2), comisionVendedor, netoGenerado, totalLiquidado, balancePendiente };
+}
+function textoBalance(balancePendiente, paraAdmin){
+  if(balancePendiente>0.004){
+    return paraAdmin ? `<span style="color:var(--red); font-weight:800;">Te debe $${balancePendiente.toFixed(2)}</span>`
+                      : `<span style="color:var(--red); font-weight:800;">Le debes $${balancePendiente.toFixed(2)} al admin</span>`;
+  }
+  if(balancePendiente<-0.004){
+    const abs = Math.abs(balancePendiente);
+    return paraAdmin ? `<span style="color:var(--green); font-weight:800;">Le debes $${abs.toFixed(2)}</span>`
+                      : `<span style="color:var(--green); font-weight:800;">El admin te debe $${abs.toFixed(2)}</span>`;
+  }
+  return `<span style="color:var(--ink-dim); font-weight:800;">Al día</span>`;
+}
+function renderListaIndependientes(){
+  const cont = document.getElementById('lista-independientes');
+  if(!cont) return;
+  const independientes = vendedores.filter(v=>v.enEquipo===false);
+  if(independientes.length===0){ cont.innerHTML = '<div class="empty-state">No tienes vendedores marcados como "Independiente" todavía. Ve a Administración → Vendedores para marcarlos y ponerles su % de comisión.</div>'; return; }
+  cont.innerHTML = independientes.map(v=>{
+    const b = calcularBalanceVendedor(v.id);
+    const liqRecientes = liquidaciones.filter(l=>l.vendedorId===v.id).slice(0,5);
+    const historial = liqRecientes.length>0 ? `
+      <div style="margin-top:14px;">
+        <div style="font-size:11.5px; font-weight:700; color:var(--ink-dim); text-transform:uppercase; margin-bottom:6px;">Últimos pagos</div>
+        ${liqRecientes.map(l=>`<div class="jugada-row" style="font-size:12.5px; padding:6px 0;">
+          <div>${formatearFecha(l.fecha)}${l.nota?' · '+escapeHtml(l.nota):''}</div>
+          <div style="font-weight:700; color:${l.direccion==='vendedor_a_admin'?'var(--green)':'var(--red)'};">${l.direccion==='vendedor_a_admin'?'Recibí':'Entregué'} $${l.monto.toFixed(2)}</div>
+        </div>`).join('')}
+      </div>` : '';
+    return `<div class="card">
+      <div style="display:flex; justify-content:space-between; align-items:baseline; gap:8px;">
+        <h2 style="margin:0;">${escapeHtml(v.nombre)}</h2>
+        <span style="font-size:12px; color:var(--ink-dim); white-space:nowrap;">${b.porcentaje}% comisión</span>
+      </div>
+      <div class="summary-strip" style="margin-top:10px;">
+        <div class="summary-box"><div class="num mono">$${b.totalVendido.toFixed(2)}</div><div class="lbl">Vendido total</div></div>
+        <div class="summary-box"><div class="num mono">$${b.comisionVendedor.toFixed(2)}</div><div class="lbl">Su comisión</div></div>
+        <div class="summary-box"><div class="num mono">$${b.totalPremios.toFixed(2)}</div><div class="lbl">Premios que pagó</div></div>
+      </div>
+      <div style="margin-top:12px; font-size:16px;">${textoBalance(b.balancePendiente, true)}</div>
+      <button class="btn btn-gold" style="margin-top:12px;" onclick="abrirModalLiquidacion('${v.id}')">Registrar pago</button>
+      ${historial}
+    </div>`;
+  }).join('');
+}
+function renderMiComision(){
+  const cont = document.getElementById('tab-micomision-contenido');
+  if(!cont || !currentUser.vendedorId) return;
+  const v = vendedores.find(x=>x.id===currentUser.vendedorId);
+  if(!v) return;
+  const b = calcularBalanceVendedor(v.id);
+  const liqRecientes = liquidaciones.filter(l=>l.vendedorId===v.id).slice(0,15);
+  cont.innerHTML = `
+    <div class="card">
+      <h2 style="margin-top:0;">Tu comisión: ${b.porcentaje}%</h2>
+      <div class="summary-strip">
+        <div class="summary-box"><div class="num mono">$${b.totalVendido.toFixed(2)}</div><div class="lbl">Vendido total</div></div>
+        <div class="summary-box"><div class="num mono">$${b.comisionVendedor.toFixed(2)}</div><div class="lbl">Tu comisión</div></div>
+        <div class="summary-box"><div class="num mono">$${b.totalPremios.toFixed(2)}</div><div class="lbl">Premios que pagaste</div></div>
+      </div>
+      <div style="margin-top:12px; font-size:16px;">${textoBalance(b.balancePendiente, false)}</div>
+    </div>
+    <div class="card">
+      <h2 style="margin-top:0;">Historial de pagos</h2>
+      <div class="jugadas-list">${liqRecientes.length===0 ? '<div class="empty-state">Aún no hay pagos registrados.</div>' : liqRecientes.map(l=>`
+        <div class="jugada-row"><div>${formatearFecha(l.fecha)}${l.nota?' · '+escapeHtml(l.nota):''}</div>
+        <div style="font-weight:700; color:${l.direccion==='vendedor_a_admin'?'var(--red)':'var(--green)'};">${l.direccion==='vendedor_a_admin'?'Entregaste':'Recibiste'} $${l.monto.toFixed(2)}</div></div>`).join('')}</div>
+    </div>`;
+}
+let liquidacionVendedorId = null;
+function abrirModalLiquidacion(vendedorId){
+  liquidacionVendedorId = vendedorId;
+  const v = vendedores.find(x=>x.id===vendedorId);
+  document.getElementById('liq-vendedor-nombre').textContent = v ? ('Para: '+v.nombre) : '';
+  document.getElementById('liq-direccion').value = 'vendedor_a_admin';
+  document.getElementById('liq-monto').value = '';
+  document.getElementById('liq-nota').value = '';
+  document.getElementById('modal-liquidacion').style.display='flex';
+  if(!manejandoPopstate) history.pushState(null, '', '');
+}
+function cerrarModalLiquidacion(){
+  document.getElementById('modal-liquidacion').style.display='none';
+  liquidacionVendedorId = null;
+}
+async function guardarLiquidacion(){
+  const monto = +document.getElementById('liq-monto').value;
+  if(!liquidacionVendedorId || !monto || monto<=0){ avisar('Escribe un monto válido, mayor a 0.'); return; }
+  const direccion = document.getElementById('liq-direccion').value;
+  const nota = document.getElementById('liq-nota').value.trim();
+  const nueva = { id: uid(), vendedorId: liquidacionVendedorId, fecha: ahoraServidor().toISOString(), monto:+monto.toFixed(2), direccion, nota };
+  try{
+    await db.from('liquidaciones').insert({ id:nueva.id, vendedor_id:nueva.vendedorId, fecha:nueva.fecha, monto:nueva.monto, direccion:nueva.direccion, nota:nueva.nota });
+  }catch(e){ avisar('No se pudo guardar el pago. Revisa tu conexión.'); return; }
+  liquidaciones.unshift(nueva);
+  cerrarModalLiquidacion();
+  avisar('Pago registrado.');
+  renderListaIndependientes();
+}
 function renderResultadosSorteoSelect(){
   const opts = sorteos.map(s=>`<option value="${s.id}">${escapeHtml(s.nombre+' · '+s.horaSorteoTexto)}</option>`).join('');
   const sel = document.getElementById('res-sorteo');
@@ -2653,6 +2842,10 @@ async function refrescarConfigCompartida(){
   onHeaderChange();
   if(pantallaVentaActual==='sorteo') renderListaSorteosVenta();
   if(pantallaVentaActual==='historial') renderHistorialSorteoActual();
+  const tabActivoEl = document.querySelector('.nav-item[data-tab].active');
+  const tabActivo = tabActivoEl ? tabActivoEl.dataset.tab : '';
+  if(tabActivo==='independientes') renderListaIndependientes();
+  if(tabActivo==='micomision') renderMiComision();
 }
 setInterval(()=>{
   if(!currentUser) return;

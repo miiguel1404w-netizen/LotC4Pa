@@ -2707,10 +2707,21 @@ function renderListaResultados(){
       const nombreCol = r.sorteoId ? escapeHtml(nombreSorteo(r.sorteoId)) : `<span style="color:var(--ink-dim);">Histórico · ${escapeHtml(r.codigoSorteo||'')}</span>`;
       const boton = r.sorteoId
         ? `<button class="btn btn-outline btn-sm" onclick="mostrarGanadores('${r.sorteoId}','${r.fechaKey}')">Ver ganadores</button>`
-        : `<span style="font-size:11.5px; color:var(--ink-dim);">Busca "${escapeHtml(r.codigoSorteo||'')}" en Historial</span>`;
+        : `<span style="font-size:11.5px; color:var(--ink-dim);">Busca "${escapeHtml(r.codigoSorteo||'')}" en Historial</span> <button class="btn-danger-text" onclick="eliminarResultadoHistorico('${r.id}')">Borrar</button>`;
       return `<tr><td>${nombreCol}</td><td>${r.fechaKey}</td><td class="mono">${r.primeroCompleto||r.primero}</td><td class="mono">${r.segundoCompleto||r.segundo}</td><td class="mono">${r.terceroCompleto||r.tercero}</td>
       <td>${boton}</td></tr>`;
     }).join('')}</tbody></table>`;
+}
+async function eliminarResultadoHistorico(id){
+  if(!(await mostrarConfirmacion('¿Borrar este resultado histórico? Si algún ticket ya lo estaba usando para calcular su premio, dejaría de calcularlo.'))) return;
+  try{
+    const { error } = await db.from('resultados').delete().eq('id', id);
+    if(error) throw error;
+  }catch(e){ avisar('No se pudo borrar ('+(e&&e.message?e.message:'sin conexión')+').'); return; }
+  resultados = resultados.filter(r=>r.id!==id);
+  renderListaResultados();
+  renderHistorial();
+  avisar('Resultado histórico borrado.');
 }
 
 // ---------------- HISTORIAL ----------------

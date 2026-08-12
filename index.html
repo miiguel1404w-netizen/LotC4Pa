@@ -115,8 +115,7 @@
   .kp-display-col.active{ background:rgba(46,139,87,0.18); }
   .kp-display-col.active .kp-lbl{ color:var(--green); font-weight:700; }
   .kp-summary-bar{ display:flex; background:var(--gold); }
-  .kp-key-1{ position:relative; }
-  #btn-decena{ position:absolute; top:3px; right:3px; width:20px; height:20px; line-height:20px; border-radius:5px; border:1px solid var(--line); background:var(--paper-dim); color:var(--ink-dim); font-size:11px; cursor:pointer; touch-action:manipulation; z-index:2; }
+  #btn-decena{ position:absolute; top:8px; right:8px; width:26px; height:26px; line-height:26px; text-align:center; border-radius:6px; border:1.5px solid var(--gold); background:rgba(255,255,255,0.12); color:var(--gold); font-size:13px; cursor:pointer; touch-action:manipulation; z-index:2; }
   #btn-decena.activo{ background:var(--green); border-color:var(--green); box-shadow:0 0 0 2px rgba(16,185,129,0.35); }
   .kp-summary-col{ flex:1; text-align:center; padding:8px 6px; border-right:1px solid rgba(0,0,0,0.1); }
   .kp-summary-col:last-child{ border-right:none; }
@@ -368,9 +367,10 @@
               <div class="kp-big mono" id="kp-cantidad">0</div>
               <div class="kp-lbl">Tiempos</div>
             </div>
-            <div class="kp-display-col" id="kp-col-numero" onclick="seleccionarCampo('numero')">
+            <div class="kp-display-col" id="kp-col-numero" onclick="seleccionarCampo('numero')" style="position:relative;">
               <div class="kp-big mono" id="kp-numero">0</div>
               <div class="kp-lbl" id="kp-label-numero">Número</div>
+              <span id="btn-decena" onclick="event.stopPropagation(); toggleDecena();" title="Tirar decena (0-9)">🔟</span>
             </div>
           </div>
 
@@ -381,9 +381,7 @@
           </div>
 
           <div class="kp-grid3" id="kp-teclado-normal">
-            <button type="button" class="kp-key kp-key-1" id="kp-key-uno" onclick="tecla('1')">1
-              <span id="btn-decena" onclick="event.stopPropagation(); toggleDecena();" title="Tirar decena (0-9)">🔟</span>
-            </button>
+            <button type="button" class="kp-key" onclick="tecla('1')">1</button>
             <button type="button" class="kp-key" onclick="tecla('2')">2</button>
             <button type="button" class="kp-key" onclick="tecla('3')">3</button>
             <button type="button" class="kp-key" onclick="tecla('4')">4</button>

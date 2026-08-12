@@ -2706,7 +2706,7 @@ function renderListaResultados(){
     ${resultados.map(r=>{
       const nombreCol = r.sorteoId ? escapeHtml(nombreSorteo(r.sorteoId)) : `<span style="color:var(--ink-dim);">Histórico · ${escapeHtml(r.codigoSorteo||'')}</span>`;
       const boton = r.sorteoId
-        ? `<button class="btn btn-outline btn-sm" onclick="mostrarGanadores('${r.sorteoId}','${r.fechaKey}')">Ver ganadores</button>`
+        ? `<button class="btn btn-outline btn-sm" onclick="mostrarGanadores('${r.sorteoId}','${r.fechaKey}')">Ver ganadores</button> <button class="btn-danger-text" onclick="eliminarResultadoHistorico('${r.id}')">Borrar</button>`
         : `<span style="font-size:11.5px; color:var(--ink-dim);">Busca "${escapeHtml(r.codigoSorteo||'')}" en Historial</span> <button class="btn-danger-text" onclick="eliminarResultadoHistorico('${r.id}')">Borrar</button>`;
       return `<tr><td>${nombreCol}</td><td>${r.fechaKey}</td><td class="mono">${r.primeroCompleto||r.primero}</td><td class="mono">${r.segundoCompleto||r.segundo}</td><td class="mono">${r.terceroCompleto||r.tercero}</td>
       <td>${boton}</td></tr>`;

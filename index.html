@@ -1027,6 +1027,12 @@ function esVendedorIndependiente(vendedorId){
   const v = vendedores.find(x=>x.id===vendedorId);
   return !!v && v.enEquipo===false;
 }
+function vendedorCoincideFiltro(vendedorId, filtro){
+  if(!filtro) return true;
+  if(filtro==='grupo:equipo') return !esVendedorIndependiente(vendedorId);
+  if(filtro==='grupo:independientes') return esVendedorIndependiente(vendedorId);
+  return vendedorId===filtro;
+}
 function aplicarRol(){
   document.getElementById('session-nombre').textContent = currentUser.nombre;
   document.getElementById('topbar-sesion-nombre').textContent = currentUser.nombre + ' · ' + (currentUser.role==='admin' ? 'Admin' : 'Vendedor');
@@ -1453,7 +1459,10 @@ function renderVendedorSelects(){
 
   const equipo = vendedores.filter(v=>v.enEquipo!==false);
   const indep = vendedores.filter(v=>v.enEquipo===false);
-  const optsAgrupados =
+  const opcionesGrupo =
+    (equipo.length ? '<option value="grupo:equipo">🧑‍🤝‍🧑 Todo mi equipo junto</option>' : '') +
+    (indep.length ? '<option value="grupo:independientes">💵 Todos los independientes juntos</option>' : '');
+  const optsAgrupados = opcionesGrupo +
     (equipo.length ? `<optgroup label="Equipo">${equipo.map(v=>`<option value="${v.id}">${escapeHtml(v.nombre)}</option>`).join('')}</optgroup>` : '') +
     (indep.length ? `<optgroup label="Vendedores Independientes">${indep.map(v=>`<option value="${v.id}">${escapeHtml(v.nombre)}</option>`).join('')}</optgroup>` : '');
 
@@ -2628,7 +2637,7 @@ function renderHistorial(){
   const fc = document.getElementById('filtro-cliente').value.trim().toLowerCase();
   const fcod = document.getElementById('filtro-codigo').value.trim().toUpperCase().replace(/^#/, '');
   let filtradas = ventasList.filter(v=>{
-    if(fv && v.vendedorId!==fv) return false;
+    if(!vendedorCoincideFiltro(v.vendedorId, fv)) return false;
     if(fs && v.sorteoId!==fs) return false;
     if(ff){ const fechaLocal = new Date(v.fecha).toLocaleDateString('es-DO', {day:'2-digit',month:'2-digit',year:'numeric'}); if(!fechaLocal.includes(ff)) return false; }
     if(fc && !(v.cliente||'').toLowerCase().includes(fc)) return false;
@@ -2696,7 +2705,7 @@ function aplicarPresetReportes(tipo){
 function calcularReportes(fechaDesde, fechaHasta, filtroVendedorId, filtroSorteoId){
   const activas = ventasList.filter(v=>{
     if(v.anulada) return false;
-    if(filtroVendedorId && v.vendedorId!==filtroVendedorId) return false;
+    if(!vendedorCoincideFiltro(v.vendedorId, filtroVendedorId)) return false;
     if(filtroSorteoId && v.sorteoId!==filtroSorteoId) return false;
     const dk = toDateKey(v.fecha);
     if(fechaDesde && dk<fechaDesde) return false;

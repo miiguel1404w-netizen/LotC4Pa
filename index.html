@@ -112,6 +112,8 @@
   .kp-display-col.active{ background:rgba(46,139,87,0.18); }
   .kp-display-col.active .kp-lbl{ color:var(--green); font-weight:700; }
   .kp-summary-bar{ display:flex; background:var(--gold); }
+  #btn-decena{ width:100%; padding:9px 0; border-radius:7px; border:1.5px solid var(--line); background:var(--paper-dim); color:var(--ink-dim); font-weight:700; font-size:13px; cursor:pointer; touch-action:manipulation; }
+  #btn-decena.activo{ background:var(--green); border-color:var(--green); color:#fff; }
   .kp-summary-col{ flex:1; text-align:center; padding:8px 6px; border-right:1px solid rgba(0,0,0,0.1); }
   .kp-summary-col:last-child{ border-right:none; }
   .kp-summary-col .val{ font-size:18px; font-weight:700; color:#3A2705; font-family:'IBM Plex Mono',monospace; }
@@ -366,6 +368,10 @@
             <div class="kp-summary-col"><div class="val" id="kp-sum-total">$0.00</div><div class="lbl">Total</div></div>
           </div>
 
+          <div id="kp-decena-row" style="display:none; padding:8px 22px 0 22px;">
+            <button type="button" id="btn-decena" onclick="toggleDecena()">🔟 Tirar decena</button>
+          </div>
+
           <div class="kp-grid3" id="kp-teclado-normal">
             <button type="button" class="kp-key" onclick="tecla('1')">1</button>
             <button type="button" class="kp-key" onclick="tecla('2')">2</button>
@@ -401,6 +407,7 @@
           <span style="font-size:12.5px; color:var(--ink-dim);" id="vp-sorteo-nombre"></span>
         </div>
         <div class="card">
+          <div class="empty-state" id="vp-editando-aviso" style="display:none; background:#FFF3CD; color:#8A6300; font-weight:700; padding:10px 12px; border-radius:8px; margin-bottom:12px;"></div>
           <div class="jugadas-list" id="vp-lista"><div class="empty-state">No hay jugadas.</div></div>
           <div class="total-row">
             <span class="total-label">Total del ticket</span>
@@ -1465,6 +1472,7 @@ let pasoActivo = 'cantidad';   // 'cantidad' | 'numero'
 let bufferCantidad = '';
 let bufferNumero = '';
 let duplicadoPendiente = null; // { existente, cantidadNueva }
+let decenaActiva = false;
 
 function paleHabilitadoParaSorteo(sorteoId){
   const s = sorteos.find(x=>x.id===sorteoId);
@@ -1481,6 +1489,44 @@ function setModalidad(mod){
   ocultarDuplicado();
   seleccionarCampo('cantidad');
   refrescarPantallaKeypad();
+  const filaDecena = document.getElementById('kp-decena-row');
+  const esChance = (mod==='chance20' || mod==='chance25');
+  if(filaDecena) filaDecena.style.display = esChance ? 'block' : 'none';
+  if(!esChance) desactivarDecena();
+}
+function desactivarDecena(){
+  decenaActiva = false;
+  const btn = document.getElementById('btn-decena');
+  if(btn){ btn.classList.remove('activo'); btn.textContent = '🔟 Tirar decena'; }
+}
+function toggleDecena(){
+  decenaActiva = !decenaActiva;
+  const btn = document.getElementById('btn-decena');
+  if(btn){
+    btn.classList.toggle('activo', decenaActiva);
+    btn.textContent = decenaActiva ? '🔟 Decena activa — toca el primer dígito' : '🔟 Tirar decena';
+  }
+}
+function agregarDecena(digito){
+  const sorteoId = document.getElementById('sel-sorteo').value;
+  const sorteo = sorteos.find(s=>s.id===sorteoId);
+  if(currentUser.role==='vendedor' && (!sorteo || !sorteoAbierto(sorteo))){ avisar('Este sorteo ya cerró. No puedes agregar jugadas.'); return; }
+  const cantidad = parseInt(bufferCantidad)||0;
+  if(cantidad<1){ avisar('Escribe primero la cantidad de tiempos.'); return; }
+  const precioUnit = PRECIOS[modalidadActual];
+  for(let i=0;i<10;i++){
+    const numero = digito+String(i);
+    const existente = jugadasTicket.find(j=>j.modalidad===modalidadActual && j.numero===numero);
+    if(existente){
+      existente.cantidad += cantidad;
+      existente.monto = +(precioUnit*existente.cantidad).toFixed(2);
+    }else{
+      jugadasTicket.push({ id: uid(), modalidad:modalidadActual, numero, cantidad, monto: +(precioUnit*cantidad).toFixed(2) });
+    }
+  }
+  avisar('Se agregó la decena del '+digito+'0 al '+digito+'9, con '+cantidad+' tiempos cada uno.');
+  resetKeypad();
+  renderJugadas();
 }
 function billeteHabilitadoParaSorteo(sorteoId){
   const s = sorteos.find(x=>x.id===sorteoId);
@@ -1527,6 +1573,10 @@ function tecla(valor){
     if(valor==='clear'){ bufferCantidad=''; }
     else if(bufferCantidad.length<3){ bufferCantidad += valor; }
   }else{
+    if(decenaActiva && valor!=='clear' && (modalidadActual==='chance20'||modalidadActual==='chance25')){
+      agregarDecena(valor);
+      return;
+    }
     if(valor==='clear'){ bufferNumero=''; }
     else{
       const maxLen = maxNumeroLen();
@@ -1557,6 +1607,8 @@ function resetKeypad(){
   refrescarPantallaKeypad();
   const lblMod = document.getElementById('kp-sum-modalidad');
   if(lblMod) lblMod.textContent = NOMBRES_MOD[modalidadActual];
+  const filaDecena = document.getElementById('kp-decena-row');
+  if(filaDecena) filaDecena.style.display = (modalidadActual==='chance20'||modalidadActual==='chance25') ? 'block' : 'none';
 }
 function validarNumero(val){
   if(!/^\d{1,4}$/.test(val)) return null;
@@ -1628,8 +1680,15 @@ function resolverDuplicado(accion){
 }
 async function cancelarTicketActual(){
   if(jugadasTicket.length===0){ resetKeypad(); return; }
-  if(!(await mostrarConfirmacion('¿Anular este ticket? Se perderán las jugadas que aún no se han confirmado.'))) return;
+  const mensaje = editandoVentaId ? '¿Cancelar la edición? Se perderán los cambios que aún no se han guardado.' : '¿Anular este ticket? Se perderán las jugadas que aún no se han confirmado.';
+  if(!(await mostrarConfirmacion(mensaje))) return;
   jugadasTicket = [];
+  if(editandoVentaId){
+    editandoVentaId = null; editandoVentaSnapshot = null;
+    mostrarPantallaVenta('historial');
+    renderHistorialSorteoActual();
+    return;
+  }
   resetKeypad();
   renderJugadas();
 }
@@ -1764,14 +1823,15 @@ function renderHistorialSorteoActual(){
       const botonAnular = v.pendienteSync
         ? `<button class="btn-danger-text" onclick="quitarVentaPendiente('${v.id}')">Quitar</button>`
         : (puedeAnular(v) ? `<button class="btn-danger-text" onclick="anularDesdeHistorialSorteo('${v.id}')">Anular</button>` : '');
+      const botonEditar = (!v.pendienteSync && puedeAnular(v)) ? `<button class="btn btn-outline btn-sm" onclick="iniciarEdicionTicket('${v.id}')">Editar</button>` : '';
       const nombreCliente = v.cliente?escapeHtml(v.cliente):'<span style="color:var(--ink-dim); font-weight:500;">Sin nombre</span>';
       return `<div class="jugada-row ${esGanador?'row-ganadora':''} ${v.pendienteSync?'row-pendiente':''}">
         <div>
           <div style="font-size:15.5px; font-weight:700; color:${esGanador?'var(--green)':'var(--ink)'};">${v.pendienteSync?'⏳ ':''}${esGanador?'🏆 ':''}${nombreCliente}</div>
           <div style="color:var(--ink-dim); font-size:11.5px; margin-top:1px;" class="mono">#${folioTexto(v)} · ${escapeHtml(nombreVendedor(v.vendedorId))}</div>
         </div>
-        <div style="display:flex; align-items:center; gap:8px;"><span class="mono" style="font-weight:600">$${v.total.toFixed(2)}</span>${premioTxt}
-          <button class="btn btn-outline btn-sm" onclick="verComprobante('${v.id}')">Ver</button>${botonAnular}</div>
+        <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; justify-content:flex-end;"><span class="mono" style="font-weight:600">$${v.total.toFixed(2)}</span>${premioTxt}
+          <button class="btn btn-outline btn-sm" onclick="verComprobante('${v.id}')">Ver</button>${botonEditar}${botonAnular}</div>
       </div>`;
     }).join('');
   }
@@ -1786,14 +1846,42 @@ function abrirTecladoFullscreen(){
   if(!sorteo) return;
   if(currentUser.role==='vendedor' && !sorteoAbierto(sorteo)){ avisar('Este sorteo ya cerró.'); return; }
   document.getElementById('tk-sorteo-nombre').textContent = sorteo.nombre+' · '+sorteo.horaSorteoTexto;
+  editandoVentaId = null; editandoVentaSnapshot = null;
   mostrarPantallaVenta('teclado');
+  desactivarDecena();
   resetKeypad();
 }
 function salirTecladoSinGuardar(){
-  const seguir = ()=>{ mostrarPantallaVenta('historial'); renderHistorialSorteoActual(); };
+  const seguir = ()=>{ editandoVentaId=null; editandoVentaSnapshot=null; mostrarPantallaVenta('historial'); renderHistorialSorteoActual(); };
   if(jugadasTicket.length===0){ seguir(); return; }
-  mostrarConfirmacion('Tienes '+jugadasTicket.length+' jugada(s) sin guardar. ¿Salir de todas formas?', { textoAceptar:'Sí, salir' })
+  const mensaje = editandoVentaId ? 'Tienes cambios sin guardar en este ticket. ¿Salir de todas formas?' : 'Tienes '+jugadasTicket.length+' jugada(s) sin guardar. ¿Salir de todas formas?';
+  mostrarConfirmacion(mensaje, { textoAceptar:'Sí, salir' })
     .then(ok=>{ if(ok){ jugadasTicket=[]; resetKeypad(); seguir(); } });
+}
+let editandoVentaId = null;
+function editarDesdeHistorialGeneral(id){
+  switchTab('ventas');
+  iniciarEdicionTicket(id);
+}
+let editandoVentaSnapshot = null;
+function iniciarEdicionTicket(ventaId){
+  const venta = ventasList.find(v=>v.id===ventaId);
+  if(!venta) return;
+  if(venta.pendienteSync){ avisar('Este ticket todavía no se ha subido. Espera a que se sincronice para poder editarlo.'); return; }
+  if(!puedeAnular(venta)){ avisar('Ya no puedes editar este ticket (el sorteo cerró, o no te pertenece).'); return; }
+  editandoVentaId = venta.id;
+  editandoVentaSnapshot = JSON.stringify({ jugadas: venta.jugadas, total: venta.total, cliente: venta.cliente||'' });
+  jugadasTicket = venta.jugadas.map(j=>({...j}));
+  document.getElementById('sel-sorteo').value = venta.sorteoId;
+  if(currentUser.role==='admin'){
+    const selV = document.getElementById('sel-vendedor');
+    if(selV) selV.value = venta.vendedorId;
+  }
+  const sorteo = sorteos.find(s=>s.id===venta.sorteoId);
+  if(sorteo) document.getElementById('tk-sorteo-nombre').textContent = sorteo.nombre+' · '+sorteo.horaSorteoTexto;
+  document.getElementById('vp-cliente').value = venta.cliente || '';
+  mostrarPantallaVenta('previa');
+  renderVistaPrevia();
 }
 function irAVistaPrevia(){
   if(jugadasTicket.length===0){ avisar('Agrega al menos una jugada.'); return; }
@@ -1819,11 +1907,80 @@ function renderVistaPrevia(){
   const total = jugadasTicket.reduce((s,j)=>s+j.monto,0);
   document.getElementById('vp-total').textContent = '$'+total.toFixed(2);
   document.getElementById('btn-completar-venta').disabled = jugadasTicket.length===0;
+  const aviso = document.getElementById('vp-editando-aviso');
+  const btn = document.getElementById('btn-completar-venta');
+  if(editandoVentaId){
+    const venta = ventasList.find(v=>v.id===editandoVentaId);
+    if(aviso){ aviso.style.display='block'; aviso.textContent = '✎ Editando ticket #'+(venta?folioTexto(venta):'')+' — quita o agrega jugadas y guarda los cambios.'; }
+    if(btn) btn.textContent = 'Guardar cambios';
+  }else{
+    if(aviso) aviso.style.display='none';
+    if(btn) btn.textContent = 'Completar venta';
+  }
 }
 function volverATecladoDesdeVistaPrevia(){
   mostrarPantallaVenta('teclado');
 }
+async function guardarEdicionTicket(){
+  const venta = ventasList.find(v=>v.id===editandoVentaId);
+  if(!venta){ avisar('No se encontró el ticket.'); editandoVentaId=null; editandoVentaSnapshot=null; mostrarPantallaVenta('historial'); renderHistorialSorteoActual(); return; }
+  if(!puedeAnular(venta)){ avisar('Ya no puedes editar este ticket (el sorteo cerró).'); editandoVentaId=null; editandoVentaSnapshot=null; jugadasTicket=[]; mostrarPantallaVenta('historial'); renderHistorialSorteoActual(); return; }
+  if(jugadasTicket.length===0){ avisar('El ticket debe tener al menos una jugada. Si quieres eliminarlo por completo, usa "Anular" en vez de editar.'); return; }
+  const cliente = document.getElementById('vp-cliente').value.trim();
+  const total = +jugadasTicket.reduce((s,j)=>s+j.monto,0).toFixed(2);
+  const btn = document.getElementById('btn-completar-venta');
+  if(btn){ btn.disabled=true; btn.textContent='Revisando...'; }
+
+  // Antes de guardar, revisa si alguien más (otro vendedor de tu equipo, o el
+  // admin) ya guardó un cambio en este mismo ticket mientras tú lo editabas.
+  // Si es así, no sobrescribe nada — te avisa para que vuelvas a entrar y
+  // veas la versión más reciente antes de repetir tu cambio.
+  try{
+    const { data: actual } = await conTiempoLimite(
+      db.from('ventas').select('jugadas,total,cliente,anulada').eq('id', venta.id).maybeSingle(),
+      15000, 'revisando el ticket'
+    );
+    if(!actual || actual.anulada){
+      avisar('Este ticket ya no existe o fue anulado por alguien más mientras lo editabas. Tus cambios no se guardaron.');
+      editandoVentaId=null; editandoVentaSnapshot=null; jugadasTicket=[];
+      if(btn){ btn.disabled=false; btn.textContent='Guardar cambios'; }
+      mostrarPantallaVenta('historial'); renderHistorialSorteoActual();
+      return;
+    }
+    const actualSnapshot = JSON.stringify({ jugadas: actual.jugadas, total: +actual.total, cliente: actual.cliente||'' });
+    if(actualSnapshot !== editandoVentaSnapshot){
+      avisar('⚠️ Alguien más ya guardó un cambio en este ticket mientras lo editabas. Para no sobrescribir su cambio, tus ediciones NO se guardaron — vuelve a tocar "Editar" para ver la versión más reciente y repetir tu cambio ahí.');
+      if(btn){ btn.disabled=false; btn.textContent='Guardar cambios'; }
+      return;
+    }
+  }catch(e){
+    avisar('No se pudo revisar el ticket antes de guardar ('+(e&&e.message?e.message:'sin conexión')+'). Intenta de nuevo.');
+    if(btn){ btn.disabled=false; btn.textContent='Guardar cambios'; }
+    return;
+  }
+
+  if(btn) btn.textContent='Guardando...';
+  try{
+    await conTiempoLimite(db.from('ventas').update({ jugadas: jugadasTicket, total, cliente }).eq('id', venta.id), 15000, 'guardando los cambios');
+  }catch(e){
+    avisar('No se pudo guardar los cambios ('+(e&&e.message?e.message:'sin conexión')+'). Intenta de nuevo.');
+    if(btn){ btn.disabled=false; btn.textContent='Guardar cambios'; }
+    return;
+  }
+  venta.jugadas = jugadasTicket.map(j=>({...j}));
+  venta.total = total;
+  venta.cliente = cliente;
+  avisar('Ticket actualizado.');
+  mostrarComprobante(venta);
+  editandoVentaId = null; editandoVentaSnapshot = null;
+  jugadasTicket = [];
+  document.getElementById('vp-cliente').value = '';
+  document.getElementById('in-cliente').value = '';
+  mostrarPantallaVenta('historial');
+  renderHistorialSorteoActual();
+}
 async function completarVentaDesdeVistaPrevia(){
+  if(editandoVentaId){ await guardarEdicionTicket(); return; }
   document.getElementById('in-cliente').value = document.getElementById('vp-cliente').value.trim();
   await confirmarVenta();
   if(jugadasTicket.length===0){
@@ -2284,10 +2441,11 @@ function renderHistorial(){
       const botonAnular = v.pendienteSync
         ? `<button class="btn-danger-text" onclick="quitarVentaPendiente('${v.id}')">Quitar</button>`
         : (puedeAnular(v) ? `<button class="btn-danger-text" onclick="anularVenta('${v.id}')">Anular</button>` : '');
+      const botonEditar = (!v.pendienteSync && puedeAnular(v)) ? `<button class="btn btn-outline btn-sm" onclick="editarDesdeHistorialGeneral('${v.id}')">Editar</button>` : '';
       const tituloAnulado = v.anulada ? `title="Anulado por ${escapeHtml(v.anuladaPor||'')}${v.motivoAnulacion? ': '+escapeHtml(v.motivoAnulacion):''}"` : '';
       return `<tr class="${v.anulada?'row-anulada':''}" ${tituloAnulado}><td class="mono">#${folioTexto(v)}</td><td>${formatearFecha(v.fecha)}</td><td>${v.cliente? escapeHtml(v.cliente) : '<span style="color:var(--ink-dim)">—</span>'}</td><td>${escapeHtml(nombreVendedor(v.vendedorId))}</td>
       <td>${escapeHtml(nombreSorteo(v.sorteoId))}</td><td>${v.jugadas.length}</td><td class="mono" style="font-weight:600;">$${v.total.toFixed(2)}</td><td>${premioCell}</td>
-      <td style="display:flex; gap:6px; flex-wrap:wrap;"><button class="btn btn-outline btn-sm" onclick="verComprobante('${v.id}')">Ver / Imprimir</button>${botonAnular}</td></tr>`;
+      <td style="display:flex; gap:6px; flex-wrap:wrap;"><button class="btn btn-outline btn-sm" onclick="verComprobante('${v.id}')">Ver / Imprimir</button>${botonEditar}${botonAnular}</td></tr>`;
     }).join('');
   }
   const activas = filtradas.filter(v=>!v.anulada);

@@ -439,6 +439,7 @@
         <select id="filtro-sorteo" onchange="renderHistorial()"></select>
         <input type="text" id="filtro-fecha" placeholder="Filtrar por fecha (dd/mm/aaaa)" oninput="renderHistorial()">
         <input type="text" id="filtro-cliente" placeholder="Buscar por cliente" oninput="renderHistorial()">
+        <input type="text" id="filtro-codigo" placeholder="Buscar por código de ticket" oninput="renderHistorial()" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
       </div>
       <div class="card" style="padding:0; overflow-x:auto;">
         <table id="tabla-historial">
@@ -472,12 +473,22 @@
       <div class="summary-strip" id="reportes-global"></div>
 
       <div class="card" style="padding:0; overflow-x:auto;">
-        <h2 style="padding:20px 20px 0 20px">Por vendedor</h2>
+        <h2 style="padding:20px 20px 0 20px">Por vendedor · Equipo</h2>
         <table style="margin-top:12px">
           <thead><tr><th>Vendedor</th><th>Total vendido</th><th>Premios pagados</th><th>Ganancia / pérdida</th></tr></thead>
           <tbody id="reportes-vendedor-body"></tbody>
         </table>
         <div class="empty-state" id="reportes-vendedor-empty" style="display:none">No hay ventas para este filtro.</div>
+      </div>
+
+      <div class="card" style="padding:0; overflow-x:auto;">
+        <h2 style="padding:20px 20px 0 20px">Por vendedor · Independientes</h2>
+        <p class="hint" style="padding:0 20px;">La "Ganancia/pérdida" ya descuenta la comisión del vendedor, además de los premios pagados.</p>
+        <table style="margin-top:12px">
+          <thead><tr><th>Vendedor</th><th>Total vendido</th><th>% Com.</th><th>Comisión</th><th>Premios pagados</th><th>Ganancia / pérdida</th></tr></thead>
+          <tbody id="reportes-independientes-body"></tbody>
+        </table>
+        <div class="empty-state" id="reportes-independientes-empty" style="display:none">No hay ventas de vendedores independientes para este filtro.</div>
       </div>
 
       <div class="card" style="padding:0; overflow-x:auto;">
@@ -2609,11 +2620,13 @@ function renderHistorial(){
   const fs = document.getElementById('filtro-sorteo').value;
   const ff = document.getElementById('filtro-fecha').value.trim();
   const fc = document.getElementById('filtro-cliente').value.trim().toLowerCase();
+  const fcod = document.getElementById('filtro-codigo').value.trim().toUpperCase().replace(/^#/, '');
   let filtradas = ventasList.filter(v=>{
     if(fv && v.vendedorId!==fv) return false;
     if(fs && v.sorteoId!==fs) return false;
     if(ff){ const fechaLocal = new Date(v.fecha).toLocaleDateString('es-DO', {day:'2-digit',month:'2-digit',year:'numeric'}); if(!fechaLocal.includes(ff)) return false; }
     if(fc && !(v.cliente||'').toLowerCase().includes(fc)) return false;
+    if(fcod && !folioTexto(v).toUpperCase().includes(fcod)) return false;
     return true;
   });
   const tbody = document.getElementById('tabla-historial-body'); const tabla = document.getElementById('tabla-historial'); const empty = document.getElementById('historial-empty');
@@ -2717,15 +2730,32 @@ function renderReportes(){
     <div class="summary-box" style="border-left-color:${(totalVendido-totalPremios)>=0?'var(--green)':'var(--red)'}">
       <div class="num mono">${celdaGanancia(totalVendido,totalPremios)}</div><div class="lbl">Ganancia / pérdida global</div></div>`;
 
-  const idsVendedor = Object.keys(porVendedor).sort((a,b)=>porVendedor[b].vendido-porVendedor[a].vendido);
+  const todosIds = Object.keys(porVendedor).sort((a,b)=>porVendedor[b].vendido-porVendedor[a].vendido);
+  const idsEquipo = todosIds.filter(id=>!esVendedorIndependiente(id));
+  const idsIndep = todosIds.filter(id=>esVendedorIndependiente(id));
+
   const bodyV = document.getElementById('reportes-vendedor-body');
   const emptyV = document.getElementById('reportes-vendedor-empty');
-  if(idsVendedor.length===0){ bodyV.innerHTML=''; emptyV.style.display='block'; }
+  if(idsEquipo.length===0){ bodyV.innerHTML=''; emptyV.style.display='block'; }
   else{
     emptyV.style.display='none';
-    bodyV.innerHTML = idsVendedor.map(id=>{
+    bodyV.innerHTML = idsEquipo.map(id=>{
       const d = porVendedor[id];
       return `<tr><td>${escapeHtml(nombreVendedor(id))}</td><td class="mono">$${d.vendido.toFixed(2)}</td><td class="mono premio-tag">$${d.premios.toFixed(2)}</td><td>${celdaGanancia(d.vendido,d.premios)}</td></tr>`;
+    }).join('');
+  }
+
+  const bodyI = document.getElementById('reportes-independientes-body');
+  const emptyI = document.getElementById('reportes-independientes-empty');
+  if(idsIndep.length===0){ bodyI.innerHTML=''; emptyI.style.display='block'; }
+  else{
+    emptyI.style.display='none';
+    bodyI.innerHTML = idsIndep.map(id=>{
+      const d = porVendedor[id];
+      const v = vendedores.find(x=>x.id===id);
+      const pct = v ? (v.porcentaje||0) : 0;
+      const comision = +(d.vendido*(pct/100)).toFixed(2);
+      return `<tr><td>${escapeHtml(nombreVendedor(id))}</td><td class="mono">$${d.vendido.toFixed(2)}</td><td class="mono">${pct}%</td><td class="mono">$${comision.toFixed(2)}</td><td class="mono premio-tag">$${d.premios.toFixed(2)}</td><td>${celdaGanancia(d.vendido, d.premios+comision)}</td></tr>`;
     }).join('');
   }
 

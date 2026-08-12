@@ -520,6 +520,23 @@
         <p class="hint" style="margin-top:-8px;">Para sorteos como la Nacional, escribe el número completo (ej. 4523) — la app toma los últimos 2 dígitos (23) para premiar el Chance automáticamente, y guarda el número completo para cuando actives la premiación de billetes.</p>
         <button class="btn btn-gold" onclick="guardarResultado()">Guardar resultado y calcular ganadores</button>
       </div>
+
+      <div class="card">
+        <h2>Resultado histórico (sorteo ya eliminado)</h2>
+        <p class="hint">Úsalo si eliminaste un sorteo por error y sus tickets quedaron sin poder calcular premio. Escribe el código exacto que tienen esos tickets (lo ves en Historial, columna Sorteo — algo como "TIC-1108-2130") y los premios se recalculan solos.</p>
+        <div class="grid-3">
+          <div class="field"><label>Código de sorteo (exacto)</label><input type="text" id="reshist-codigo" placeholder="TIC-1108-2130" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false"></div>
+          <div class="field"><label>Fecha</label><input type="date" id="reshist-fecha"></div>
+          <div class="field"></div>
+        </div>
+        <div class="grid-3">
+          <div class="field"><label>1er lugar (2 a 4 cifras)</label><input type="text" id="reshist-primero" maxlength="4" inputmode="numeric" placeholder="00 ó 0000"></div>
+          <div class="field"><label>2do lugar (2 a 4 cifras)</label><input type="text" id="reshist-segundo" maxlength="4" inputmode="numeric" placeholder="00 ó 0000"></div>
+          <div class="field"><label>3er lugar (2 a 4 cifras)</label><input type="text" id="reshist-tercero" maxlength="4" inputmode="numeric" placeholder="00 ó 0000"></div>
+        </div>
+        <button class="btn btn-outline" onclick="guardarResultadoHistorico()">Guardar resultado histórico</button>
+      </div>
+
       <div class="card" id="ganadores-card" style="display:none">
         <h2>Tickets ganadores <span id="ganadores-sorteo-fecha" style="font-weight:400; font-size:13px; color:var(--ink-dim)"></span></h2>
         <div class="summary-strip" id="ganadores-summary"></div>
@@ -855,7 +872,7 @@ function filaAVenta(v){
     cliente:v.cliente, fecha:v.fecha, jugadas:v.jugadas, total:+v.total,
     anulada:v.anulada, anuladaPor:v.anulada_por, anuladaEn:v.anulada_en, motivoAnulacion:v.motivo_anulacion };
 }
-function filaAResultado(r){ return { id:r.id, sorteoId:r.sorteo_id, fechaKey:r.fecha_key, primero:r.primero, segundo:r.segundo, tercero:r.tercero, primeroCompleto:r.primero_completo||r.primero, segundoCompleto:r.segundo_completo||r.segundo, terceroCompleto:r.tercero_completo||r.tercero }; }
+function filaAResultado(r){ return { id:r.id, sorteoId:r.sorteo_id, codigoSorteo:r.codigo_sorteo, fechaKey:r.fecha_key, primero:r.primero, segundo:r.segundo, tercero:r.tercero, primeroCompleto:r.primero_completo||r.primero, segundoCompleto:r.segundo_completo||r.segundo, terceroCompleto:r.tercero_completo||r.tercero }; }
 
 let cargaOk = { vendedores:true, sorteos:true, ventas:true };
 async function cargarDatos(){
@@ -1868,8 +1885,10 @@ function mostrarPantallaVenta(p){
 function renderListaSorteosVenta(){
   const cont = document.getElementById('lista-sorteos-venta');
   if(!cont) return;
-  if(sorteos.length===0){ cont.innerHTML = '<div class="empty-state">Todavía no hay sorteos creados.</div>'; return; }
-  const ordenados = sorteos.slice().sort((a,b)=> (a.horaCierre||'').localeCompare(b.horaCierre||''));
+  const todayKey = toDateKey(ahoraServidor().toISOString());
+  const visibles = sorteos.filter(s=>s.pausaFecha!==todayKey);
+  if(visibles.length===0){ cont.innerHTML = '<div class="empty-state">No hay sorteos disponibles hoy.</div>'; return; }
+  const ordenados = visibles.slice().sort((a,b)=> (a.horaCierre||'').localeCompare(b.horaCierre||''));
   cont.innerHTML = ordenados.map(s=>{
     const abierto = sorteoAbierto(s);
     const codigo = codigoSorteoParaFecha(s, ahoraServidor().toISOString());
@@ -2449,9 +2468,21 @@ function calcularPremioJugada(j, resultado){
   return { pos, monto: +((unit||0)*j.cantidad).toFixed(2) };
 }
 function resultadoDe(sorteoId, fechaKey){ return resultados.find(r=>r.sorteoId===sorteoId && r.fechaKey===fechaKey) || null; }
+function resultadoDeVenta(venta){
+  const fechaKey = toDateKey(venta.fecha);
+  // Primero busca de la forma normal (por el sorteo actual). Si el sorteo
+  // ya no existe (fue eliminado), busca por el código de sorteo guardado
+  // en el ticket — así, un resultado histórico cargado con ese mismo
+  // código sigue premiando aunque el sorteo original haya desaparecido.
+  let r = resultadoDe(venta.sorteoId, fechaKey);
+  if(!r && venta.codigoSorteo){
+    r = resultados.find(x=>x.codigoSorteo===venta.codigoSorteo) || null;
+  }
+  return r;
+}
 function premioDeVenta(venta){
   if(venta.anulada) return null;
-  const resultado = resultadoDe(venta.sorteoId, toDateKey(venta.fecha));
+  const resultado = resultadoDeVenta(venta);
   if(!resultado) return null;
   let total = 0;
   venta.jugadas.forEach(j=>{ total += calcularPremioJugada(j, resultado).monto; });
@@ -2589,17 +2620,19 @@ async function guardarResultado(){
   if(!sorteoId || !fechaKey){ avisar('Selecciona el sorteo y la fecha.'); return; }
   if(!c1 || !c2 || !c3){ avisar('Ingresa los 3 números ganadores (2 a 4 cifras).'); return; }
   const p1 = ultimosDosDigitos(c1), p2 = ultimosDosDigitos(c2), p3 = ultimosDosDigitos(c3);
+  const sorteo = sorteos.find(s=>s.id===sorteoId);
+  const codigoSorteo = sorteo ? codigoSorteoParaFecha(sorteo, fechaKey+'T12:00:00') : null;
   let r = resultadoDe(sorteoId, fechaKey);
   const idAUsar = r ? r.id : uid();
   try{
     await db.from('resultados').upsert(
-      { id: idAUsar, sorteo_id: sorteoId, fecha_key: fechaKey, primero:p1, segundo:p2, tercero:p3,
+      { id: idAUsar, sorteo_id: sorteoId, codigo_sorteo: codigoSorteo, fecha_key: fechaKey, primero:p1, segundo:p2, tercero:p3,
         primero_completo:c1, segundo_completo:c2, tercero_completo:c3 },
       { onConflict: 'sorteo_id,fecha_key' }
     );
   }catch(e){ avisar('No se pudo guardar el resultado.'); return; }
-  if(r){ r.primero=p1; r.segundo=p2; r.tercero=p3; r.primeroCompleto=c1; r.segundoCompleto=c2; r.terceroCompleto=c3; }
-  else{ r = { id: idAUsar, sorteoId, fechaKey, primero:p1, segundo:p2, tercero:p3, primeroCompleto:c1, segundoCompleto:c2, terceroCompleto:c3 }; resultados.unshift(r); }
+  if(r){ r.primero=p1; r.segundo=p2; r.tercero=p3; r.primeroCompleto=c1; r.segundoCompleto=c2; r.terceroCompleto=c3; r.codigoSorteo=codigoSorteo; }
+  else{ r = { id: idAUsar, sorteoId, codigoSorteo, fechaKey, primero:p1, segundo:p2, tercero:p3, primeroCompleto:c1, segundoCompleto:c2, terceroCompleto:c3 }; resultados.unshift(r); }
   renderListaResultados();
   mostrarGanadores(sorteoId, fechaKey);
   renderHistorial();
@@ -2609,6 +2642,31 @@ async function guardarResultado(){
   document.getElementById('res-segundo').value = '00';
   document.getElementById('res-tercero').value = '00';
   avisar('Resultado guardado.');
+}
+async function guardarResultadoHistorico(){
+  const codigo = document.getElementById('reshist-codigo').value.trim().toUpperCase();
+  const fechaKey = document.getElementById('reshist-fecha').value;
+  const c1 = validarNumero(document.getElementById('reshist-primero').value.trim());
+  const c2 = validarNumero(document.getElementById('reshist-segundo').value.trim());
+  const c3 = validarNumero(document.getElementById('reshist-tercero').value.trim());
+  if(!codigo || !fechaKey){ avisar('Escribe el código de sorteo exacto y la fecha.'); return; }
+  if(!c1 || !c2 || !c3){ avisar('Ingresa los 3 números ganadores (2 a 4 cifras).'); return; }
+  const p1 = ultimosDosDigitos(c1), p2 = ultimosDosDigitos(c2), p3 = ultimosDosDigitos(c3);
+  let r = resultados.find(x=>x.codigoSorteo===codigo);
+  const idAUsar = r ? r.id : uid();
+  try{
+    await db.from('resultados').upsert(
+      { id: idAUsar, sorteo_id: null, codigo_sorteo: codigo, fecha_key: fechaKey, primero:p1, segundo:p2, tercero:p3,
+        primero_completo:c1, segundo_completo:c2, tercero_completo:c3 }
+    );
+  }catch(e){ avisar('No se pudo guardar el resultado histórico.'); return; }
+  if(r){ r.primero=p1; r.segundo=p2; r.tercero=p3; r.primeroCompleto=c1; r.segundoCompleto=c2; r.terceroCompleto=c3; r.fechaKey=fechaKey; }
+  else{ r = { id: idAUsar, sorteoId:null, codigoSorteo:codigo, fechaKey, primero:p1, segundo:p2, tercero:p3, primeroCompleto:c1, segundoCompleto:c2, terceroCompleto:c3 }; resultados.unshift(r); }
+  renderHistorial();
+  document.getElementById('reshist-primero').value = '00';
+  document.getElementById('reshist-segundo').value = '00';
+  document.getElementById('reshist-tercero').value = '00';
+  avisar('Resultado histórico guardado — revisa el Historial, los premios de esos tickets ya deberían calcularse.');
 }
 function mostrarGanadores(sorteoId, fechaKey){
   const resultado = resultadoDe(sorteoId, fechaKey); if(!resultado) return;
@@ -2645,8 +2703,14 @@ function renderListaResultados(){
   const cont = document.getElementById('lista-resultados');
   if(resultados.length===0){ cont.innerHTML = '<div class="empty-state">Aún no has registrado resultados.</div>'; return; }
   cont.innerHTML = `<table><thead><tr><th>Sorteo</th><th>Fecha</th><th>1ro</th><th>2do</th><th>3ro</th><th></th></tr></thead><tbody>
-    ${resultados.map(r=>`<tr><td>${escapeHtml(nombreSorteo(r.sorteoId))}</td><td>${r.fechaKey}</td><td class="mono">${r.primeroCompleto||r.primero}</td><td class="mono">${r.segundoCompleto||r.segundo}</td><td class="mono">${r.terceroCompleto||r.tercero}</td>
-    <td><button class="btn btn-outline btn-sm" onclick="mostrarGanadores('${r.sorteoId}','${r.fechaKey}')">Ver ganadores</button></td></tr>`).join('')}</tbody></table>`;
+    ${resultados.map(r=>{
+      const nombreCol = r.sorteoId ? escapeHtml(nombreSorteo(r.sorteoId)) : `<span style="color:var(--ink-dim);">Histórico · ${escapeHtml(r.codigoSorteo||'')}</span>`;
+      const boton = r.sorteoId
+        ? `<button class="btn btn-outline btn-sm" onclick="mostrarGanadores('${r.sorteoId}','${r.fechaKey}')">Ver ganadores</button>`
+        : `<span style="font-size:11.5px; color:var(--ink-dim);">Busca "${escapeHtml(r.codigoSorteo||'')}" en Historial</span>`;
+      return `<tr><td>${nombreCol}</td><td>${r.fechaKey}</td><td class="mono">${r.primeroCompleto||r.primero}</td><td class="mono">${r.segundoCompleto||r.segundo}</td><td class="mono">${r.terceroCompleto||r.tercero}</td>
+      <td>${boton}</td></tr>`;
+    }).join('')}</tbody></table>`;
 }
 
 // ---------------- HISTORIAL ----------------
@@ -2691,18 +2755,18 @@ function renderHistorial(){
   const activas = filtradas.filter(v=>!v.anulada);
   const totalGeneral = activas.reduce((s,v)=>s+v.total,0);
   const totalPerdido = activas.reduce((s,v)=>s+(premioDeVenta(v)||0),0);
-  let cajaTercera;
-  if(currentUser.role==='vendedor'){
-    cajaTercera = `<div class="summary-box"><div class="num mono">$${totalPerdido.toFixed(2)}</div><div class="lbl">Total perdido de este sorteo</div></div>`;
-  }else{
+  const cajaPerdido = `<div class="summary-box"><div class="num mono" style="color:${totalPerdido>0?'var(--red)':'var(--ink-dim)'}">$${totalPerdido.toFixed(2)}</div><div class="lbl">Total perdido (premios pagados)</div></div>`;
+  let cajaExtra = '';
+  if(currentUser.role==='admin'){
     const porVendedor = {}; activas.forEach(v=>{ porVendedor[v.vendedorId] = (porVendedor[v.vendedorId]||0)+v.total; });
     const topVendedorId = Object.keys(porVendedor).sort((a,b)=>porVendedor[b]-porVendedor[a])[0];
-    cajaTercera = `<div class="summary-box"><div class="num mono" style="font-size:16px;">${topVendedorId? escapeHtml(nombreVendedor(topVendedorId)) : '—'}</div><div class="lbl">Vendedor con más ventas</div></div>`;
+    cajaExtra = `<div class="summary-box"><div class="num mono" style="font-size:16px;">${topVendedorId? escapeHtml(nombreVendedor(topVendedorId)) : '—'}</div><div class="lbl">Vendedor con más ventas</div></div>`;
   }
   document.getElementById('summary-strip').innerHTML = `
     <div class="summary-box"><div class="num mono">$${totalGeneral.toFixed(2)}</div><div class="lbl">Total vendido (filtro actual)</div></div>
     <div class="summary-box"><div class="num mono">${activas.length}</div><div class="lbl">Tickets registrados</div></div>
-    ${cajaTercera}`;
+    ${cajaPerdido}
+    ${cajaExtra}`;
 }
 
 // ---------------- REPORTES (GANANCIAS Y PÉRDIDAS) ----------------

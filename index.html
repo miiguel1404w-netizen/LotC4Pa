@@ -22,6 +22,8 @@
     --card:#FFFFFF; --line:#E5E7EB; --radius:10px;
   }
   *{box-sizing:border-box;}
+  summary::-webkit-details-marker{ display:none; }
+  summary{ outline:none; }
   html,body{margin:0;padding:0;}
   body{ background:var(--paper); color:var(--ink); font-family:'Inter',sans-serif; -webkit-font-smoothing:antialiased; }
   .mono{font-family:'IBM Plex Mono',monospace;}
@@ -113,8 +115,9 @@
   .kp-display-col.active{ background:rgba(46,139,87,0.18); }
   .kp-display-col.active .kp-lbl{ color:var(--green); font-weight:700; }
   .kp-summary-bar{ display:flex; background:var(--gold); }
-  #btn-decena{ width:100%; padding:9px 0; border-radius:7px; border:1.5px solid var(--line); background:var(--paper-dim); color:var(--ink-dim); font-weight:700; font-size:13px; cursor:pointer; touch-action:manipulation; }
-  #btn-decena.activo{ background:var(--green); border-color:var(--green); color:#fff; }
+  .kp-key-1{ position:relative; }
+  #btn-decena{ position:absolute; top:3px; right:3px; width:20px; height:20px; line-height:20px; border-radius:5px; border:1px solid var(--line); background:var(--paper-dim); color:var(--ink-dim); font-size:11px; cursor:pointer; touch-action:manipulation; z-index:2; }
+  #btn-decena.activo{ background:var(--green); border-color:var(--green); box-shadow:0 0 0 2px rgba(16,185,129,0.35); }
   .kp-summary-col{ flex:1; text-align:center; padding:8px 6px; border-right:1px solid rgba(0,0,0,0.1); }
   .kp-summary-col:last-child{ border-right:none; }
   .kp-summary-col .val{ font-size:18px; font-weight:700; color:#3A2705; font-family:'IBM Plex Mono',monospace; }
@@ -257,6 +260,8 @@
   .num-chip.nivel-naranja .num, .num-chip.nivel-naranja .cant{ color:var(--gold-dark); font-weight:700; }
   .num-chip.nivel-rojo{ background:#FBDAD7; border-color:var(--red); }
   .num-chip.nivel-rojo .num, .num-chip.nivel-rojo .cant{ color:var(--red); font-weight:700; }
+  .num-chip.nivel-amarillo{ background:#FFF3CD; border-color:#D4A017; }
+  .num-chip.nivel-amarillo .num, .num-chip.nivel-amarillo .cant{ color:#8A6300; font-weight:700; }
   .nivel-dot{ display:inline-block; width:10px; height:10px; border-radius:3px; margin-right:4px; vertical-align:middle; }
   .toast{ position:fixed; top:16px; left:50%; transform:translateX(-50%); background:var(--ink); color:#fff; padding:13px 22px; border-radius:9px; font-size:14px; font-weight:600; z-index:300; box-shadow:0 10px 24px rgba(0,0,0,0.3); max-width:88%; text-align:center; }
   :focus-visible{ outline:2px solid var(--blue); outline-offset:2px; }
@@ -325,7 +330,10 @@
       <!-- PANTALLA 2: HISTORIAL DEL SORTEO ELEGIDO -->
       <div id="pantalla-historial-sorteo" style="display:none">
         <div class="shc-card">
-          <button class="btn-cambiar-sorteo" onclick="volverASeleccionarSorteo()">← Cambiar sorteo</button>
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <button class="btn-cambiar-sorteo" onclick="volverASeleccionarSorteo()">← Cambiar sorteo</button>
+            <button class="btn-cambiar-sorteo" onclick="verTablaDeEsteSorteo()">📊 Tabla de números</button>
+          </div>
           <div class="shc-top"><span id="hs-nombre">--</span><span id="hs-hora">--</span></div>
           <div class="shc-sub"><span id="hs-fecha">--</span> · <span id="hs-codigo">--</span></div>
           <div class="sorteo-status" id="hs-estado"></div>
@@ -372,12 +380,10 @@
             <div class="kp-summary-col"><div class="val" id="kp-sum-total">$0.00</div><div class="lbl">Total</div></div>
           </div>
 
-          <div id="kp-decena-row" style="display:none; padding:8px 22px 0 22px;">
-            <button type="button" id="btn-decena" onclick="toggleDecena()">🔟 Tirar decena</button>
-          </div>
-
           <div class="kp-grid3" id="kp-teclado-normal">
-            <button type="button" class="kp-key" onclick="tecla('1')">1</button>
+            <button type="button" class="kp-key kp-key-1" id="kp-key-uno" onclick="tecla('1')">1
+              <span id="btn-decena" onclick="event.stopPropagation(); toggleDecena();" title="Tirar decena (0-9)">🔟</span>
+            </button>
             <button type="button" class="kp-key" onclick="tecla('2')">2</button>
             <button type="button" class="kp-key" onclick="tecla('3')">3</button>
             <button type="button" class="kp-key" onclick="tecla('4')">4</button>
@@ -523,21 +529,26 @@
         <button class="btn btn-gold" onclick="guardarResultado()">Guardar resultado y calcular ganadores</button>
       </div>
 
-      <div class="card">
-        <h2>Resultado histórico (sorteo ya eliminado)</h2>
-        <p class="hint">Úsalo si eliminaste un sorteo por error y sus tickets quedaron sin poder calcular premio. Escribe el código exacto que tienen esos tickets (lo ves en Historial, columna Sorteo — algo como "TIC-1108-2130") y los premios se recalculan solos.</p>
-        <div class="grid-3">
-          <div class="field"><label>Código de sorteo (exacto)</label><input type="text" id="reshist-codigo" placeholder="TIC-1108-2130" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false"></div>
-          <div class="field"><label>Fecha</label><input type="date" id="reshist-fecha"></div>
-          <div class="field"></div>
+      <details class="card" style="padding:0;">
+        <summary style="cursor:pointer; padding:18px 20px; list-style:none; display:flex; align-items:center; justify-content:space-between;">
+          <span style="font-family:'Fraunces',serif; font-weight:700; font-size:18px;">Resultado histórico (sorteo ya eliminado)</span>
+          <span style="font-size:12px; color:var(--ink-dim); font-weight:600;">Tocar para abrir ▾</span>
+        </summary>
+        <div style="padding:0 20px 20px 20px;">
+          <p class="hint">Úsalo si eliminaste un sorteo por error y sus tickets quedaron sin poder calcular premio. Escribe el código exacto que tienen esos tickets (lo ves en Historial, columna Sorteo — algo como "TIC-1108-2130") y los premios se recalculan solos.</p>
+          <div class="grid-3">
+            <div class="field"><label>Código de sorteo (exacto)</label><input type="text" id="reshist-codigo" placeholder="TIC-1108-2130" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false"></div>
+            <div class="field"><label>Fecha</label><input type="date" id="reshist-fecha"></div>
+            <div class="field"></div>
+          </div>
+          <div class="grid-3">
+            <div class="field"><label>1er lugar (2 a 4 cifras)</label><input type="text" id="reshist-primero" maxlength="4" inputmode="numeric" placeholder="00 ó 0000"></div>
+            <div class="field"><label>2do lugar (2 a 4 cifras)</label><input type="text" id="reshist-segundo" maxlength="4" inputmode="numeric" placeholder="00 ó 0000"></div>
+            <div class="field"><label>3er lugar (2 a 4 cifras)</label><input type="text" id="reshist-tercero" maxlength="4" inputmode="numeric" placeholder="00 ó 0000"></div>
+          </div>
+          <button class="btn btn-outline" onclick="guardarResultadoHistorico()">Guardar resultado histórico</button>
         </div>
-        <div class="grid-3">
-          <div class="field"><label>1er lugar (2 a 4 cifras)</label><input type="text" id="reshist-primero" maxlength="4" inputmode="numeric" placeholder="00 ó 0000"></div>
-          <div class="field"><label>2do lugar (2 a 4 cifras)</label><input type="text" id="reshist-segundo" maxlength="4" inputmode="numeric" placeholder="00 ó 0000"></div>
-          <div class="field"><label>3er lugar (2 a 4 cifras)</label><input type="text" id="reshist-tercero" maxlength="4" inputmode="numeric" placeholder="00 ó 0000"></div>
-        </div>
-        <button class="btn btn-outline" onclick="guardarResultadoHistorico()">Guardar resultado histórico</button>
-      </div>
+      </details>
 
       <div class="card" id="ganadores-card" style="display:none">
         <h2>Tickets ganadores <span id="ganadores-sorteo-fecha" style="font-weight:400; font-size:13px; color:var(--ink-dim)"></span></h2>
@@ -580,6 +591,16 @@
           <span><span class="nivel-dot" style="background:#FBDAD7; border:1px solid var(--red);"></span> 4 o más</span>
         </div>
         <div class="numeros-grid" id="tabla-pale-grid"></div>
+      </div>
+
+      <div class="card" id="tabla-billete-card" style="display:none">
+        <h2>Billetes <span style="font-weight:400; font-size:12.5px; color:var(--ink-dim)">— números de 4 cifras vendidos</span></h2>
+        <div style="display:flex; gap:14px; font-size:12px; color:var(--ink-dim); margin-bottom:14px;">
+          <span><span class="nivel-dot" style="background:var(--card); border:1px solid var(--line);"></span> Normal</span>
+          <span><span class="nivel-dot" style="background:#FFF3CD; border:1px solid #D4A017;"></span> 2 o más</span>
+          <span><span class="nivel-dot" style="background:#FBDAD7; border:1px solid var(--red);"></span> 5 o más</span>
+        </div>
+        <div class="numeros-grid" id="tabla-billete-grid"></div>
       </div>
     </div>
 
@@ -1634,23 +1655,21 @@ function setModalidad(mod){
   ocultarDuplicado();
   seleccionarCampo('cantidad');
   refrescarPantallaKeypad();
-  const filaDecena = document.getElementById('kp-decena-row');
+  const btnDecena = document.getElementById('btn-decena');
   const esChance = (mod==='chance20' || mod==='chance25');
-  if(filaDecena) filaDecena.style.display = esChance ? 'block' : 'none';
+  if(btnDecena) btnDecena.style.display = esChance ? 'block' : 'none';
   if(!esChance) desactivarDecena();
 }
 function desactivarDecena(){
   decenaActiva = false;
   const btn = document.getElementById('btn-decena');
-  if(btn){ btn.classList.remove('activo'); btn.textContent = '🔟 Tirar decena'; }
+  if(btn){ btn.classList.remove('activo'); }
 }
 function toggleDecena(){
   decenaActiva = !decenaActiva;
   const btn = document.getElementById('btn-decena');
-  if(btn){
-    btn.classList.toggle('activo', decenaActiva);
-    btn.textContent = decenaActiva ? '🔟 Decena activa — toca el primer dígito' : '🔟 Tirar decena';
-  }
+  if(btn){ btn.classList.toggle('activo', decenaActiva); }
+  if(decenaActiva) avisar('Decena activa: toca el dígito de la decena que quieres (ej. toca 1 para anotar 10 al 19). Se apaga tocando el ícono 🔟 otra vez.');
 }
 function agregarDecena(digito){
   const sorteoId = document.getElementById('sel-sorteo').value;
@@ -1752,8 +1771,8 @@ function resetKeypad(){
   refrescarPantallaKeypad();
   const lblMod = document.getElementById('kp-sum-modalidad');
   if(lblMod) lblMod.textContent = NOMBRES_MOD[modalidadActual];
-  const filaDecena = document.getElementById('kp-decena-row');
-  if(filaDecena) filaDecena.style.display = (modalidadActual==='chance20'||modalidadActual==='chance25') ? 'block' : 'none';
+  const btnDecena = document.getElementById('btn-decena');
+  if(btnDecena) btnDecena.style.display = (modalidadActual==='chance20'||modalidadActual==='chance25') ? 'block' : 'none';
 }
 function validarNumero(val){
   if(!/^\d{1,4}$/.test(val)) return null;
@@ -1892,13 +1911,20 @@ function mostrarPantallaVenta(p){
   document.body.classList.toggle('sin-scroll', p==='teclado');
   registrarNavegacion();
 }
+let ultimoHashListaSorteosVenta = null;
 function renderListaSorteosVenta(){
   const cont = document.getElementById('lista-sorteos-venta');
   if(!cont) return;
   const todayKey = toDateKey(ahoraServidor().toISOString());
   const visibles = sorteos.filter(s=>s.pausaFecha!==todayKey);
-  if(visibles.length===0){ cont.innerHTML = '<div class="empty-state">No hay sorteos disponibles hoy.</div>'; return; }
+  if(visibles.length===0){ cont.innerHTML = '<div class="empty-state">No hay sorteos disponibles hoy.</div>'; ultimoHashListaSorteosVenta=null; return; }
   const ordenados = visibles.slice().sort((a,b)=> (a.horaCierre||'').localeCompare(b.horaCierre||''));
+  // Si nada cambió desde el último refresco (mismos sorteos, mismo estado
+  // abierto/cerrado, mismo logo), no reconstruye el HTML — así las imágenes
+  // no "parpadean" cada 30 segundos sin necesidad.
+  const hash = JSON.stringify(ordenados.map(s=>[s.id, sorteoAbierto(s), s.iconoUrl||'']));
+  if(hash === ultimoHashListaSorteosVenta) return;
+  ultimoHashListaSorteosVenta = hash;
   cont.innerHTML = ordenados.map(s=>{
     const abierto = sorteoAbierto(s);
     const codigo = codigoSorteoParaFecha(s, ahoraServidor().toISOString());
@@ -1923,6 +1949,16 @@ function elegirSorteoVenta(sorteoId){
 function volverASeleccionarSorteo(){
   mostrarPantallaVenta('sorteo');
   renderListaSorteosVenta();
+}
+function verTablaDeEsteSorteo(){
+  const sorteoId = document.getElementById('sel-sorteo').value;
+  if(!sorteoId) return;
+  irATab('tabla');
+  const selTabla = document.getElementById('tabla-sorteo');
+  if(selTabla) selTabla.value = sorteoId;
+  const fechaTabla = document.getElementById('tabla-fecha');
+  if(fechaTabla) fechaTabla.value = toDateKey(ahoraServidor().toISOString());
+  renderTablaNumeros();
 }
 function renderHistorialSorteoActual(){
   const sorteoId = document.getElementById('sel-sorteo').value;
@@ -2614,7 +2650,8 @@ async function guardarLiquidacion(){
   renderListaIndependientes();
 }
 function renderResultadosSorteoSelect(){
-  const opts = sorteos.map(s=>`<option value="${s.id}">${escapeHtml(s.nombre+' · '+s.horaSorteoTexto)}</option>`).join('');
+  const ordenados = sorteos.slice().sort((a,b)=> (a.horaCierre||'').localeCompare(b.horaCierre||''));
+  const opts = ordenados.map(s=>`<option value="${s.id}">${escapeHtml(s.nombre+' · '+s.horaSorteoTexto)}</option>`).join('');
   const sel = document.getElementById('res-sorteo');
   const valorPrevio = sel.value;
   sel.innerHTML = '<option value="">Selecciona un sorteo</option>'+opts;
@@ -2907,9 +2944,11 @@ function renderTablaSorteoSelect(){
 }
 function nivelChance(cant){ if(cant>=300) return 'nivel-rojo'; if(cant>=100) return 'nivel-naranja'; return ''; }
 function nivelPale(cant){ if(cant>=4) return 'nivel-rojo'; if(cant>=2) return 'nivel-naranja'; return ''; }
+function nivelBillete(cant){ if(cant>=5) return 'nivel-rojo'; if(cant>=2) return 'nivel-amarillo'; return ''; }
 function calcularTablaNumeros(sorteoId, fechaKey){
   const porNumero = {};
   const porPale = {};
+  const porBillete = {};
   ventasList.filter(v=>v.sorteoId===sorteoId && toDateKey(v.fecha)===fechaKey && !v.anulada).forEach(v=>{
     v.jugadas.forEach(j=>{
       if(j.modalidad==='pale'){
@@ -2917,12 +2956,12 @@ function calcularTablaNumeros(sorteoId, fechaKey){
         porPale[key] = (porPale[key]||0) + j.cantidad;
       }else if(j.modalidad==='chance20' || j.modalidad==='chance25'){
         porNumero[j.numero] = (porNumero[j.numero]||0) + j.cantidad;
+      }else if(j.modalidad==='billete'){
+        porBillete[j.numero] = (porBillete[j.numero]||0) + j.cantidad;
       }
-      // Los billetes (4 cifras) no se incluyen en esta tabla — son demasiadas
-      // combinaciones posibles para una cuadrícula 00-99.
     });
   });
-  return { porNumero, porPale };
+  return { porNumero, porPale, porBillete };
 }
 function renderTablaNumeros(){
   if(!dataLoaded || !currentUser) return;
@@ -2930,18 +2969,24 @@ function renderTablaNumeros(){
   const fechaKey = document.getElementById('tabla-fecha').value || toDateKey(ahoraServidor().toISOString());
   const gridChance = document.getElementById('tabla-chance-grid');
   const gridPale = document.getElementById('tabla-pale-grid');
+  const gridBillete = document.getElementById('tabla-billete-grid');
+  const cardBillete = document.getElementById('tabla-billete-card');
   const resumen = document.getElementById('tabla-resumen');
 
   if(!sorteoId){
     gridChance.innerHTML = '<div class="empty-state">Selecciona un sorteo para ver la tabla.</div>';
     gridPale.innerHTML = '';
+    if(gridBillete) gridBillete.innerHTML = '';
+    if(cardBillete) cardBillete.style.display = 'none';
     resumen.innerHTML = '';
     return;
   }
 
-  const { porNumero, porPale } = calcularTablaNumeros(sorteoId, fechaKey);
+  const sorteo = sorteos.find(s=>s.id===sorteoId);
+  const { porNumero, porPale, porBillete } = calcularTablaNumeros(sorteoId, fechaKey);
   const numeros = Object.keys(porNumero).sort();
   const combos = Object.keys(porPale).sort();
+  const billetes = Object.keys(porBillete).sort();
 
   gridChance.innerHTML = numeros.length ? numeros.map(n=>{
     const cant = porNumero[n];
@@ -2952,6 +2997,15 @@ function renderTablaNumeros(){
     const cant = porPale[c];
     return `<div class="num-chip ${nivelPale(cant)}"><span class="num">${c}</span><span class="cant">${cant}</span></div>`;
   }).join('') : '<div class="empty-state">Sin ventas de palé todavía para este sorteo y fecha.</div>';
+
+  const vendeBilletes = sorteo && sorteo.tipoBillete && sorteo.tipoBillete!=='ninguno';
+  if(cardBillete) cardBillete.style.display = vendeBilletes ? 'block' : 'none';
+  if(vendeBilletes && gridBillete){
+    gridBillete.innerHTML = billetes.length ? billetes.map(b=>{
+      const cant = porBillete[b];
+      return `<div class="num-chip ${nivelBillete(cant)}"><span class="num">${b}</span><span class="cant">${cant}</span></div>`;
+    }).join('') : '<div class="empty-state">Sin ventas de billetes todavía para este sorteo y fecha.</div>';
+  }
 
   const totalTiemposChance = numeros.reduce((s,n)=>s+porNumero[n],0);
   const totalTiemposPale = combos.reduce((s,c)=>s+porPale[c],0);

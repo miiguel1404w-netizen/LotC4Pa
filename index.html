@@ -842,6 +842,7 @@ try{
 // ---------------- ESTADO ----------------
 let vendedores = [];
 let sorteos = [];       // {id,nombre,horaSorteoTexto,horaCierre:'HH:MM',dias:[0..6],notas,excepcionFecha}
+function sorteosOrdenados(){ return sorteos.slice().sort((a,b)=> (a.horaCierre||'').localeCompare(b.horaCierre||'')); }
 let adminAuth = { username:'admin', password:'admin123' };
 let premios = { chance20:{1:11,2:3,3:2}, chance25:{1:14,2:3,3:2}, pale:{"12":1000,"23":200},
   billete: {
@@ -901,6 +902,23 @@ function filaAVenta(v){
 function filaAResultado(r){ return { id:r.id, sorteoId:r.sorteo_id, codigoSorteo:r.codigo_sorteo, fechaKey:r.fecha_key, primero:r.primero, segundo:r.segundo, tercero:r.tercero, primeroCompleto:r.primero_completo||r.primero, segundoCompleto:r.segundo_completo||r.segundo, terceroCompleto:r.tercero_completo||r.tercero }; }
 
 let cargaOk = { vendedores:true, sorteos:true, ventas:true };
+async function fetchTodasFilas(tabla, selectStr, columnaOrden){
+  // Supabase corta cualquier consulta a 1000 filas por defecto. Esta función
+  // pide en bloques de 1000 hasta traer la tabla completa, para que ninguna
+  // venta vieja se quede fuera sin avisar cuando ya hay muchas acumuladas.
+  let todas = [];
+  let desde = 0;
+  const tamanoBloque = 1000;
+  while(true){
+    const { data, error } = await db.from(tabla).select(selectStr).order(columnaOrden, { ascending:false }).range(desde, desde+tamanoBloque-1);
+    if(error) throw error;
+    if(!data || data.length===0) break;
+    todas = todas.concat(data);
+    if(data.length < tamanoBloque) break;
+    desde += tamanoBloque;
+  }
+  return todas;
+}
 async function cargarDatos(){
   try{
     const { data: cfg } = await db.from('app_config').select('*').eq('id',1).maybeSingle();
@@ -931,7 +949,7 @@ async function cargarDatos(){
   }catch(e){ cargaOk.sorteos = false; }
 
   try{
-    const { data } = await db.from('ventas').select('*').order('fecha', { ascending:false });
+    const data = await fetchTodasFilas('ventas', '*', 'fecha');
     ventasList = (data||[]).map(filaAVenta);
     cargaOk.ventas = true;
   }catch(e){ cargaOk.ventas = false; }
@@ -945,12 +963,12 @@ async function cargarDatos(){
   }catch(e){}
 
   try{
-    const { data } = await db.from('resultados').select('*');
+    const data = await fetchTodasFilas('resultados', '*', 'fecha_key');
     resultados = (data||[]).map(filaAResultado);
   }catch(e){}
 
   try{
-    const { data } = await db.from('liquidaciones').select('*').order('fecha', { ascending:false });
+    const data = await fetchTodasFilas('liquidaciones', '*', 'fecha');
     liquidaciones = (data||[]).map(filaALiquidacion);
   }catch(e){}
 
@@ -1540,7 +1558,7 @@ function renderVendedorSelects(){
   if(valorPrevioRep && [...repV.options].some(o=>o.value===valorPrevioRep)) repV.value = valorPrevioRep;
 }
 function renderSorteoFiltros(){
-  const opts = sorteos.map(s=>`<option value="${s.id}">${escapeHtml(s.nombre+' · '+s.horaSorteoTexto)}</option>`).join('');
+  const opts = sorteosOrdenados().map(s=>`<option value="${s.id}">${escapeHtml(s.nombre+' · '+s.horaSorteoTexto)}</option>`).join('');
   const filtroS = document.getElementById('filtro-sorteo');
   const valorPrevioFS = filtroS.value;
   filtroS.innerHTML = '<option value="">Todos los sorteos</option>'+opts;
@@ -1555,7 +1573,7 @@ function renderVentaSorteoSelect(){
   const sel = document.getElementById('sel-sorteo');
   const valorPrevio = sel.value;
   const soloAbiertos = currentUser && currentUser.role==='vendedor';
-  sel.innerHTML = '<option value="">Selecciona un sorteo</option>' + sorteos.map(s=>{
+  sel.innerHTML = '<option value="">Selecciona un sorteo</option>' + sorteosOrdenados().map(s=>{
     const abierto = sorteoAbierto(s);
     const disabled = (soloAbiertos && !abierto) ? 'disabled' : '';
     const codigo = codigoSorteoParaFecha(s, ahoraServidor().toISOString());
@@ -2182,11 +2200,15 @@ async function intentarGuardarVentaOnline(datos, idExistente){
     codigoSorteo:datos.codigoSorteo, cliente:datos.cliente, fecha:datos.fecha, jugadas:datos.jugadas,
     total: datos.total, anulada:false };
   try{
-    await conTiempoLimite(db.from('ventas').insert({
+    // Usa upsert (no insert) por el mismo "id": si esta misma venta ya se
+    // había guardado antes pero la confirmación no llegó a tiempo (se cortó
+    // la señal justo después), reintentar con el mismo id actualiza esa
+    // misma fila en vez de crear una segunda venta duplicada.
+    await conTiempoLimite(db.from('ventas').upsert({
       id: venta.id, folio: venta.folio, vendedor_id: venta.vendedorId, sorteo_id: venta.sorteoId,
       codigo_sorteo: venta.codigoSorteo, cliente: venta.cliente, fecha: venta.fecha,
       jugadas: venta.jugadas, total: venta.total, anulada: false
-    }), 15000, 'guardando la venta');
+    }, { onConflict: 'id' }), 15000, 'guardando la venta');
     await conTiempoLimite(db.from('folio_counter').update({ siguiente: folioAsignado+1 }).eq('id',1), 15000, 'guardando la venta');
     folioCounter = folioAsignado+1;
     return { ok:true, venta };
@@ -2250,11 +2272,15 @@ async function confirmarVenta(){
   const fechaVenta = ahoraServidor().toISOString();
   const codigoSorteo = sorteo ? codigoSorteoParaFecha(sorteo, fechaVenta) : '';
   const datos = { vendedorId, sorteoId, codigoSorteo, cliente, fecha: fechaVenta, jugadas: jugadasTicket, total: +total.toFixed(2) };
+  // Se genera un solo id para esta venta, y se reutiliza en cualquier
+  // reintento (aunque se caiga la señal a media confirmación) — así nunca
+  // se puede duplicar como venta aparte con otro folio.
+  const idVenta = uid();
 
   const btn = document.getElementById('btn-completar-venta');
   if(btn){ btn.disabled = true; btn.textContent = 'Guardando...'; }
 
-  const resultado = await intentarGuardarVentaOnline(datos);
+  const resultado = await intentarGuardarVentaOnline(datos, idVenta);
 
   if(btn){ btn.disabled = false; btn.textContent = 'Completar venta'; }
 
@@ -2263,7 +2289,7 @@ async function confirmarVenta(){
     ventasList.unshift(resultado.venta);
     ventaParaComprobante = resultado.venta;
   }else{
-    const pendiente = { id: uid(), vendedorId:datos.vendedorId, sorteoId:datos.sorteoId, codigoSorteo:datos.codigoSorteo,
+    const pendiente = { id: idVenta, vendedorId:datos.vendedorId, sorteoId:datos.sorteoId, codigoSorteo:datos.codigoSorteo,
       cliente:datos.cliente, fecha:datos.fecha, jugadas:datos.jugadas, total:datos.total, anulada:false, pendienteSync:true };
     agregarPendienteLocal(pendiente);
     ventasList.unshift(pendiente);
@@ -2648,8 +2674,7 @@ async function guardarLiquidacion(){
   renderListaIndependientes();
 }
 function renderResultadosSorteoSelect(){
-  const ordenados = sorteos.slice().sort((a,b)=> (a.horaCierre||'').localeCompare(b.horaCierre||''));
-  const opts = ordenados.map(s=>`<option value="${s.id}">${escapeHtml(s.nombre+' · '+s.horaSorteoTexto)}</option>`).join('');
+  const opts = sorteosOrdenados().map(s=>`<option value="${s.id}">${escapeHtml(s.nombre+' · '+s.horaSorteoTexto)}</option>`).join('');
   const sel = document.getElementById('res-sorteo');
   const valorPrevio = sel.value;
   sel.innerHTML = '<option value="">Selecciona un sorteo</option>'+opts;
@@ -2847,7 +2872,7 @@ function aplicarPresetReportes(tipo){
 }
 function calcularReportes(fechaDesde, fechaHasta, filtroVendedorId, filtroSorteoId){
   const activas = ventasList.filter(v=>{
-    if(v.anulada) return false;
+    if(v.anulada || v.pendienteSync) return false;
     if(!vendedorCoincideFiltro(v.vendedorId, filtroVendedorId)) return false;
     if(filtroSorteoId && v.sorteoId!==filtroSorteoId) return false;
     const dk = toDateKey(v.fecha);
@@ -2932,7 +2957,7 @@ function renderReportes(){
 
 // ---------------- TABLA DE NÚMEROS ----------------
 function renderTablaSorteoSelect(){
-  const opts = sorteos.map(s=>`<option value="${s.id}">${escapeHtml(s.nombre+' · '+s.horaSorteoTexto)}</option>`).join('');
+  const opts = sorteosOrdenados().map(s=>`<option value="${s.id}">${escapeHtml(s.nombre+' · '+s.horaSorteoTexto)}</option>`).join('');
   const sel = document.getElementById('tabla-sorteo');
   const valorPrevio = sel.value;
   sel.innerHTML = '<option value="">Selecciona un sorteo</option>'+opts;

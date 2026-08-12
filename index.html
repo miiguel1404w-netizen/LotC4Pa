@@ -1751,7 +1751,8 @@ function renderListaSorteosVenta(){
   const cont = document.getElementById('lista-sorteos-venta');
   if(!cont) return;
   if(sorteos.length===0){ cont.innerHTML = '<div class="empty-state">Todavía no hay sorteos creados.</div>'; return; }
-  cont.innerHTML = sorteos.map(s=>{
+  const ordenados = sorteos.slice().sort((a,b)=> (a.horaCierre||'').localeCompare(b.horaCierre||''));
+  cont.innerHTML = ordenados.map(s=>{
     const abierto = sorteoAbierto(s);
     const codigo = codigoSorteoParaFecha(s, ahoraServidor().toISOString());
     return `<div class="sorteo-pick-card ${abierto?'':'cerrado'}" onclick="elegirSorteoVenta('${s.id}')">

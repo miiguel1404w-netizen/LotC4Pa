@@ -1451,14 +1451,20 @@ function renderVendedorSelects(){
   selV.innerHTML = '<option value="">Selecciona un vendedor</option>'+opts;
   if(valorPrevioV && [...selV.options].some(o=>o.value===valorPrevioV)) selV.value = valorPrevioV;
 
+  const equipo = vendedores.filter(v=>v.enEquipo!==false);
+  const indep = vendedores.filter(v=>v.enEquipo===false);
+  const optsAgrupados =
+    (equipo.length ? `<optgroup label="Equipo">${equipo.map(v=>`<option value="${v.id}">${escapeHtml(v.nombre)}</option>`).join('')}</optgroup>` : '') +
+    (indep.length ? `<optgroup label="Vendedores Independientes">${indep.map(v=>`<option value="${v.id}">${escapeHtml(v.nombre)}</option>`).join('')}</optgroup>` : '');
+
   const filtroV = document.getElementById('filtro-vendedor');
   const valorPrevioFiltro = filtroV.value;
-  filtroV.innerHTML = '<option value="">Todos los vendedores</option>'+opts;
+  filtroV.innerHTML = '<option value="">Todos los vendedores</option>'+optsAgrupados;
   if(valorPrevioFiltro && [...filtroV.options].some(o=>o.value===valorPrevioFiltro)) filtroV.value = valorPrevioFiltro;
 
   const repV = document.getElementById('rep-vendedor');
   const valorPrevioRep = repV.value;
-  repV.innerHTML = '<option value="">Todos los vendedores</option>'+opts;
+  repV.innerHTML = '<option value="">Todos los vendedores</option>'+optsAgrupados;
   if(valorPrevioRep && [...repV.options].some(o=>o.value===valorPrevioRep)) repV.value = valorPrevioRep;
 }
 function renderSorteoFiltros(){

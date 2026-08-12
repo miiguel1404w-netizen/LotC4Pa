@@ -99,8 +99,10 @@
   .modalidad-tab.active{ border-color:var(--blue); background:var(--blue); color:#fff; }
   .modalidad-tab[data-mod="chance25"].active{ border-color:var(--gold-dark); background:var(--gold); color:#fff; }
   .modalidad-tab[data-mod="pale"].active{ border-color:var(--purple); background:var(--purple); color:#fff; }
+  .modalidad-tab[data-mod="billete"].active{ border-color:var(--red); background:var(--red); color:#fff; }
   .modalidad-tab.deshabilitado{ opacity:0.4; pointer-events:none; }
   .tag-pale{ background:var(--purple); }
+  .tag-billete{ background:var(--red); }
 
   .kp-display-bar{ display:flex; background:#201a14; }
   .kp-display-col{ flex:1; text-align:center; padding:12px 10px; cursor:pointer; border-right:1px solid rgba(255,255,255,0.08); transition:background .15s; }
@@ -340,6 +342,7 @@
               <div class="modalidad-tab active" data-mod="chance20" onclick="setModalidad('chance20')">Chance<span class="price">$0.20</span></div>
               <div class="modalidad-tab" data-mod="chance25" onclick="setModalidad('chance25')">Chance<span class="price">$0.25</span></div>
               <div class="modalidad-tab" data-mod="pale" onclick="setModalidad('pale')">Palé<span class="price">$1.00</span></div>
+              <div class="modalidad-tab" data-mod="billete" id="tab-billete" style="display:none;" onclick="setModalidad('billete')">Billete<span class="price">$1.00</span></div>
             </div>
             <div class="empty-state" id="pale-bloqueado-aviso" style="display:none; padding:6px 0; color:var(--red); font-weight:600;">Este sorteo no vende Palé.</div>
           </div>
@@ -574,6 +577,14 @@
         <label style="display:flex; align-items:center; gap:7px; text-transform:none; font-size:13.5px; color:var(--ink); cursor:pointer;">
           <input type="checkbox" id="in-s-pale" style="width:auto" checked> Permitir venta de Palé en este sorteo
         </label>
+        <div class="field" style="margin-top:10px; max-width:280px;">
+          <label>Venta de billetes</label>
+          <select id="in-s-billete">
+            <option value="ninguno">No vende billetes</option>
+            <option value="nacional">Sí — tabla Nacional</option>
+            <option value="gordito">Sí — tabla Gordito</option>
+          </select>
+        </div>
         <div class="btn-row" style="margin-top:14px">
           <button class="btn btn-primary" id="btn-guardar-sorteo" onclick="guardarSorteo()">Agregar sorteo</button>
           <button class="btn btn-text" id="btn-cancelar-edicion-sorteo" onclick="cancelarEdicionSorteo()" style="display:none">Cancelar</button>
@@ -607,6 +618,37 @@
         </div>
 
         <button class="btn btn-primary" style="margin-top:6px" onclick="guardarPremios()">Guardar premiación</button>
+      </div>
+
+      <div class="card">
+        <h2>Premiación de Billetes</h2>
+        <p class="hint">Solo aplica a sorteos marcados como "vende billetes" (Nacional o Gordito). El billete cuesta $1.00. La pestaña de Billete solo aparece al anotar cuando esta tabla tenga al menos un premio cargado.</p>
+        <h3 style="margin-bottom:4px;">Tabla Nacional</h3>
+        <div class="grid-3">
+          <div class="field"><label>1er premio · 4 cifras</label><input type="number" step="0.01" id="bil-nac-1-4"></div>
+          <div class="field"><label>1er premio · 3 cifras (primeras o últimas)</label><input type="number" step="0.01" id="bil-nac-1-3"></div>
+          <div class="field"><label>1er premio · 2 cifras (primeras o últimas)</label><input type="number" step="0.01" id="bil-nac-1-2"></div>
+          <div class="field"><label>2do premio · 4 cifras</label><input type="number" step="0.01" id="bil-nac-2-4"></div>
+          <div class="field"><label>2do premio · 3 cifras (primeras o últimas)</label><input type="number" step="0.01" id="bil-nac-2-3"></div>
+          <div class="field"><label>2do premio · 2 últimas cifras</label><input type="number" step="0.01" id="bil-nac-2-2"></div>
+          <div class="field"><label>3er premio · 4 cifras</label><input type="number" step="0.01" id="bil-nac-3-4"></div>
+          <div class="field"><label>3er premio · 3 cifras (primeras o últimas)</label><input type="number" step="0.01" id="bil-nac-3-3"></div>
+          <div class="field"><label>3er premio · 2 últimas cifras</label><input type="number" step="0.01" id="bil-nac-3-2"></div>
+        </div>
+        <h3 style="margin-bottom:4px; margin-top:18px;">Tabla Gordito</h3>
+        <p class="hint">Paga diferente a la Nacional normal — déjala en 0 hasta que tengas los montos.</p>
+        <div class="grid-3">
+          <div class="field"><label>1er premio · 4 cifras</label><input type="number" step="0.01" id="bil-gor-1-4"></div>
+          <div class="field"><label>1er premio · 3 cifras (primeras o últimas)</label><input type="number" step="0.01" id="bil-gor-1-3"></div>
+          <div class="field"><label>1er premio · 2 cifras (primeras o últimas)</label><input type="number" step="0.01" id="bil-gor-1-2"></div>
+          <div class="field"><label>2do premio · 4 cifras</label><input type="number" step="0.01" id="bil-gor-2-4"></div>
+          <div class="field"><label>2do premio · 3 cifras (primeras o últimas)</label><input type="number" step="0.01" id="bil-gor-2-3"></div>
+          <div class="field"><label>2do premio · 2 últimas cifras</label><input type="number" step="0.01" id="bil-gor-2-2"></div>
+          <div class="field"><label>3er premio · 4 cifras</label><input type="number" step="0.01" id="bil-gor-3-4"></div>
+          <div class="field"><label>3er premio · 3 cifras (primeras o últimas)</label><input type="number" step="0.01" id="bil-gor-3-3"></div>
+          <div class="field"><label>3er premio · 2 últimas cifras</label><input type="number" step="0.01" id="bil-gor-3-2"></div>
+        </div>
+        <button class="btn btn-primary" style="margin-top:6px" onclick="guardarPremiosBillete()">Guardar premiación de billetes</button>
       </div>
 
       <div class="card">
@@ -695,7 +737,11 @@ try{
 let vendedores = [];
 let sorteos = [];       // {id,nombre,horaSorteoTexto,horaCierre:'HH:MM',dias:[0..6],notas,excepcionFecha}
 let adminAuth = { username:'admin', password:'admin123' };
-let premios = { chance20:{1:11,2:3,3:2}, chance25:{1:14,2:3,3:2}, pale:{"12":1000,"23":200} };
+let premios = { chance20:{1:11,2:3,3:2}, chance25:{1:14,2:3,3:2}, pale:{"12":1000,"23":200},
+  billete: {
+    nacional: { 1:{cuatro:2000,tres:50,dos:3}, 2:{cuatro:600,tres:20,dos:2}, 3:{cuatro:300,tres:10,dos:1} },
+    gordito: { 1:{cuatro:0,tres:0,dos:0}, 2:{cuatro:0,tres:0,dos:0}, 3:{cuatro:0,tres:0,dos:0} }
+  } };
 let ventasList = [];
 let folioCounter = 1;
 let resultados = [];
@@ -707,9 +753,9 @@ let editingSorteoId = null;
 let modalidadActual = 'chance20';
 let jugadasTicket = [];
 
-const PRECIOS = { chance20: 0.20, chance25: 0.25, pale: 1.00 };
-const NOMBRES_MOD = { chance20: 'Chance $0.20', chance25: 'Chance $0.25', pale: 'Palé $1.00' };
-const TAG_CLASS = { chance20: 'tag-chance20', chance25: 'tag-chance25', pale: 'tag-pale' };
+const PRECIOS = { chance20: 0.20, chance25: 0.25, pale: 1.00, billete: 1.00 };
+const NOMBRES_MOD = { chance20: 'Chance $0.20', chance25: 'Chance $0.25', pale: 'Palé $1.00', billete: 'Billete $1.00' };
+const TAG_CLASS = { chance20: 'tag-chance20', chance25: 'tag-chance25', pale: 'tag-pale', billete: 'tag-billete' };
 const DIAS_LABEL = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
 
 let dataLoaded = false;
@@ -736,7 +782,8 @@ function ahoraServidor(){
 function filaAVendedor(v){ return { id:v.id, nombre:v.nombre, username:v.username, password:v.password, enEquipo: v.en_equipo !== false }; }
 function filaASorteo(s){
   return { id:s.id, nombre:s.nombre, horaSorteoTexto:s.hora_sorteo_texto, horaCierre:s.hora_cierre,
-    dias:s.dias||[], notas:s.notas||'', excepcionFecha:s.excepcion_fecha, paleHabilitado: s.pale_habilitado!==false };
+    dias:s.dias||[], notas:s.notas||'', excepcionFecha:s.excepcion_fecha, paleHabilitado: s.pale_habilitado!==false,
+    tipoBillete: s.tipo_billete || 'ninguno' };
 }
 function filaAVenta(v){
   return { id:v.id, folio:v.folio, vendedorId:v.vendedor_id, sorteoId:v.sorteo_id, codigoSorteo:v.codigo_sorteo,
@@ -753,6 +800,12 @@ async function cargarDatos(){
       adminAuth = { username: cfg.admin_username, password: cfg.admin_password };
       premios = cfg.premios || premios;
       if(!premios.pale) premios.pale = { "12":1000, "23":200 };
+      if(!premios.billete) premios.billete = {
+        nacional: { 1:{cuatro:2000,tres:50,dos:3}, 2:{cuatro:600,tres:20,dos:2}, 3:{cuatro:300,tres:10,dos:1} },
+        gordito: { 1:{cuatro:0,tres:0,dos:0}, 2:{cuatro:0,tres:0,dos:0}, 3:{cuatro:0,tres:0,dos:0} }
+      };
+      if(!premios.billete.nacional) premios.billete.nacional = { 1:{cuatro:2000,tres:50,dos:3}, 2:{cuatro:600,tres:20,dos:2}, 3:{cuatro:300,tres:10,dos:1} };
+      if(!premios.billete.gordito) premios.billete.gordito = { 1:{cuatro:0,tres:0,dos:0}, 2:{cuatro:0,tres:0,dos:0}, 3:{cuatro:0,tres:0,dos:0} };
       defaultVendedorCreado = !!cfg.default_vendedor_creado;
     }
   }catch(e){ avisar('No se pudo conectar a la base de datos.'); }
@@ -878,6 +931,7 @@ function entrarAlApp(){
   renderVentaSorteoSelect();
   renderConfigLists();
   renderPremiosForm();
+  renderPremiosBilleteForm();
   renderResultadosSorteoSelect();
   renderListaResultados();
   renderHistorial();
@@ -1151,6 +1205,7 @@ function iniciarEdicionSorteo(id){
   document.getElementById('in-s-cierre').value = s.horaCierre;
   document.getElementById('in-s-notas').value = s.notas || '';
   document.getElementById('in-s-pale').checked = s.paleHabilitado !== false;
+  document.getElementById('in-s-billete').value = s.tipoBillete || 'ninguno';
   pintarDiasSeleccionados(s.dias || []);
   document.getElementById('sorteo-form-title').textContent = 'Editar sorteo';
   document.getElementById('btn-guardar-sorteo').textContent = 'Guardar cambios';
@@ -1163,6 +1218,7 @@ function cancelarEdicionSorteo(){
   document.getElementById('in-s-cierre').value='';
   document.getElementById('in-s-notas').value='';
   document.getElementById('in-s-pale').checked = true;
+  document.getElementById('in-s-billete').value = 'ninguno';
   pintarDiasSeleccionados([]);
   document.getElementById('sorteo-form-title').textContent = 'Agregar sorteo';
   document.getElementById('btn-guardar-sorteo').textContent = 'Agregar sorteo';
@@ -1170,7 +1226,7 @@ function cancelarEdicionSorteo(){
 }
 function filaSorteoParaDB(s){
   return { id:s.id, nombre:s.nombre, hora_sorteo_texto:s.horaSorteoTexto, hora_cierre:s.horaCierre,
-    dias:s.dias, notas:s.notas, excepcion_fecha:s.excepcionFecha, pale_habilitado:s.paleHabilitado };
+    dias:s.dias, notas:s.notas, excepcion_fecha:s.excepcionFecha, pale_habilitado:s.paleHabilitado, tipo_billete:s.tipoBillete };
 }
 async function guardarSorteo(){
   const nombre = document.getElementById('in-s-nombre').value.trim();
@@ -1178,17 +1234,18 @@ async function guardarSorteo(){
   const horaCierre = document.getElementById('in-s-cierre').value;
   const notas = document.getElementById('in-s-notas').value.trim();
   const paleHabilitado = document.getElementById('in-s-pale').checked;
+  const tipoBillete = document.getElementById('in-s-billete').value;
   const dias = leerDiasSeleccionados();
   if(!nombre || !horaSorteoTexto || !horaCierre){ avisar('Completa nombre, hora del sorteo y hora de cierre.'); return; }
   if(dias.length===0){ avisar('Selecciona al menos un día.'); return; }
   try{
     if(editingSorteoId){
       const s = sorteos.find(x=>x.id===editingSorteoId);
-      const actualizado = { ...s, nombre, horaSorteoTexto, horaCierre, notas, dias, paleHabilitado };
+      const actualizado = { ...s, nombre, horaSorteoTexto, horaCierre, notas, dias, paleHabilitado, tipoBillete };
       await db.from('sorteos').update(filaSorteoParaDB(actualizado)).eq('id', editingSorteoId);
-      s.nombre=nombre; s.horaSorteoTexto=horaSorteoTexto; s.horaCierre=horaCierre; s.notas=notas; s.dias=dias; s.paleHabilitado=paleHabilitado;
+      s.nombre=nombre; s.horaSorteoTexto=horaSorteoTexto; s.horaCierre=horaCierre; s.notas=notas; s.dias=dias; s.paleHabilitado=paleHabilitado; s.tipoBillete=tipoBillete;
     }else{
-      const nuevo = { id: uid(), nombre, horaSorteoTexto, horaCierre, notas, dias, excepcionFecha:null, paleHabilitado };
+      const nuevo = { id: uid(), nombre, horaSorteoTexto, horaCierre, notas, dias, excepcionFecha:null, paleHabilitado, tipoBillete };
       await db.from('sorteos').insert(filaSorteoParaDB(nuevo));
       sorteos.push(nuevo);
     }
@@ -1230,7 +1287,7 @@ async function cargarSorteosPredefinidos(){
     {nombre:'Anguila', horaSorteoTexto:'12:00 MD', horaCierre:'11:57', dias:T, notas:''},
     {nombre:'New York', horaSorteoTexto:'1:30 PM', horaCierre:'13:27', dias:T, notas:''},
     {nombre:'Monazo', horaSorteoTexto:'1:55 PM', horaCierre:'13:52', dias:T, notas:''},
-    {nombre:'Nacional', horaSorteoTexto:'3:00 PM', horaCierre:'14:58', dias:[3,0], notas:'+ algunos viernes: usa "Excepción hoy" para habilitarlo ese día', paleHabilitado:false},
+    {nombre:'Nacional', horaSorteoTexto:'3:00 PM', horaCierre:'14:58', dias:[3,0], notas:'+ algunos viernes: usa "Excepción hoy" para habilitarlo ese día', paleHabilitado:false, tipoBillete:'nacional'},
     {nombre:'Nica', horaSorteoTexto:'4:00 PM', horaCierre:'15:58', dias:T, notas:''},
     {nombre:'Honduras', horaSorteoTexto:'4:00 PM', horaCierre:'15:58', dias:T, notas:''},
     {nombre:'Anguila', horaSorteoTexto:'5:00 PM', horaCierre:'16:57', dias:T, notas:''},
@@ -1247,7 +1304,7 @@ async function cargarSorteosPredefinidos(){
   const nuevos = [];
   preset.forEach(p=>{
     const existe = sorteos.some(s=>s.nombre===p.nombre && s.horaSorteoTexto===p.horaSorteoTexto);
-    if(!existe){ nuevos.push({ id: uid(), paleHabilitado:true, ...p, excepcionFecha:null }); }
+    if(!existe){ nuevos.push({ id: uid(), paleHabilitado:true, tipoBillete:'ninguno', ...p, excepcionFecha:null }); }
   });
   if(nuevos.length){
     try{ await db.from('sorteos').insert(nuevos.map(filaSorteoParaDB)); }
@@ -1356,13 +1413,33 @@ function renderPremiosForm(){
   document.getElementById('premio-pale-23').value = premios.pale ? premios.pale['23'] : 200;
 }
 function guardarPremios(){
-  premios = {
-    chance20:{ 1:+document.getElementById('premio-c20-1').value||0, 2:+document.getElementById('premio-c20-2').value||0, 3:+document.getElementById('premio-c20-3').value||0 },
-    chance25:{ 1:+document.getElementById('premio-c25-1').value||0, 2:+document.getElementById('premio-c25-2').value||0, 3:+document.getElementById('premio-c25-3').value||0 },
-    pale:{ "12":+document.getElementById('premio-pale-12').value||0, "23":+document.getElementById('premio-pale-23').value||0 }
-  };
+  premios.chance20 = { 1:+document.getElementById('premio-c20-1').value||0, 2:+document.getElementById('premio-c20-2').value||0, 3:+document.getElementById('premio-c20-3').value||0 };
+  premios.chance25 = { 1:+document.getElementById('premio-c25-1').value||0, 2:+document.getElementById('premio-c25-2').value||0, 3:+document.getElementById('premio-c25-3').value||0 };
+  premios.pale = { "12":+document.getElementById('premio-pale-12').value||0, "23":+document.getElementById('premio-pale-23').value||0 };
   guardarConfig();
   avisar('Premiación actualizada.');
+}
+function renderPremiosBilleteForm(){
+  ['nacional','gordito'].forEach(tipo=>{
+    const pref = tipo==='nacional' ? 'bil-nac-' : 'bil-gor-';
+    [1,2,3].forEach(pos=>{
+      const t = premios.billete[tipo][pos] || {cuatro:0,tres:0,dos:0};
+      document.getElementById(pref+pos+'-4').value = t.cuatro||0;
+      document.getElementById(pref+pos+'-3').value = t.tres||0;
+      document.getElementById(pref+pos+'-2').value = t.dos||0;
+    });
+  });
+}
+function guardarPremiosBillete(){
+  const leer = pref => ({
+    1:{ cuatro:+document.getElementById(pref+'1-4').value||0, tres:+document.getElementById(pref+'1-3').value||0, dos:+document.getElementById(pref+'1-2').value||0 },
+    2:{ cuatro:+document.getElementById(pref+'2-4').value||0, tres:+document.getElementById(pref+'2-3').value||0, dos:+document.getElementById(pref+'2-2').value||0 },
+    3:{ cuatro:+document.getElementById(pref+'3-4').value||0, tres:+document.getElementById(pref+'3-3').value||0, dos:+document.getElementById(pref+'3-2').value||0 }
+  });
+  premios.billete = { nacional: leer('bil-nac-'), gordito: leer('bil-gor-') };
+  guardarConfig();
+  avisar('Premiación de billetes actualizada.');
+  actualizarDisponibilidadPale();
 }
 // ---------------- SEGURIDAD ----------------
 function cambiarAdminAuth(){
@@ -1389,16 +1466,24 @@ function paleHabilitadoParaSorteo(sorteoId){
   if(!s) return true;
   return s.paleHabilitado !== false;
 }
-function maxNumeroLen(){ return modalidadActual==='pale' ? 4 : 2; }
+function maxNumeroLen(){ return (modalidadActual==='pale' || modalidadActual==='billete') ? 4 : 2; }
 function setModalidad(mod){
   modalidadActual = mod;
   document.querySelectorAll('.modalidad-tab').forEach(el=>el.classList.toggle('active', el.dataset.mod===mod));
-  document.getElementById('kp-label-numero').textContent = mod==='pale' ? 'Palé (4 díg.)' : 'Número';
+  document.getElementById('kp-label-numero').textContent = mod==='pale' ? 'Palé (4 díg.)' : (mod==='billete' ? 'Billete (4 díg.)' : 'Número');
   document.getElementById('kp-sum-modalidad').textContent = NOMBRES_MOD[mod];
   bufferNumero='';
   ocultarDuplicado();
   seleccionarCampo('cantidad');
   refrescarPantallaKeypad();
+}
+function billeteHabilitadoParaSorteo(sorteoId){
+  const s = sorteos.find(x=>x.id===sorteoId);
+  if(!s || !s.tipoBillete || s.tipoBillete==='ninguno') return false;
+  const tabla = premios.billete && premios.billete[s.tipoBillete];
+  if(!tabla) return false;
+  // Solo se activa cuando ya se cargó al menos un valor de premio para esa tabla.
+  return [1,2,3].some(pos => tabla[pos] && (tabla[pos].cuatro>0 || tabla[pos].tres>0 || tabla[pos].dos>0));
 }
 function actualizarDisponibilidadPale(){
   const sorteoId = document.getElementById('sel-sorteo').value;
@@ -1408,6 +1493,11 @@ function actualizarDisponibilidadPale(){
   if(tabPale) tabPale.classList.toggle('deshabilitado', !habilitado);
   if(aviso) aviso.style.display = habilitado ? 'none' : 'block';
   if(!habilitado && modalidadActual==='pale') setModalidad('chance20');
+
+  const tabBillete = document.getElementById('tab-billete');
+  const billeteVisible = sorteoId && billeteHabilitadoParaSorteo(sorteoId);
+  if(tabBillete) tabBillete.style.display = billeteVisible ? '' : 'none';
+  if(!billeteVisible && modalidadActual==='billete') setModalidad('chance20');
 }
 function seleccionarCampo(campo){
   if(pasoActivo===campo && !duplicadoPendiente){
@@ -1476,10 +1566,14 @@ function intentarAgregarJugada(){
   const sorteo = sorteos.find(s=>s.id===sorteoId);
   if(currentUser.role==='vendedor' && (!sorteo || !sorteoAbierto(sorteo))){ avisar('Este sorteo ya cerró. No puedes agregar jugadas.'); return; }
   if(modalidadActual==='pale' && sorteoId && !paleHabilitadoParaSorteo(sorteoId)){ avisar('Este sorteo no vende Palé.'); return; }
+  if(modalidadActual==='billete' && sorteoId && !billeteHabilitadoParaSorteo(sorteoId)){ avisar('Este sorteo no vende billetes.'); return; }
 
   let numeroGuardado;
   if(modalidadActual==='pale'){
     if(bufferNumero.length!==4){ avisar('Ingresa los 4 dígitos del palé (dos pares, ej. 4556).'); return; }
+    numeroGuardado = bufferNumero;
+  }else if(modalidadActual==='billete'){
+    if(bufferNumero.length!==4){ avisar('Ingresa las 4 cifras del billete.'); return; }
     numeroGuardado = bufferNumero;
   }else{
     const n1 = validarNumero(bufferNumero);
@@ -2017,8 +2111,36 @@ async function anularVenta(id){
 }
 
 // ---------------- PREMIOS / RESULTADOS ----------------
+function calcularPremioBillete(numero, resultado){
+  const sorteo = sorteos.find(s=>s.id===resultado.sorteoId);
+  const tipo = sorteo ? sorteo.tipoBillete : null;
+  const tabla = tipo && premios.billete ? premios.billete[tipo] : null;
+  if(!tabla) return { pos:null, monto:0 };
+  const posiciones = [
+    { n:1, ganador: resultado.primeroCompleto || resultado.primero, etiqueta:'1ro' },
+    { n:2, ganador: resultado.segundoCompleto || resultado.segundo, etiqueta:'2do' },
+    { n:3, ganador: resultado.terceroCompleto || resultado.tercero, etiqueta:'3ro' }
+  ];
+  let totalUnit = 0; const etiquetas = [];
+  posiciones.forEach(p=>{
+    const g = p.ganador;
+    if(!g || g.length<4) return; // sin número completo de 4 cifras, no aplica billete
+    const tablaPos = tabla[p.n]; if(!tablaPos) return;
+    let unit = 0, tier = null;
+    if(numero===g){ unit = tablaPos.cuatro||0; tier='4 cifras'; }
+    else if(numero.slice(0,3)===g.slice(0,3) || numero.slice(1,4)===g.slice(1,4)){ unit = tablaPos.tres||0; tier='3 cifras'; }
+    else if(numero.slice(0,2)===g.slice(0,2) || numero.slice(2,4)===g.slice(2,4)){ unit = tablaPos.dos||0; tier='2 cifras'; }
+    if(unit>0){ totalUnit += unit; etiquetas.push(p.etiqueta+' ('+tier+')'); }
+  });
+  if(totalUnit<=0) return { pos:null, monto:0 };
+  return { pos: etiquetas.join(' + '), monto: totalUnit, esBillete:true };
+}
 function calcularPremioJugada(j, resultado){
   if(!resultado) return { pos:null, monto:0 };
+  if(j.modalidad==='billete'){
+    const r = calcularPremioBillete(j.numero, resultado);
+    return { pos:r.pos, monto: +(r.monto*j.cantidad).toFixed(2) };
+  }
   if(j.modalidad==='pale'){
     const par1 = j.numero.slice(0,2), par2 = j.numero.slice(2,4);
     const comboJugado = [par1,par2].sort().join('-');
@@ -2283,9 +2405,11 @@ function calcularTablaNumeros(sorteoId, fechaKey){
       if(j.modalidad==='pale'){
         const key = formatearNumeroJugada(j);
         porPale[key] = (porPale[key]||0) + j.cantidad;
-      }else{
+      }else if(j.modalidad==='chance20' || j.modalidad==='chance25'){
         porNumero[j.numero] = (porNumero[j.numero]||0) + j.cantidad;
       }
+      // Los billetes (4 cifras) no se incluyen en esta tabla — son demasiadas
+      // combinaciones posibles para una cuadrícula 00-99.
     });
   });
   return { porNumero, porPale };

@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>LotC4Pa</title>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
@@ -485,10 +485,11 @@
           <div class="field"></div>
         </div>
         <div class="grid-3">
-          <div class="field"><label>1er lugar (00-99)</label><input type="text" id="res-primero" maxlength="2" inputmode="numeric" placeholder="00"></div>
-          <div class="field"><label>2do lugar (00-99)</label><input type="text" id="res-segundo" maxlength="2" inputmode="numeric" placeholder="00"></div>
-          <div class="field"><label>3er lugar (00-99)</label><input type="text" id="res-tercero" maxlength="2" inputmode="numeric" placeholder="00"></div>
+          <div class="field"><label>1er lugar (2 a 4 cifras)</label><input type="text" id="res-primero" maxlength="4" inputmode="numeric" placeholder="00 ó 0000"></div>
+          <div class="field"><label>2do lugar (2 a 4 cifras)</label><input type="text" id="res-segundo" maxlength="4" inputmode="numeric" placeholder="00 ó 0000"></div>
+          <div class="field"><label>3er lugar (2 a 4 cifras)</label><input type="text" id="res-tercero" maxlength="4" inputmode="numeric" placeholder="00 ó 0000"></div>
         </div>
+        <p class="hint" style="margin-top:-8px;">Para sorteos como la Nacional, escribe el número completo (ej. 4523) — la app toma los últimos 2 dígitos (23) para premiar el Chance automáticamente, y guarda el número completo para cuando actives la premiación de billetes.</p>
         <button class="btn btn-gold" onclick="guardarResultado()">Guardar resultado y calcular ganadores</button>
       </div>
       <div class="card" id="ganadores-card" style="display:none">
@@ -742,7 +743,7 @@ function filaAVenta(v){
     cliente:v.cliente, fecha:v.fecha, jugadas:v.jugadas, total:+v.total,
     anulada:v.anulada, anuladaPor:v.anulada_por, anuladaEn:v.anulada_en, motivoAnulacion:v.motivo_anulacion };
 }
-function filaAResultado(r){ return { id:r.id, sorteoId:r.sorteo_id, fechaKey:r.fecha_key, primero:r.primero, segundo:r.segundo, tercero:r.tercero }; }
+function filaAResultado(r){ return { id:r.id, sorteoId:r.sorteo_id, fechaKey:r.fecha_key, primero:r.primero, segundo:r.segundo, tercero:r.tercero, primeroCompleto:r.primero_completo||r.primero, segundoCompleto:r.segundo_completo||r.segundo, terceroCompleto:r.tercero_completo||r.tercero }; }
 
 let cargaOk = { vendedores:true, sorteos:true, ventas:true };
 async function cargarDatos(){
@@ -1363,7 +1364,6 @@ function guardarPremios(){
   guardarConfig();
   avisar('Premiación actualizada.');
 }
-
 // ---------------- SEGURIDAD ----------------
 function cambiarAdminAuth(){
   const actual = document.getElementById('sec-actual').value;
@@ -1463,7 +1463,11 @@ function resetKeypad(){
   const lblMod = document.getElementById('kp-sum-modalidad');
   if(lblMod) lblMod.textContent = NOMBRES_MOD[modalidadActual];
 }
-function validarNumero(val){ if(!/^\d{1,2}$/.test(val)) return null; return val.padStart(2,'0'); }
+function validarNumero(val){
+  if(!/^\d{1,4}$/.test(val)) return null;
+  return val.length<=2 ? val.padStart(2,'0') : val;
+}
+function ultimosDosDigitos(val){ return val.slice(-2).padStart(2,'0'); }
 function formatearNumeroJugada(j){
   return j.modalidad==='pale' ? (j.numero.slice(0,2)+'-'+j.numero.slice(2,4)) : j.numero;
 }
@@ -2053,21 +2057,23 @@ function renderResultadosSorteoSelect(){
 async function guardarResultado(){
   const sorteoId = document.getElementById('res-sorteo').value;
   const fechaKey = document.getElementById('res-fecha').value;
-  const p1 = validarNumero(document.getElementById('res-primero').value.trim());
-  const p2 = validarNumero(document.getElementById('res-segundo').value.trim());
-  const p3 = validarNumero(document.getElementById('res-tercero').value.trim());
+  const c1 = validarNumero(document.getElementById('res-primero').value.trim());
+  const c2 = validarNumero(document.getElementById('res-segundo').value.trim());
+  const c3 = validarNumero(document.getElementById('res-tercero').value.trim());
   if(!sorteoId || !fechaKey){ avisar('Selecciona el sorteo y la fecha.'); return; }
-  if(!p1 || !p2 || !p3){ avisar('Ingresa los 3 números ganadores (00-99).'); return; }
+  if(!c1 || !c2 || !c3){ avisar('Ingresa los 3 números ganadores (2 a 4 cifras).'); return; }
+  const p1 = ultimosDosDigitos(c1), p2 = ultimosDosDigitos(c2), p3 = ultimosDosDigitos(c3);
   let r = resultadoDe(sorteoId, fechaKey);
   const idAUsar = r ? r.id : uid();
   try{
     await db.from('resultados').upsert(
-      { id: idAUsar, sorteo_id: sorteoId, fecha_key: fechaKey, primero:p1, segundo:p2, tercero:p3 },
+      { id: idAUsar, sorteo_id: sorteoId, fecha_key: fechaKey, primero:p1, segundo:p2, tercero:p3,
+        primero_completo:c1, segundo_completo:c2, tercero_completo:c3 },
       { onConflict: 'sorteo_id,fecha_key' }
     );
   }catch(e){ avisar('No se pudo guardar el resultado.'); return; }
-  if(r){ r.primero=p1; r.segundo=p2; r.tercero=p3; }
-  else{ r = { id: idAUsar, sorteoId, fechaKey, primero:p1, segundo:p2, tercero:p3 }; resultados.unshift(r); }
+  if(r){ r.primero=p1; r.segundo=p2; r.tercero=p3; r.primeroCompleto=c1; r.segundoCompleto=c2; r.terceroCompleto=c3; }
+  else{ r = { id: idAUsar, sorteoId, fechaKey, primero:p1, segundo:p2, tercero:p3, primeroCompleto:c1, segundoCompleto:c2, terceroCompleto:c3 }; resultados.unshift(r); }
   renderListaResultados();
   mostrarGanadores(sorteoId, fechaKey);
   renderHistorial();
@@ -2082,9 +2088,9 @@ function mostrarGanadores(sorteoId, fechaKey){
   const resultado = resultadoDe(sorteoId, fechaKey); if(!resultado) return;
   document.getElementById('res-sorteo').value = sorteoId;
   document.getElementById('res-fecha').value = fechaKey;
-  document.getElementById('res-primero').value = resultado.primero;
-  document.getElementById('res-segundo').value = resultado.segundo;
-  document.getElementById('res-tercero').value = resultado.tercero;
+  document.getElementById('res-primero').value = resultado.primeroCompleto || resultado.primero;
+  document.getElementById('res-segundo').value = resultado.segundoCompleto || resultado.segundo;
+  document.getElementById('res-tercero').value = resultado.terceroCompleto || resultado.tercero;
 
   const ganadores = [];
   ventasList.filter(v=>v.sorteoId===sorteoId && toDateKey(v.fecha)===fechaKey && !v.anulada).forEach(v=>{
@@ -2102,16 +2108,18 @@ function mostrarGanadores(sorteoId, fechaKey){
       <td>${NOMBRES_MOD[g.modalidad]}</td><td>${typeof g.pos==='number' ? g.pos+'° lugar' : g.pos}</td><td class="premio-tag">$${g.monto.toFixed(2)}</td></tr>`).join('');
   }
   const totalPagar = ganadores.reduce((s,g)=>s+g.monto,0);
+  const c1 = resultado.primeroCompleto||resultado.primero, c2 = resultado.segundoCompleto||resultado.segundo, c3 = resultado.terceroCompleto||resultado.tercero;
+  const huboBilletes = c1!==resultado.primero || c2!==resultado.segundo || c3!==resultado.tercero;
   document.getElementById('ganadores-summary').innerHTML = `
     <div class="summary-box"><div class="num mono">$${totalPagar.toFixed(2)}</div><div class="lbl">Total a pagar</div></div>
     <div class="summary-box"><div class="num mono">${ganadores.length}</div><div class="lbl">Jugadas ganadoras</div></div>
-    <div class="summary-box"><div class="num mono" style="font-size:16px;">${resultado.primero} · ${resultado.segundo} · ${resultado.tercero}</div><div class="lbl">Resultado (1ro · 2do · 3ro)</div></div>`;
+    <div class="summary-box"><div class="num mono" style="font-size:16px;">${c1} · ${c2} · ${c3}</div><div class="lbl">Resultado (1ro · 2do · 3ro)${huboBilletes?' · Chance: '+resultado.primero+' · '+resultado.segundo+' · '+resultado.tercero:''}</div></div>`;
 }
 function renderListaResultados(){
   const cont = document.getElementById('lista-resultados');
   if(resultados.length===0){ cont.innerHTML = '<div class="empty-state">Aún no has registrado resultados.</div>'; return; }
   cont.innerHTML = `<table><thead><tr><th>Sorteo</th><th>Fecha</th><th>1ro</th><th>2do</th><th>3ro</th><th></th></tr></thead><tbody>
-    ${resultados.map(r=>`<tr><td>${escapeHtml(nombreSorteo(r.sorteoId))}</td><td>${r.fechaKey}</td><td class="mono">${r.primero}</td><td class="mono">${r.segundo}</td><td class="mono">${r.tercero}</td>
+    ${resultados.map(r=>`<tr><td>${escapeHtml(nombreSorteo(r.sorteoId))}</td><td>${r.fechaKey}</td><td class="mono">${r.primeroCompleto||r.primero}</td><td class="mono">${r.segundoCompleto||r.segundo}</td><td class="mono">${r.terceroCompleto||r.tercero}</td>
     <td><button class="btn btn-outline btn-sm" onclick="mostrarGanadores('${r.sorteoId}','${r.fechaKey}')">Ver ganadores</button></td></tr>`).join('')}</tbody></table>`;
 }
 

@@ -10,15 +10,16 @@
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icons/icon-192.png">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
-<meta name="theme-color" content="#2E8B57">
+<meta name="theme-color" content="#1F2937">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root{
-    --paper:#FFF6E2; --paper-dim:#FBE7BE; --ink:#2B1B12; --ink-dim:#8A6F52;
-    --red:#D1262C; --red-dark:#96181D; --gold:#F2A93B; --gold-dark:#C97F0E;
-    --blue:#1E5FA8; --green:#2E8B57; --green-dark:#1F6B44; --purple:#7B3FA0;
-    --card:#FFFFFF; --line:#F0D9A8; --radius:10px;
+    --paper:#FAFAFA; --paper-dim:#F1F2F4; --ink:#1F2937; --ink-dim:#6B7280;
+    --red:#DC2626; --red-dark:#991B1B; --gold:#D4A017; --gold-dark:#A67C00;
+    --blue:#2563EB; --green:#10B981; --green-dark:#059669; --purple:#7B3FA0;
+    --charcoal:#1F2937; --charcoal-dark:#0F172A;
+    --card:#FFFFFF; --line:#E5E7EB; --radius:10px;
   }
   *{box-sizing:border-box;}
   html,body{margin:0;padding:0;}
@@ -26,13 +27,13 @@
   .mono{font-family:'IBM Plex Mono',monospace;}
   .display{font-family:'Fraunces',serif;}
 
-  #login-screen{ min-height:100vh; display:none; align-items:center; justify-content:center; background:linear-gradient(160deg, var(--green) 0%, #123D26 100%); padding:20px; }
-  #pantalla-cargando{ min-height:100vh; display:flex; align-items:center; justify-content:center; background:linear-gradient(160deg, var(--green) 0%, #123D26 100%); color:#fff; font-family:'Fraunces',serif; font-size:18px; }
+  #login-screen{ min-height:100vh; display:none; align-items:center; justify-content:center; background:linear-gradient(160deg, var(--charcoal) 0%, var(--charcoal-dark) 100%); padding:20px; }
+  #pantalla-cargando{ min-height:100vh; display:flex; align-items:center; justify-content:center; background:linear-gradient(160deg, var(--charcoal) 0%, var(--charcoal-dark) 100%); color:#fff; font-family:'Fraunces',serif; font-size:18px; }
   .login-card{ background:var(--paper); width:100%; max-width:360px; border-radius:14px; padding:34px 30px; box-shadow:0 30px 60px rgba(0,0,0,0.35); border-top:5px solid var(--gold); }
   .login-brand{ text-align:center; margin-bottom:26px; }
   .login-brand .name{ font-family:'Fraunces',serif; font-weight:700; font-size:24px; color:var(--green); }
   .login-brand .sub{ font-size:12px; color:var(--ink-dim); text-transform:uppercase; letter-spacing:1px; margin-top:4px; }
-  .logo-badge{ width:46px; height:46px; border-radius:50%; background:var(--green); border:3px solid var(--gold); display:flex; align-items:center; justify-content:center; font-family:'Fraunces',serif; font-weight:700; color:#fff; font-size:16px; margin:0 auto 10px auto; box-shadow:0 3px 8px rgba(0,0,0,0.15); }
+  .logo-badge{ width:46px; height:46px; border-radius:50%; background:var(--charcoal); border:3px solid var(--gold); display:flex; align-items:center; justify-content:center; font-family:'Fraunces',serif; font-weight:700; color:#fff; font-size:16px; margin:0 auto 10px auto; box-shadow:0 3px 8px rgba(0,0,0,0.15); }
   .logo-badge-sm{ width:36px; height:36px; border:2px solid var(--gold); font-size:13px; margin:0; flex-shrink:0; }
   .brand-row{ display:flex; align-items:center; gap:10px; }
   .login-error{ background:rgba(162,59,30,0.1); color:var(--red); font-size:13px; padding:9px 12px; border-radius:7px; margin-bottom:14px; display:none; }
@@ -40,7 +41,7 @@
   #app-shell{ display:none; }
   #app{ display:flex; min-height:100vh; }
 
-  #topbar{ display:flex; align-items:center; gap:12px; background:var(--green); color:var(--paper); padding:10px 16px; position:sticky; top:0; z-index:50; }
+  #topbar{ display:flex; align-items:center; gap:12px; background:var(--charcoal); color:var(--paper); padding:10px 16px; position:sticky; top:0; z-index:50; }
   html.sin-scroll, body.sin-scroll{ overflow:hidden; height:100%; overscroll-behavior:none; }
   body.sin-scroll .main{ overflow:hidden; }
   #btn-hamburguesa{ background:rgba(255,255,255,0.12); border:none; color:#fff; font-size:20px; width:38px; height:38px; border-radius:8px; cursor:pointer; flex-shrink:0; }
@@ -49,9 +50,9 @@
   .topbar-sesion{ font-size:11.5px; color:rgba(245,241,230,0.75); }
   #menu-overlay{ position:fixed; inset:0; background:rgba(0,0,0,0.45); z-index:60; opacity:0; pointer-events:none; transition:opacity .2s; }
   #menu-overlay.abierto{ opacity:1; pointer-events:auto; }
-  #menu-drawer{ position:fixed; top:0; left:0; bottom:0; width:250px; background:var(--green); color:var(--paper); z-index:61; transform:translateX(-100%); transition:transform .2s; overflow-y:auto; padding:16px 0; }
+  #menu-drawer{ position:fixed; top:0; left:0; bottom:0; width:250px; background:var(--charcoal); color:var(--paper); z-index:61; transform:translateX(-100%); transition:transform .2s; overflow-y:auto; padding:16px 0; }
   #menu-drawer.abierto{ transform:translateX(0); }
-  .sidebar{ width:230px; flex-shrink:0; background:var(--green); color:var(--paper); display:flex; flex-direction:column; padding:24px 0; }
+  .sidebar{ width:230px; flex-shrink:0; background:var(--charcoal); color:var(--paper); display:flex; flex-direction:column; padding:24px 0; }
   .brand{ padding:0 20px 16px 20px; border-bottom:1px solid rgba(245,241,230,0.15); margin-bottom:10px; }
   .brand-mark{ font-family:'Fraunces',serif; font-weight:700; font-size:21px; letter-spacing:0.3px; color:var(--gold); }
   .brand-sub{ font-size:11px; text-transform:uppercase; letter-spacing:1.2px; color:rgba(245,241,230,0.6); margin-top:4px; }
@@ -64,7 +65,7 @@
   .nav-item.logout{ margin-top:auto; color:rgba(245,241,230,0.55); }
 
   .main{ flex:1; padding:32px 40px 60px 40px; max-width:1150px; }
-  h1.page-title{ font-family:'Fraunces',serif; font-weight:600; font-size:26px; margin:0 0 4px 0; display:inline-block; background:var(--green); color:#fff; padding:8px 20px; border-radius:8px; }
+  h1.page-title{ font-family:'Fraunces',serif; font-weight:600; font-size:26px; margin:0 0 4px 0; display:inline-block; background:var(--charcoal); color:#fff; padding:8px 20px; border-radius:8px; }
   .page-sub{ color:var(--ink-dim); font-size:14px; margin-bottom:28px; }
   .card{ background:var(--card); border:1px solid var(--line); border-top:3px solid var(--gold); border-radius:var(--radius); padding:22px; margin-bottom:20px; box-shadow:0 2px 10px rgba(43,27,18,0.05); }
   .card h2{ font-family:'Fraunces',serif; font-size:17px; font-weight:600; margin:0 0 16px 0; display:flex; align-items:center; gap:8px; }
@@ -235,10 +236,11 @@
   .sorteo-pick-card:active{ transform:scale(0.98); }
   .sorteo-pick-card.bloqueado{ opacity:0.5; cursor:not-allowed; }
   .spc-fila1{ display:flex; justify-content:space-between; align-items:center; }
-  .spc-nombre{ font-family:'Fraunces',serif; font-weight:700; font-size:17px; }
+  .spc-nombre{ font-family:'Fraunces',serif; font-weight:700; font-size:17px; display:inline-flex; align-items:center; gap:8px; }
+  .spc-logo{ width:22px; height:22px; border-radius:4px; object-fit:cover; flex-shrink:0; }
   .spc-detalle{ font-size:12.5px; color:var(--ink-dim); margin-top:2px; }
   .spc-codigo{ font-size:11px; color:var(--ink-dim); margin-top:4px; }
-  .shc-card{ background:var(--green); color:#fff; border-radius:10px; padding:16px 18px; margin-bottom:16px; }
+  .shc-card{ background:var(--charcoal); color:#fff; border-radius:10px; padding:16px 18px; margin-bottom:16px; }
   .btn-cambiar-sorteo{ display:inline-block; background:rgba(255,255,255,0.18); color:#fff; border:1px solid rgba(255,255,255,0.35); border-radius:8px; padding:6px 12px; font-size:13px; font-weight:700; cursor:pointer; margin-bottom:8px; }
   .btn-cambiar-sorteo:active{ background:rgba(255,255,255,0.3); }
   .shc-top{ display:flex; justify-content:space-between; align-items:baseline; font-family:'Fraunces',serif; font-weight:700; font-size:20px; color:var(--gold); }
@@ -643,6 +645,11 @@
             <option value="gordito">Sí — tabla Gordito</option>
           </select>
         </div>
+        <div class="field" style="margin-top:10px;">
+          <label>Logo/ícono (link a una imagen, opcional)</label>
+          <input type="text" id="in-s-icono" placeholder="https://flagcdn.com/w40/ni.png" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+          <p class="hint" style="margin-top:4px; margin-bottom:0;">Se muestra chiquito junto al nombre del sorteo al elegirlo para anotar. Para banderas de países puedes usar links como <span class="mono">https://flagcdn.com/w40/ni.png</span> (cambia "ni" por el código del país: hn=Honduras, ai=Anguila, us=EE.UU., etc.) — o pega el link de tu propio logo si ya lo tienes subido en algún lado.</p>
+        </div>
         <div class="btn-row" style="margin-top:14px">
           <button class="btn btn-primary" id="btn-guardar-sorteo" onclick="guardarSorteo()">Agregar sorteo</button>
           <button class="btn btn-text" id="btn-cancelar-edicion-sorteo" onclick="cancelarEdicionSorteo()" style="display:none">Cancelar</button>
@@ -865,7 +872,7 @@ function filaALiquidacion(l){ return { id:l.id, vendedorId:l.vendedor_id, fecha:
 function filaASorteo(s){
   return { id:s.id, nombre:s.nombre, horaSorteoTexto:s.hora_sorteo_texto, horaCierre:s.hora_cierre,
     dias:s.dias||[], notas:s.notas||'', excepcionFecha:s.excepcion_fecha, pausaFecha:s.pausa_fecha, paleHabilitado: s.pale_habilitado!==false,
-    tipoBillete: s.tipo_billete || 'ninguno' };
+    tipoBillete: s.tipo_billete || 'ninguno', iconoUrl: s.icono_url || '' };
 }
 function filaAVenta(v){
   return { id:v.id, folio:v.folio, vendedorId:v.vendedor_id, sorteoId:v.sorteo_id, codigoSorteo:v.codigo_sorteo,
@@ -1330,6 +1337,7 @@ function iniciarEdicionSorteo(id){
   document.getElementById('in-s-notas').value = s.notas || '';
   document.getElementById('in-s-pale').checked = s.paleHabilitado !== false;
   document.getElementById('in-s-billete').value = s.tipoBillete || 'ninguno';
+  document.getElementById('in-s-icono').value = s.iconoUrl || '';
   pintarDiasSeleccionados(s.dias || []);
   document.getElementById('sorteo-form-title').textContent = 'Editar sorteo';
   document.getElementById('btn-guardar-sorteo').textContent = 'Guardar cambios';
@@ -1343,6 +1351,7 @@ function cancelarEdicionSorteo(){
   document.getElementById('in-s-notas').value='';
   document.getElementById('in-s-pale').checked = true;
   document.getElementById('in-s-billete').value = 'ninguno';
+  document.getElementById('in-s-icono').value = '';
   pintarDiasSeleccionados([]);
   document.getElementById('sorteo-form-title').textContent = 'Agregar sorteo';
   document.getElementById('btn-guardar-sorteo').textContent = 'Agregar sorteo';
@@ -1350,7 +1359,7 @@ function cancelarEdicionSorteo(){
 }
 function filaSorteoParaDB(s){
   return { id:s.id, nombre:s.nombre, hora_sorteo_texto:s.horaSorteoTexto, hora_cierre:s.horaCierre,
-    dias:s.dias, notas:s.notas, excepcion_fecha:s.excepcionFecha, pausa_fecha:s.pausaFecha, pale_habilitado:s.paleHabilitado, tipo_billete:s.tipoBillete };
+    dias:s.dias, notas:s.notas, excepcion_fecha:s.excepcionFecha, pausa_fecha:s.pausaFecha, pale_habilitado:s.paleHabilitado, tipo_billete:s.tipoBillete, icono_url:s.iconoUrl||null };
 }
 async function guardarSorteo(){
   const nombre = document.getElementById('in-s-nombre').value.trim();
@@ -1359,23 +1368,24 @@ async function guardarSorteo(){
   const notas = document.getElementById('in-s-notas').value.trim();
   const paleHabilitado = document.getElementById('in-s-pale').checked;
   const tipoBillete = document.getElementById('in-s-billete').value;
+  const iconoUrl = document.getElementById('in-s-icono').value.trim();
   const dias = leerDiasSeleccionados();
   if(!nombre || !horaSorteoTexto || !horaCierre){ avisar('Completa nombre, hora del sorteo y hora de cierre.'); return; }
   if(dias.length===0){ avisar('Selecciona al menos un día.'); return; }
   try{
     if(editingSorteoId){
       const s = sorteos.find(x=>x.id===editingSorteoId);
-      const actualizado = { ...s, nombre, horaSorteoTexto, horaCierre, notas, dias, paleHabilitado, tipoBillete };
+      const actualizado = { ...s, nombre, horaSorteoTexto, horaCierre, notas, dias, paleHabilitado, tipoBillete, iconoUrl };
       await db.from('sorteos').update(filaSorteoParaDB(actualizado)).eq('id', editingSorteoId);
-      s.nombre=nombre; s.horaSorteoTexto=horaSorteoTexto; s.horaCierre=horaCierre; s.notas=notas; s.dias=dias; s.paleHabilitado=paleHabilitado; s.tipoBillete=tipoBillete;
+      s.nombre=nombre; s.horaSorteoTexto=horaSorteoTexto; s.horaCierre=horaCierre; s.notas=notas; s.dias=dias; s.paleHabilitado=paleHabilitado; s.tipoBillete=tipoBillete; s.iconoUrl=iconoUrl;
     }else{
-      const nuevo = { id: uid(), nombre, horaSorteoTexto, horaCierre, notas, dias, excepcionFecha:null, pausaFecha:null, paleHabilitado, tipoBillete };
+      const nuevo = { id: uid(), nombre, horaSorteoTexto, horaCierre, notas, dias, excepcionFecha:null, pausaFecha:null, paleHabilitado, tipoBillete, iconoUrl };
       await db.from('sorteos').insert(filaSorteoParaDB(nuevo));
       sorteos.push(nuevo);
     }
   }catch(e){ avisar('No se pudo guardar el sorteo.'); return; }
   cancelarEdicionSorteo();
-  renderSorteoFiltros(); renderVentaSorteoSelect(); renderConfigLists(); renderResultadosSorteoSelect(); renderTablaSorteoSelect(); actualizarDisponibilidadPale();
+  renderSorteoFiltros(); renderVentaSorteoSelect(); renderConfigLists(); renderResultadosSorteoSelect(); renderTablaSorteoSelect(); actualizarDisponibilidadPale(); renderListaSorteosVenta();
 }
 async function eliminarSorteo(id){
   if(!(await mostrarConfirmacion('¿Eliminar este sorteo?'))) return;
@@ -1892,8 +1902,9 @@ function renderListaSorteosVenta(){
   cont.innerHTML = ordenados.map(s=>{
     const abierto = sorteoAbierto(s);
     const codigo = codigoSorteoParaFecha(s, ahoraServidor().toISOString());
+    const logo = s.iconoUrl ? `<img src="${escapeHtml(s.iconoUrl)}" alt="" class="spc-logo" onerror="this.style.display='none'">` : '';
     return `<div class="sorteo-pick-card ${abierto?'':'cerrado'}" onclick="elegirSorteoVenta('${s.id}')">
-      <div class="spc-fila1"><span class="spc-nombre">${escapeHtml(s.nombre)}</span><span class="dot ${abierto?'abierto':'cerrado'}"></span></div>
+      <div class="spc-fila1"><span class="spc-nombre">${logo}${escapeHtml(s.nombre)}</span><span class="dot ${abierto?'abierto':'cerrado'}"></span></div>
       <div class="spc-detalle">${escapeHtml(s.horaSorteoTexto)} · cierra ${s.horaCierre}${abierto?'':' · cerrado (solo consulta)'}</div>
       <div class="spc-codigo mono">${codigo}</div>
     </div>`;

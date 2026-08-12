@@ -1265,8 +1265,10 @@ async function guardarVendedor(){
 }
 async function eliminarVendedor(id){
   if(!(await mostrarConfirmacion('¿Eliminar este vendedor? No podrá volver a iniciar sesión.'))) return;
-  try{ await db.from('vendedores').delete().eq('id', id); }
-  catch(e){ avisar('No se pudo eliminar el vendedor.'); return; }
+  try{
+    const { error } = await db.from('vendedores').delete().eq('id', id);
+    if(error) throw error;
+  }catch(e){ avisar('No se pudo eliminar el vendedor ('+(e&&e.message?e.message:'sin conexión')+').'); return; }
   vendedores = vendedores.filter(v=>v.id!==id);
   if(editingVendedorId===id) cancelarEdicionVendedor();
   renderVendedorSelects();
@@ -1359,8 +1361,10 @@ async function guardarSorteo(){
 }
 async function eliminarSorteo(id){
   if(!(await mostrarConfirmacion('¿Eliminar este sorteo?'))) return;
-  try{ await db.from('sorteos').delete().eq('id', id); }
-  catch(e){ avisar('No se pudo eliminar el sorteo.'); return; }
+  try{
+    const { error } = await db.from('sorteos').delete().eq('id', id);
+    if(error) throw error;
+  }catch(e){ avisar('No se pudo eliminar el sorteo ('+(e&&e.message?e.message:'sin conexión')+').'); return; }
   sorteos = sorteos.filter(s=>s.id!==id);
   if(editingSorteoId===id) cancelarEdicionSorteo();
   renderSorteoFiltros(); renderVentaSorteoSelect(); renderConfigLists(); renderResultadosSorteoSelect(); renderTablaSorteoSelect();

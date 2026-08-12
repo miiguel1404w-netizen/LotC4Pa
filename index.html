@@ -227,7 +227,9 @@
     .main{ padding:20px 16px 60px 16px; }
     .grid-2, .grid-3{ grid-template-columns:1fr; }
   }
-  .sorteo-pick-card{ background:var(--card); border:1.5px solid var(--line); border-radius:10px; padding:14px 16px; margin-bottom:10px; cursor:pointer; transition:border-color .15s, transform .08s; }
+  .sorteo-pick-card{ background:var(--card); border:1.5px solid var(--line); border-radius:10px; padding:14px 16px; margin-bottom:10px; cursor:pointer; transition:border-color .15s, transform .08s, background .15s; }
+  .sorteo-pick-card.cerrado{ background:#E2DED2; border-color:#D6CFBC; }
+  .sorteo-pick-card.cerrado .spc-nombre{ color:var(--ink-dim); }
   .sorteo-pick-card:active{ transform:scale(0.98); }
   .sorteo-pick-card.bloqueado{ opacity:0.5; cursor:not-allowed; }
   .spc-fila1{ display:flex; justify-content:space-between; align-items:center; }
@@ -394,7 +396,10 @@
 
       <!-- PANTALLA 4: VISTA PREVIA -->
       <div id="pantalla-vista-previa" style="display:none">
-        <h1 class="page-title" style="font-size:22px;">Vista previa</h1>
+        <div style="display:flex; align-items:baseline; justify-content:space-between;">
+          <h1 class="page-title" style="font-size:22px; margin-bottom:0;">Vista previa</h1>
+          <span style="font-size:12.5px; color:var(--ink-dim);" id="vp-sorteo-nombre"></span>
+        </div>
         <div class="card">
           <div class="jugadas-list" id="vp-lista"><div class="empty-state">No hay jugadas.</div></div>
           <div class="total-row">
@@ -1576,6 +1581,7 @@ function intentarAgregarJugada(){
     if(bufferNumero.length!==4){ avisar('Ingresa las 4 cifras del billete.'); return; }
     numeroGuardado = bufferNumero;
   }else{
+    if(bufferNumero.length!==2){ avisar('Ingresa los 2 dígitos del número (00 a 99).'); return; }
     const n1 = validarNumero(bufferNumero);
     if(!n1){ avisar('Ingresa un número válido de 00 a 99.'); return; }
     numeroGuardado = n1;
@@ -1689,7 +1695,7 @@ function renderListaSorteosVenta(){
   cont.innerHTML = sorteos.map(s=>{
     const abierto = sorteoAbierto(s);
     const codigo = codigoSorteoParaFecha(s, ahoraServidor().toISOString());
-    return `<div class="sorteo-pick-card" onclick="elegirSorteoVenta('${s.id}')">
+    return `<div class="sorteo-pick-card ${abierto?'':'cerrado'}" onclick="elegirSorteoVenta('${s.id}')">
       <div class="spc-fila1"><span class="spc-nombre">${escapeHtml(s.nombre)}</span><span class="dot ${abierto?'abierto':'cerrado'}"></span></div>
       <div class="spc-detalle">${escapeHtml(s.horaSorteoTexto)} · cierra ${s.horaCierre}${abierto?'':' · cerrado (solo consulta)'}</div>
       <div class="spc-codigo mono">${codigo}</div>
@@ -1795,6 +1801,9 @@ function irAVistaPrevia(){
   renderVistaPrevia();
 }
 function renderVistaPrevia(){
+  const sorteoId = document.getElementById('sel-sorteo').value;
+  const sorteo = sorteos.find(s=>s.id===sorteoId);
+  document.getElementById('vp-sorteo-nombre').textContent = sorteo ? (sorteo.nombre+' · '+sorteo.horaSorteoTexto) : '';
   const cont = document.getElementById('vp-lista');
   if(jugadasTicket.length===0){
     cont.innerHTML = '<div class="empty-state">No hay jugadas.</div>';

@@ -439,7 +439,7 @@
         <select id="filtro-sorteo" onchange="renderHistorial()"></select>
         <input type="text" id="filtro-fecha" placeholder="Filtrar por fecha (dd/mm/aaaa)" oninput="renderHistorial()">
         <input type="text" id="filtro-cliente" placeholder="Buscar por cliente" oninput="renderHistorial()">
-        <input type="text" id="filtro-codigo" placeholder="Buscar por código de ticket" oninput="renderHistorial()" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+        <input type="text" id="filtro-codigo" placeholder="Buscar por folio o código de sorteo (ej. TIC-)" oninput="renderHistorial()" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
       </div>
       <div class="card" style="padding:0; overflow-x:auto;">
         <table id="tabla-historial">
@@ -2727,7 +2727,7 @@ function renderHistorial(){
     if(fs && v.sorteoId!==fs) return false;
     if(ff){ const fechaLocal = new Date(v.fecha).toLocaleDateString('es-DO', {day:'2-digit',month:'2-digit',year:'numeric'}); if(!fechaLocal.includes(ff)) return false; }
     if(fc && !(v.cliente||'').toLowerCase().includes(fc)) return false;
-    if(fcod && !folioTexto(v).toUpperCase().includes(fcod)) return false;
+    if(fcod && !folioTexto(v).toUpperCase().includes(fcod) && !(v.codigoSorteo||'').toUpperCase().includes(fcod)) return false;
     return true;
   });
   const tbody = document.getElementById('tabla-historial-body'); const tabla = document.getElementById('tabla-historial'); const empty = document.getElementById('historial-empty');

@@ -99,7 +99,7 @@
   .btn-block{ width:100%; }
   .btn-row{ display:flex; gap:10px; flex-wrap:wrap; }
   .btn-sm{ padding:6px 12px; font-size:12.5px; }
-  .btn-editar-amarillo{ background:transparent; border-color:var(--gold-dark); color:var(--gold-dark); }
+  .btn-editar-amarillo{ background:transparent; border:1.5px solid var(--gold-dark); color:var(--gold-dark); }
 
   .modalidad-tabs{ display:flex; gap:8px; margin-bottom:14px; }
   .modalidad-tab{ flex:1; text-align:center; padding:10px 6px; border-radius:7px; border:1.5px solid var(--line); cursor:pointer; font-size:13px; font-weight:600; color:var(--ink-dim); background:var(--paper-dim); }
@@ -2679,9 +2679,14 @@ function calcularPremioBillete(numero, resultado){
     if(!g || g.length<4) return; // sin número completo de 4 cifras, no aplica billete
     const tablaPos = tabla[p.n]; if(!tablaPos) return;
     let unit = 0, tier = null;
+    // El 1er premio paga por las 2 primeras O las 2 últimas cifras.
+    // El 2do y 3er premio SOLO pagan por las 2 últimas (según la tabla).
+    const coincideDos = p.n===1
+      ? (numero.slice(0,2)===g.slice(0,2) || numero.slice(2,4)===g.slice(2,4))
+      : (numero.slice(2,4)===g.slice(2,4));
     if(numero===g){ unit = tablaPos.cuatro||0; tier='4 cifras'; }
     else if(numero.slice(0,3)===g.slice(0,3) || numero.slice(1,4)===g.slice(1,4)){ unit = tablaPos.tres||0; tier='3 cifras'; }
-    else if(numero.slice(0,2)===g.slice(0,2) || numero.slice(2,4)===g.slice(2,4)){ unit = tablaPos.dos||0; tier='2 cifras'; }
+    else if(coincideDos){ unit = tablaPos.dos||0; tier='2 cifras'; }
     if(unit>0){ totalUnit += unit; etiquetas.push(p.etiqueta+' ('+tier+')'); }
   });
   if(totalUnit<=0) return { pos:null, monto:0 };
@@ -2704,11 +2709,18 @@ function calcularPremioJugada(j, resultado){
     if(!pos || unit<=0) return { pos:null, monto:0 };
     return { pos, monto: +(unit*j.cantidad).toFixed(2) };
   }
-  let pos=null;
-  if(j.numero===resultado.primero) pos=1; else if(j.numero===resultado.segundo) pos=2; else if(j.numero===resultado.tercero) pos=3;
-  if(!pos) return { pos:null, monto:0 };
-  const unit = premios[j.modalidad] ? premios[j.modalidad][pos] : 0;
-  return { pos, monto: +((unit||0)*j.cantidad).toFixed(2) };
+  // Revisa las 3 posiciones por separado y suma todas las que coincidan —
+  // si el número jugado coincide con más de una posición del resultado (ej.
+  // el 1ro y el 2do terminan igual), se pagan las dos, no solo la primera.
+  let montoTotal = 0; const posicionesGanadas = [];
+  [[1,resultado.primero],[2,resultado.segundo],[3,resultado.tercero]].forEach(([n,g])=>{
+    if(j.numero===g){
+      const unit = premios[j.modalidad] ? (premios[j.modalidad][n]||0) : 0;
+      if(unit>0){ montoTotal += unit; posicionesGanadas.push(n); }
+    }
+  });
+  if(posicionesGanadas.length===0) return { pos:null, monto:0 };
+  return { pos: posicionesGanadas.join('+'), monto: +(montoTotal*j.cantidad).toFixed(2) };
 }
 function resultadoDe(sorteoId, fechaKey){ return resultados.find(r=>r.sorteoId===sorteoId && r.fechaKey===fechaKey) || null; }
 function resultadoDeVenta(venta){

@@ -204,10 +204,10 @@
   .premios-table input{ text-align:center; max-width:90px; margin:0 auto; }
 
   .modal-overlay{ position:fixed; inset:0; background:rgba(38,35,29,0.55); display:flex; align-items:center; justify-content:center; z-index:100; padding:20px; }
-  .ticket{ background:#fff; width:320px; border-radius:4px; position:relative; box-shadow:0 20px 50px rgba(0,0,0,0.3); overflow:hidden; }
+  .ticket{ background:#fff; width:320px; max-height:88vh; border-radius:4px; position:relative; box-shadow:0 20px 50px rgba(0,0,0,0.3); overflow:hidden; display:flex; flex-direction:column; }
   .ticket-notch{ position:absolute; top:-10px; width:20px; height:20px; background:rgba(38,35,29,0.55); border-radius:50%; }
   .ticket-notch.left{ left:-10px; } .ticket-notch.right{ right:-10px; }
-  .ticket-body{ padding:22px 20px; }
+  .ticket-body{ padding:22px 20px; overflow-y:auto; flex:1 1 auto; min-height:0; }
   .ticket-header{ text-align:center; margin-bottom:14px; }
   .ticket-header .name{ font-family:'Fraunces',serif; font-weight:700; font-size:18px; color:var(--green); }
   .ticket-header .folio{ font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--ink-dim); margin-top:2px; }
@@ -220,7 +220,7 @@
   .ticket-total{ display:flex; justify-content:space-between; align-items:baseline; margin-top:10px; padding-top:10px; border-top:2px solid var(--ink); }
   .ticket-total .v{ font-family:'IBM Plex Mono',monospace; font-size:20px; font-weight:700; }
   .ticket-footer{ text-align:center; font-size:10.5px; color:var(--ink-dim); margin-top:14px; }
-  .modal-actions{ display:flex; flex-wrap:wrap; gap:10px; margin-top:16px; padding:0 4px 4px 4px; }
+  .modal-actions{ display:flex; flex-wrap:wrap; gap:10px; margin-top:16px; padding:0 20px 20px 20px; flex-shrink:0; }
   .modal-actions .btn{ flex:1 1 90px; }
 
   #print-area{ display:none; }
@@ -250,8 +250,8 @@
   .shc-top{ display:flex; justify-content:space-between; align-items:baseline; font-family:'Fraunces',serif; font-weight:700; font-size:20px; color:var(--gold); }
   .shc-sub{ font-size:12.5px; color:rgba(255,255,255,0.8); margin-top:4px; }
   .shc-card .sorteo-status{ margin-top:6px; }
-  .shc-card .sorteo-status.abierto{ color:var(--gold-light,#F2D08A); }
-  .shc-card .sorteo-status.cerrado{ color:#ffb3ac; }
+  .shc-card .sorteo-status.abierto{ color:#34D399; }
+  .shc-card .sorteo-status.cerrado{ color:#FF5C5C; }
   .fab-anotar{ position:fixed; right:20px; bottom:26px; width:58px; height:58px; border-radius:50%; background:var(--gold); color:#fff; border:none; font-size:24px; box-shadow:0 8px 20px rgba(0,0,0,0.3); cursor:pointer; z-index:20; }
   .numeros-grid{ display:flex; flex-wrap:wrap; gap:8px; }
   .num-chip{ min-width:62px; text-align:center; background:var(--card); border:1.5px solid var(--line); border-radius:8px; padding:8px 6px; }
@@ -582,6 +582,19 @@
         </div>
         <div class="numeros-grid" id="tabla-chance-grid"></div>
       </div>
+
+      <details class="card" style="padding:0;">
+        <summary style="cursor:pointer; padding:18px 20px; list-style:none; display:flex; align-items:center; justify-content:space-between;">
+          <span style="font-family:'Fraunces',serif; font-weight:700; font-size:16px;">Ver Chance $0.20 y $0.25 por separado</span>
+          <span style="font-size:12px; color:var(--ink-dim); font-weight:600;">Tocar para abrir ▾</span>
+        </summary>
+        <div style="padding:0 20px 20px 20px;">
+          <h2 style="margin-bottom:10px;">Chance $0.20</h2>
+          <div class="numeros-grid" id="tabla-chance20-grid"></div>
+          <h2 style="margin-top:20px; margin-bottom:10px;">Chance $0.25</h2>
+          <div class="numeros-grid" id="tabla-chance25-grid"></div>
+        </div>
+      </details>
 
       <div class="card">
         <h2>Palé <span style="font-weight:400; font-size:12.5px; color:var(--ink-dim)">— combinaciones vendidas</span></h2>
@@ -2976,7 +2989,11 @@ async function eliminarResultadoHistorico(id){
 function renderHistorial(){
   if(!dataLoaded || !currentUser) return;
   let fv = document.getElementById('filtro-vendedor').value;
-  if(currentUser.role==='vendedor') fv = currentUser.vendedorId;
+  if(currentUser.role==='vendedor'){
+    // Los vendedores de equipo ven el historial de TODO su equipo (para
+    // ayudarse entre ellos); los independientes solo ven el suyo.
+    fv = esVendedorIndependiente(currentUser.vendedorId) ? currentUser.vendedorId : 'grupo:equipo';
+  }
   const fs = document.getElementById('filtro-sorteo').value;
   const ff = document.getElementById('filtro-fecha').value.trim();
   const fc = document.getElementById('filtro-cliente').value.trim().toLowerCase();
@@ -3147,6 +3164,8 @@ function nivelPale(cant){ if(cant>=4) return 'nivel-rojo'; if(cant>=2) return 'n
 function nivelBillete(cant){ if(cant>=5) return 'nivel-rojo'; if(cant>=2) return 'nivel-amarillo'; return ''; }
 function calcularTablaNumeros(sorteoId, fechaKey){
   const porNumero = {};
+  const porNumero20 = {};
+  const porNumero25 = {};
   const porPale = {};
   const porBillete = {};
   ventasList.filter(v=>v.sorteoId===sorteoId && toDateKey(v.fecha)===fechaKey && !v.anulada).forEach(v=>{
@@ -3154,14 +3173,18 @@ function calcularTablaNumeros(sorteoId, fechaKey){
       if(j.modalidad==='pale'){
         const key = formatearNumeroJugada(j);
         porPale[key] = (porPale[key]||0) + j.cantidad;
-      }else if(j.modalidad==='chance20' || j.modalidad==='chance25'){
+      }else if(j.modalidad==='chance20'){
         porNumero[j.numero] = (porNumero[j.numero]||0) + j.cantidad;
+        porNumero20[j.numero] = (porNumero20[j.numero]||0) + j.cantidad;
+      }else if(j.modalidad==='chance25'){
+        porNumero[j.numero] = (porNumero[j.numero]||0) + j.cantidad;
+        porNumero25[j.numero] = (porNumero25[j.numero]||0) + j.cantidad;
       }else if(j.modalidad==='billete'){
         porBillete[j.numero] = (porBillete[j.numero]||0) + j.cantidad;
       }
     });
   });
-  return { porNumero, porPale, porBillete };
+  return { porNumero, porNumero20, porNumero25, porPale, porBillete };
 }
 function renderTablaNumeros(){
   if(!dataLoaded || !currentUser) return;
@@ -3178,13 +3201,17 @@ function renderTablaNumeros(){
     gridPale.innerHTML = '';
     if(gridBillete) gridBillete.innerHTML = '';
     if(cardBillete) cardBillete.style.display = 'none';
+    const gc20 = document.getElementById('tabla-chance20-grid'); if(gc20) gc20.innerHTML = '';
+    const gc25 = document.getElementById('tabla-chance25-grid'); if(gc25) gc25.innerHTML = '';
     resumen.innerHTML = '';
     return;
   }
 
   const sorteo = sorteos.find(s=>s.id===sorteoId);
-  const { porNumero, porPale, porBillete } = calcularTablaNumeros(sorteoId, fechaKey);
+  const { porNumero, porNumero20, porNumero25, porPale, porBillete } = calcularTablaNumeros(sorteoId, fechaKey);
   const numeros = Object.keys(porNumero).sort();
+  const numeros20 = Object.keys(porNumero20).sort();
+  const numeros25 = Object.keys(porNumero25).sort();
   const combos = Object.keys(porPale).sort();
   const billetes = Object.keys(porBillete).sort();
 
@@ -3192,6 +3219,17 @@ function renderTablaNumeros(){
     const cant = porNumero[n];
     return `<div class="num-chip ${nivelChance(cant)}"><span class="num">${n}</span><span class="cant">${cant}</span></div>`;
   }).join('') : '<div class="empty-state">Sin ventas de chance todavía para este sorteo y fecha.</div>';
+
+  const gridChance20 = document.getElementById('tabla-chance20-grid');
+  const gridChance25 = document.getElementById('tabla-chance25-grid');
+  if(gridChance20) gridChance20.innerHTML = numeros20.length ? numeros20.map(n=>{
+    const cant = porNumero20[n];
+    return `<div class="num-chip ${nivelChance(cant)}"><span class="num">${n}</span><span class="cant">${cant}</span></div>`;
+  }).join('') : '<div class="empty-state">Sin ventas de Chance $0.20 todavía para este sorteo y fecha.</div>';
+  if(gridChance25) gridChance25.innerHTML = numeros25.length ? numeros25.map(n=>{
+    const cant = porNumero25[n];
+    return `<div class="num-chip ${nivelChance(cant)}"><span class="num">${n}</span><span class="cant">${cant}</span></div>`;
+  }).join('') : '<div class="empty-state">Sin ventas de Chance $0.25 todavía para este sorteo y fecha.</div>';
 
   gridPale.innerHTML = combos.length ? combos.map(c=>{
     const cant = porPale[c];

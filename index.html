@@ -3611,7 +3611,7 @@ async function eliminarCobertura(id){
 function elegirNumeroRiesgo(n, modalidad){
   document.getElementById('cob-modalidad').value = modalidad;
   actualizarCampoNumeroCobertura();
-  document.getElementById('cob-numero').value = n;
+  document.getElementById('cob-numero').value = n.replace(/\D/g,'');
 }
 function renderCobertura(){
   if(!dataLoaded || !currentUser || !puedeVerRiesgoChance()) return;

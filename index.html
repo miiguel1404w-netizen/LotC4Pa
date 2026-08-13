@@ -3736,7 +3736,13 @@ function renderTablaNumeros(){
   const sorteoId = document.getElementById('tabla-sorteo').value;
   const fechaKey = document.getElementById('tabla-fecha').value || toDateKey(ahoraServidor().toISOString());
   const esAdmin = currentUser.role==='admin';
-  const filtroVendedorId = esAdmin ? document.getElementById('tabla-filtro-vendedor').value : '';
+  // Un vendedor "de equipo" solo ve la vista combinada de su propio equipo
+  // (no la de los independientes); un vendedor "independiente" solo ve sus
+  // propias ventas (ni el equipo, ni otros independientes) — mismo criterio
+  // que ya se usa para separarlos en Historial general.
+  const filtroVendedorId = esAdmin
+    ? document.getElementById('tabla-filtro-vendedor').value
+    : (esVendedorIndependiente(currentUser.vendedorId) ? currentUser.vendedorId : 'grupo:equipo');
   const gridChance = document.getElementById('tabla-chance-grid');
   const gridPale = document.getElementById('tabla-pale-grid');
   const gridBillete = document.getElementById('tabla-billete-grid');

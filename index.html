@@ -251,6 +251,8 @@
   .shc-card{ background:var(--charcoal); color:#fff; border-radius:10px; padding:16px 18px; margin-bottom:16px; }
   .btn-cambiar-sorteo{ display:inline-block; background:rgba(255,255,255,0.18); color:#fff; border:1px solid rgba(255,255,255,0.35); border-radius:8px; padding:6px 12px; font-size:13px; font-weight:700; cursor:pointer; margin-bottom:8px; }
   .btn-cambiar-sorteo:active{ background:rgba(255,255,255,0.3); }
+  .btn-cambiar-sorteo.btn-riesgo{ background:#b71c1c; border-color:#7a0d0d; }
+  .btn-cambiar-sorteo.btn-riesgo:active{ background:#8f1616; }
   .shc-top{ display:flex; justify-content:space-between; align-items:baseline; font-family:'Fraunces',serif; font-weight:700; font-size:20px; color:var(--gold); }
   .shc-sub{ font-size:12.5px; color:rgba(255,255,255,0.8); margin-top:4px; }
   .shc-card .sorteo-status{ margin-top:6px; }
@@ -267,6 +269,8 @@
   .num-chip.nivel-rojo .num, .num-chip.nivel-rojo .cant{ color:var(--red); font-weight:700; }
   .num-chip.nivel-amarillo{ background:#FFF3CD; border-color:#D4A017; }
   .num-chip.nivel-amarillo .num, .num-chip.nivel-amarillo .cant{ color:#8A6300; font-weight:700; }
+  .num-chip.en-riesgo{ position:relative; box-shadow:0 0 0 2px #7a0d0d inset; }
+  .num-chip.en-riesgo::after{ content:'⚠️'; position:absolute; top:-8px; right:-6px; font-size:12px; line-height:1; }
   .nivel-dot{ display:inline-block; width:10px; height:10px; border-radius:3px; margin-right:4px; vertical-align:middle; }
   .toast{ position:fixed; top:16px; left:50%; transform:translateX(-50%); background:var(--ink); color:#fff; padding:13px 22px; border-radius:9px; font-size:14px; font-weight:600; z-index:300; box-shadow:0 10px 24px rgba(0,0,0,0.3); max-width:88%; text-align:center; }
   :focus-visible{ outline:2px solid var(--blue); outline-offset:2px; }
@@ -337,7 +341,7 @@
         <div class="shc-card">
           <div style="display:flex; justify-content:space-between; align-items:center;">
             <button class="btn-cambiar-sorteo" onclick="volverASeleccionarSorteo()">← Cambiar sorteo</button>
-            <button class="btn-cambiar-sorteo" onclick="verTablaDeEsteSorteo()">📊 Tabla de números</button>
+            <button class="btn-cambiar-sorteo" id="btn-tabla-sorteo" onclick="verTablaDeEsteSorteo()">📊 Tabla de números</button>
           </div>
           <div class="shc-top"><span id="hs-nombre">--</span><span id="hs-hora">--</span></div>
           <div class="shc-sub"><span id="hs-fecha">--</span> · <span id="hs-codigo">--</span></div>
@@ -590,6 +594,7 @@
           <span><span class="nivel-dot" style="background:var(--card); border:1px solid var(--line);"></span> Normal</span>
           <span><span class="nivel-dot" style="background:#FDEBD0; border:1px solid var(--gold-dark);"></span> 100 o más</span>
           <span><span class="nivel-dot" style="background:#FBDAD7; border:1px solid var(--red);"></span> 300 o más</span>
+          <span>⚠️ Riesgo: pagarías más del doble de lo vendido en el sorteo si sale en 1er lugar</span>
         </div>
         <div class="numeros-grid" id="tabla-chance-grid"></div>
       </div>
@@ -2170,6 +2175,15 @@ function renderHistorialSorteoActual(){
     ${cajaComision}
     ${cajaPremios}`;
 
+  const btnTabla = document.getElementById('btn-tabla-sorteo');
+  if(btnTabla){
+    const { porNumero20, porNumero25 } = calcularTablaNumeros(sorteoId, hoyKey);
+    const { riesgoPorNumero } = calcularRiesgoChance(sorteoId, hoyKey, porNumero20, porNumero25);
+    const hayRiesgo = Object.values(riesgoPorNumero).some(r=>r);
+    btnTabla.classList.toggle('btn-riesgo', hayRiesgo);
+    btnTabla.textContent = hayRiesgo ? '⚠️ Tabla de números' : '📊 Tabla de números';
+  }
+
   const cont = document.getElementById('hs-lista-tickets');
   const buscarCliente = document.getElementById('hs-buscar-cliente');
   const textoBusqueda = buscarCliente ? buscarCliente.value.trim().toLowerCase() : '';
@@ -3391,6 +3405,25 @@ function calcularTablaNumeros(sorteoId, fechaKey){
   });
   return { porNumero, porNumero20, porNumero25, porPale, porBillete };
 }
+// Riesgo de chance: para cada número (combinando $0.20 y $0.25), calcula cuánto
+// pagarías si ese número sale en 1er lugar (peor caso) y lo marca si ese pago
+// supera 2x el total vendido en el sorteo ese día (todas las modalidades, no
+// solo chance). Es solo una señal visual: no toca premiación, ventas ni balances.
+function calcularRiesgoChance(sorteoId, fechaKey, porNumero20, porNumero25){
+  const totalVendidoSorteo = ventasList
+    .filter(v=>v.sorteoId===sorteoId && toDateKey(v.fecha)===fechaKey && !v.anulada)
+    .reduce((s,v)=>s+v.total, 0);
+  const umbral = totalVendidoSorteo * 2;
+  const pago20 = premios.chance20[1];
+  const pago25 = premios.chance25[1];
+  const riesgoPorNumero = {};
+  const todos = new Set([...Object.keys(porNumero20), ...Object.keys(porNumero25)]);
+  todos.forEach(n=>{
+    const pagoPotencial = (porNumero20[n]||0)*pago20 + (porNumero25[n]||0)*pago25;
+    riesgoPorNumero[n] = pagoPotencial > umbral;
+  });
+  return { riesgoPorNumero, umbral, totalVendidoSorteo };
+}
 function renderTablaNumeros(){
   if(!dataLoaded || !currentUser) return;
   const sorteoId = document.getElementById('tabla-sorteo').value;
@@ -3419,10 +3452,12 @@ function renderTablaNumeros(){
   const numeros25 = Object.keys(porNumero25).sort();
   const combos = Object.keys(porPale).sort();
   const billetes = Object.keys(porBillete).sort();
+  const { riesgoPorNumero } = calcularRiesgoChance(sorteoId, fechaKey, porNumero20, porNumero25);
 
   gridChance.innerHTML = numeros.length ? numeros.map(n=>{
     const cant = porNumero[n];
-    return `<div class="num-chip ${nivelChance(cant)}"><span class="num">${n}</span><span class="cant">${cant}</span></div>`;
+    const claseRiesgo = riesgoPorNumero[n] ? 'en-riesgo' : '';
+    return `<div class="num-chip ${nivelChance(cant)} ${claseRiesgo}"><span class="num">${n}</span><span class="cant">${cant}</span></div>`;
   }).join('') : '<div class="empty-state">Sin ventas de chance todavía para este sorteo y fecha.</div>';
 
   const gridChance20 = document.getElementById('tabla-chance20-grid');

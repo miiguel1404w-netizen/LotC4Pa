@@ -707,9 +707,11 @@
         <div id="cob-riesgo-chips" style="margin-bottom:10px;"></div>
         <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:8px;">
           <input type="text" id="cob-numero" placeholder="Número (00-99)" maxlength="2" inputmode="numeric" style="width:110px;">
-          <select id="cob-modalidad" style="width:110px;">
-            <option value="chance20">$0.20</option>
-            <option value="chance25">$0.25</option>
+          <select id="cob-modalidad" style="width:130px;" onchange="actualizarCampoNumeroCobertura()">
+            <option value="chance20">Chance $0.20</option>
+            <option value="chance25">Chance $0.25</option>
+            <option value="pale">Palé $1.00</option>
+            <option value="billete">Billete $1.00</option>
           </select>
           <input type="number" id="cob-cantidad" placeholder="Tiempos" min="1" step="1" style="width:100px;">
         </div>
@@ -3138,6 +3140,7 @@ async function guardarResultado(){
   renderListaSorteosVenta();
   await generarMovimientosAutoParaResultado(sorteoId, fechaKey, codigoSorteo);
   renderListaIndependientes();
+  renderCobertura();
   // Deja las casillas vacías (en vez de "00") para el siguiente sorteo a
   // premiar, así no hay que borrar nada antes de escribir los números.
   document.getElementById('res-primero').value = '';
@@ -3168,6 +3171,7 @@ async function guardarResultadoHistorico(){
   renderHistorial();
   await generarMovimientosAutoParaResultado(null, fechaKey, codigo);
   renderListaIndependientes();
+  renderCobertura();
   document.getElementById('reshist-primero').value = '';
   document.getElementById('reshist-segundo').value = '';
   document.getElementById('reshist-tercero').value = '';
@@ -3551,22 +3555,39 @@ function renderCoberturaSorteoSelect(){
   if(!fecha.value) fecha.value = toDateKey(ahoraServidor().toISOString());
 }
 function calcularCobertura(c){
-  const precioUnit = c.modalidad==='chance25' ? 0.25 : 0.20;
+  const precioUnit = c.modalidad==='chance25' ? 0.25 : (c.modalidad==='pale'||c.modalidad==='billete') ? 1.00 : 0.20;
   const costo = +(c.cantidad*precioUnit).toFixed(2);
   const resultado = c.sorteoId ? resultadoDe(c.sorteoId, c.fechaKey) : null;
   if(!resultado) return { costo, pago:0, neto:0, pendiente:true, pos:null };
   const r = calcularPremioJugada({ modalidad:c.modalidad, numero:c.numero, cantidad:c.cantidad }, resultado);
   return { costo, pago:r.monto, neto:+(r.monto-costo).toFixed(2), pendiente:false, pos:r.pos };
 }
+function actualizarCampoNumeroCobertura(){
+  const modalidad = document.getElementById('cob-modalidad').value;
+  const input = document.getElementById('cob-numero');
+  const esDoble = modalidad==='pale' || modalidad==='billete';
+  input.maxLength = esDoble ? 4 : 2;
+  input.placeholder = esDoble ? 'Número (4 cifras)' : 'Número (00-99)';
+}
+function etiquetaModalidadCobertura(modalidad){
+  if(modalidad==='chance25') return 'Chance $0.25';
+  if(modalidad==='chance20') return 'Chance $0.20';
+  if(modalidad==='pale') return 'Palé $1.00';
+  if(modalidad==='billete') return 'Billete $1.00';
+  return modalidad;
+}
 async function agregarCobertura(){
   const sorteoId = document.getElementById('cob-sorteo').value;
   const fechaKey = document.getElementById('cob-fecha').value || toDateKey(ahoraServidor().toISOString());
-  const numero = document.getElementById('cob-numero').value.trim().padStart(2,'0');
   const modalidad = document.getElementById('cob-modalidad').value;
+  const esDoble = modalidad==='pale' || modalidad==='billete';
+  const digitos = esDoble ? 4 : 2;
+  const numero = document.getElementById('cob-numero').value.trim().padStart(digitos,'0');
   const cantidad = +document.getElementById('cob-cantidad').value;
   const nota = document.getElementById('cob-nota').value.trim();
   if(!sorteoId){ avisar('Elige un sorteo.'); return; }
-  if(!/^\d{2}$/.test(numero)){ avisar('El número debe ser de 00 a 99.'); return; }
+  const regex = esDoble ? /^\d{4}$/ : /^\d{2}$/;
+  if(!regex.test(numero)){ avisar(esDoble ? 'El número debe ser de 4 cifras.' : 'El número debe ser de 00 a 99.'); return; }
   if(!cantidad || cantidad<=0){ avisar('Escribe una cantidad de tiempos válida, mayor a 0.'); return; }
   const sorteo = sorteos.find(s=>s.id===sorteoId);
   const codigoSorteo = sorteo ? codigoSorteoParaFecha(sorteo, fechaKey+'T12:00:00') : null;
@@ -3587,7 +3608,9 @@ async function eliminarCobertura(id){
   coberturas = coberturas.filter(c=>c.id!==id);
   renderCobertura();
 }
-function elegirNumeroRiesgo(n){
+function elegirNumeroRiesgo(n, modalidad){
+  document.getElementById('cob-modalidad').value = modalidad;
+  actualizarCampoNumeroCobertura();
   document.getElementById('cob-numero').value = n;
 }
 function renderCobertura(){
@@ -3620,13 +3643,24 @@ function renderCobertura(){
     if(!sorteoId){
       cajaChips.innerHTML = '';
     }else{
-      const { porNumero20, porNumero25 } = calcularTablaNumeros(sorteoId, fechaKey);
+      const { porNumero20, porNumero25, porPale, porBillete } = calcularTablaNumeros(sorteoId, fechaKey);
       const { riesgoPorNumero } = calcularRiesgoChance(sorteoId, fechaKey, porNumero20, porNumero25);
-      const enRiesgo = Object.keys(riesgoPorNumero).filter(n=>riesgoPorNumero[n]).sort();
-      cajaChips.innerHTML = enRiesgo.length
-        ? `<div style="font-size:11.5px; color:var(--ink-dim); margin-bottom:6px;">⚠️ Números en riesgo de este sorteo/fecha — toca uno para cargarlo:</div>
-           <div style="display:flex; gap:6px; flex-wrap:wrap;">${enRiesgo.map(n=>`<button type="button" onclick="elegirNumeroRiesgo('${n}')" class="btn btn-outline btn-sm" style="padding:4px 10px; font-size:12px; border-color:#7a0d0d; color:var(--red);">${n}</button>`).join('')}</div>`
+      const enRiesgoChance = Object.keys(riesgoPorNumero).filter(n=>riesgoPorNumero[n]).sort();
+      // Palé y Billete: umbral simple, sin fórmula de $ — a partir de 2 veces
+      // vendida la misma combinación (pedido explícito, distinto al cálculo
+      // de Chance).
+      const sorteo = sorteos.find(s=>s.id===sorteoId);
+      const vendeBilletes = sorteo && sorteo.tipoBillete && sorteo.tipoBillete!=='ninguno';
+      const enRiesgoPale = Object.keys(porPale).filter(c=>porPale[c]>=2).sort();
+      const enRiesgoBillete = vendeBilletes ? Object.keys(porBillete).filter(b=>porBillete[b]>=2).sort() : [];
+      const grupo = (titulo, nums, modalidad) => nums.length
+        ? `<div style="font-size:11.5px; color:var(--ink-dim); margin:8px 0 6px;">${titulo}</div>
+           <div style="display:flex; gap:6px; flex-wrap:wrap;">${nums.map(n=>`<button type="button" onclick="elegirNumeroRiesgo('${n}','${modalidad}')" class="btn btn-outline btn-sm" style="padding:4px 10px; font-size:12px; border-color:#7a0d0d; color:var(--red);">${n}</button>`).join('')}</div>`
         : '';
+      cajaChips.innerHTML =
+        grupo('⚠️ Chance en riesgo — toca para cargar:', enRiesgoChance, 'chance20') +
+        grupo('⚠️ Palé vendido 2+ veces — toca para cargar:', enRiesgoPale, 'pale') +
+        grupo('⚠️ Billete vendido 2+ veces — toca para cargar:', enRiesgoBillete, 'billete');
     }
   }
 
@@ -3657,7 +3691,7 @@ function renderCobertura(){
       ? '<span style="color:var(--ink-dim);">Pendiente</span>'
       : (r.neto>=0 ? `<span style="color:var(--green); font-weight:700;">+$${r.neto.toFixed(2)}</span>` : `<span style="color:var(--red); font-weight:700;">−$${Math.abs(r.neto).toFixed(2)}</span>`);
     return `<tr>
-      <td class="mono">${escapeHtml(c.numero)} <span style="font-size:10px; color:var(--ink-dim);">${c.modalidad==='chance25'?'$0.25':'$0.20'}</span></td>
+      <td class="mono">${escapeHtml(c.numero)} <span style="font-size:10px; color:var(--ink-dim);">${etiquetaModalidadCobertura(c.modalidad)}</span></td>
       <td class="mono">${c.cantidad}</td>
       <td class="mono">$${r.costo.toFixed(2)}</td>
       <td>${estado}</td>

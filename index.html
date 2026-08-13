@@ -315,6 +315,7 @@
   <div class="nav-item" data-tab="tabla" onclick="irATab('tabla')">🔢 Tabla de números</div>
   <div class="nav-item admin-only" data-tab="resultados" onclick="irATab('resultados')">🏆 Resultados</div>
   <div class="nav-item admin-only" data-tab="independientes" onclick="irATab('independientes')">💵 Vendedores Independientes</div>
+  <div class="nav-item" data-tab="cobertura" id="nav-cobertura" style="display:none" onclick="irATab('cobertura')">🛡️ Balance real</div>
   <div class="nav-item" data-tab="micomision" id="nav-micomision" style="display:none" onclick="irATab('micomision')">💵 Mi comisión</div>
   <div class="nav-item admin-only" data-tab="config" onclick="irATab('config')">⚙️ Administración</div>
   <div class="nav-item logout" onclick="cerrarSesion()">⎋ Cerrar sesión</div>
@@ -690,6 +691,42 @@
       <div id="tab-micomision-contenido"></div>
     </div>
 
+    <div id="tab-cobertura" style="display:none">
+      <h1 class="page-title">🛡️ Balance real</h1>
+      <div class="page-sub">Cobertura comprada por fuera (a otra persona/casa) para números de alto riesgo — no toca ventas, premios ni Balance de cuentas.</div>
+
+      <div id="cob-total-acumulado"></div>
+
+      <div class="card" style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+        <select id="cob-sorteo" onchange="renderCobertura()" style="flex:1; min-width:160px;"></select>
+        <input type="date" id="cob-fecha" onchange="renderCobertura()">
+      </div>
+
+      <div class="card">
+        <h2 style="font-size:14px;">＋ Agregar cobertura</h2>
+        <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:8px;">
+          <input type="text" id="cob-numero" placeholder="Número (00-99)" maxlength="2" inputmode="numeric" style="width:110px;">
+          <select id="cob-modalidad" style="width:110px;">
+            <option value="chance20">$0.20</option>
+            <option value="chance25">$0.25</option>
+          </select>
+          <input type="number" id="cob-cantidad" placeholder="Tiempos" min="1" step="1" style="width:100px;">
+        </div>
+        <input type="text" id="cob-nota" placeholder="Nota (opcional, ej. a quién se lo compraste)" style="width:100%; margin-bottom:8px;">
+        <button class="btn btn-primary btn-sm" onclick="agregarCobertura()">＋ Agregar cobertura</button>
+      </div>
+
+      <div id="cob-resumen-sorteo"></div>
+
+      <div class="card" style="padding:0; overflow:hidden;">
+        <table>
+          <thead><tr><th>Número</th><th>Tiempos</th><th>Costo</th><th>Resultado</th><th></th></tr></thead>
+          <tbody id="cob-lista"></tbody>
+        </table>
+        <div class="empty-state" id="cob-vacio" style="display:none;">Todavía no agregaste ninguna cobertura para este sorteo y fecha.</div>
+      </div>
+    </div>
+
     <div id="tab-config" style="display:none">
       <h1 class="page-title">Administración</h1>
       <div class="page-sub">Vendedores, sorteos, premiación y seguridad.</div>
@@ -942,6 +979,12 @@ let ventasList = [];
 let folioCounter = 1;
 let resultados = [];
 let liquidaciones = [];
+// Coberturas: registro manual de "reaseguro" — tiempos comprados por fuera
+// (a otra persona/casa) para cubrir números de alto riesgo. Es un módulo
+// aparte que no toca ventas, premios ni Balance de cuentas; solo calcula su
+// propio "balance real" (lo que costó comprar la cobertura vs. lo que
+// pagaría si ese número gana, usando la misma tabla de premios de la app).
+let coberturas = [];
 
 let currentUser = null;
 let editingVendedorId = null;
@@ -978,6 +1021,7 @@ function ahoraServidor(){
 }
 function filaAVendedor(v){ return { id:v.id, nombre:v.nombre, username:v.username, password:v.password, enEquipo: v.en_equipo !== false, porcentaje: +v.porcentaje || 0 }; }
 function filaALiquidacion(l){ return { id:l.id, vendedorId:l.vendedor_id, vendedorNombre:l.vendedor_nombre||null, fecha:l.fecha, monto:+l.monto, direccion:l.direccion, nota:l.nota||'', sorteoId:l.sorteo_id||null, codigoSorteo:l.codigo_sorteo||null }; }
+function filaACobertura(c){ return { id:c.id, sorteoId:c.sorteo_id||null, codigoSorteo:c.codigo_sorteo||null, fechaKey:c.fecha_key, numero:c.numero, modalidad:c.modalidad, cantidad:+c.cantidad, nota:c.nota||'', creadoEn:c.created_at }; }
 function filaASorteo(s){
   return { id:s.id, nombre:s.nombre, horaSorteoTexto:s.hora_sorteo_texto, horaCierre:s.hora_cierre,
     dias:s.dias||[], notas:s.notas||'', excepcionFecha:s.excepcion_fecha, pausaFecha:s.pausa_fecha, paleHabilitado: s.pale_habilitado!==false,
@@ -1073,6 +1117,11 @@ async function cargarDatos(){
   try{
     const data = await fetchTodasFilas('liquidaciones', '*', 'fecha');
     liquidaciones = (data||[]).map(filaALiquidacion);
+  }catch(e){}
+
+  try{
+    const data = await fetchTodasFilas('coberturas', '*', 'fecha_key');
+    coberturas = (data||[]).map(filaACobertura);
   }catch(e){}
 
   if(!defaultVendedorCreado){
@@ -1226,6 +1275,8 @@ function aplicarRol(){
   const rv = document.getElementById('rep-vendedor'); if(rv) rv.style.display = esVendedor ? 'none' : '';
   const navMiComision = document.getElementById('nav-micomision');
   if(navMiComision) navMiComision.style.display = (esVendedor && esVendedorIndependiente(currentUser.vendedorId)) ? 'flex' : 'none';
+  const navCobertura = document.getElementById('nav-cobertura');
+  if(navCobertura) navCobertura.style.display = puedeVerRiesgoChance() ? 'flex' : 'none';
 }
 
 // ---------------- MENÚ DESPLEGABLE ----------------
@@ -1274,6 +1325,7 @@ function aplicarEstadoNav(estado){
   if(estado.tab==='reportes') renderReportes();
   if(estado.tab==='tabla'){ renderTablaSorteoSelect(); renderTablaNumeros(); }
   if(estado.tab==='resultados'){ renderResultadosSorteoSelect(); renderListaResultados(); }
+  if(estado.tab==='cobertura'){ renderCoberturaSorteoSelect(); renderCobertura(); }
   if(estado.tab==='ventas'){
     renderVentaSorteoSelect();
     mostrarPantallaVenta(estado.pantallaVenta || 'sorteo');
@@ -1283,7 +1335,7 @@ function aplicarEstadoNav(estado){
 }
 function mostrarTabInterno(tab){
   document.querySelectorAll('.nav-item[data-tab]').forEach(el=>el.classList.toggle('active', el.dataset.tab===tab));
-  ['ventas','historial','reportes','tabla','resultados','config','independientes','micomision'].forEach(t=>{
+  ['ventas','historial','reportes','tabla','resultados','config','independientes','micomision','cobertura'].forEach(t=>{
     const el = document.getElementById('tab-'+t);
     if(el) el.style.display = (t===tab)?'block':'none';
   });
@@ -1291,12 +1343,14 @@ function mostrarTabInterno(tab){
 function switchTab(tab){
   if((tab==='config' || tab==='resultados' || tab==='reportes' || tab==='independientes') && currentUser.role!=='admin') return;
   if(tab==='micomision' && !(currentUser.role==='vendedor' && esVendedorIndependiente(currentUser.vendedorId))) return;
+  if(tab==='cobertura' && !puedeVerRiesgoChance()) return;
   if(tab!=='ventas'){ document.documentElement.classList.remove('sin-scroll'); document.body.classList.remove('sin-scroll'); }
   mostrarTabInterno(tab);
   if(tab==='historial'){ aplicarFiltrosHistorialPorDefecto(); renderHistorial(); }
   if(tab==='reportes') renderReportes();
   if(tab==='tabla'){ renderTablaSorteoSelect(); renderTablaNumeros(); }
   if(tab==='resultados'){ renderResultadosSorteoSelect(); renderListaResultados(); }
+  if(tab==='cobertura'){ renderCoberturaSorteoSelect(); renderCobertura(); }
   if(tab==='ventas'){ renderVentaSorteoSelect(); mostrarPantallaVenta('sorteo'); renderListaSorteosVenta(); }
   if(tab==='independientes'){ cerrarDetalleIndependiente(); }
   if(tab==='micomision') renderMiComision();
@@ -3480,9 +3534,120 @@ function calcularRiesgoChance(sorteoId, fechaKey, porNumero20, porNumero25){
   });
   return { riesgoPorNumero, pagoPotencialPorNumero, umbral, totalVendidoSorteo };
 }
+// ---------------- COBERTURA / BALANCE REAL ----------------
+// Registro manual de tiempos comprados por fuera (a otra persona/casa) para
+// cubrir números de alto riesgo. Calcula, por cada línea, cuánto costó esa
+// cobertura y cuánto pagaría si ese número gana (misma tabla de premios de
+// la app). No modifica ventas, premios ni Balance de cuentas — es su propio
+// balance, independiente del resto de la app.
+function renderCoberturaSorteoSelect(){
+  const opts = sorteosOrdenados().map(s=>`<option value="${s.id}">${escapeHtml(s.nombre+' · '+s.horaSorteoTexto)}</option>`).join('');
+  const sel = document.getElementById('cob-sorteo');
+  const valorPrevio = sel.value;
+  sel.innerHTML = '<option value="">Selecciona un sorteo</option>'+opts;
+  if(valorPrevio && [...sel.options].some(o=>o.value===valorPrevio)) sel.value = valorPrevio;
+  const fecha = document.getElementById('cob-fecha');
+  if(!fecha.value) fecha.value = toDateKey(ahoraServidor().toISOString());
+}
+function calcularCobertura(c){
+  const precioUnit = c.modalidad==='chance25' ? 0.25 : 0.20;
+  const costo = +(c.cantidad*precioUnit).toFixed(2);
+  const resultado = c.sorteoId ? resultadoDe(c.sorteoId, c.fechaKey) : null;
+  if(!resultado) return { costo, pago:0, neto:0, pendiente:true, pos:null };
+  const r = calcularPremioJugada({ modalidad:c.modalidad, numero:c.numero, cantidad:c.cantidad }, resultado);
+  return { costo, pago:r.monto, neto:+(r.monto-costo).toFixed(2), pendiente:false, pos:r.pos };
+}
+async function agregarCobertura(){
+  const sorteoId = document.getElementById('cob-sorteo').value;
+  const fechaKey = document.getElementById('cob-fecha').value || toDateKey(ahoraServidor().toISOString());
+  const numero = document.getElementById('cob-numero').value.trim().padStart(2,'0');
+  const modalidad = document.getElementById('cob-modalidad').value;
+  const cantidad = +document.getElementById('cob-cantidad').value;
+  const nota = document.getElementById('cob-nota').value.trim();
+  if(!sorteoId){ avisar('Elige un sorteo.'); return; }
+  if(!/^\d{2}$/.test(numero)){ avisar('El número debe ser de 00 a 99.'); return; }
+  if(!cantidad || cantidad<=0){ avisar('Escribe una cantidad de tiempos válida, mayor a 0.'); return; }
+  const sorteo = sorteos.find(s=>s.id===sorteoId);
+  const codigoSorteo = sorteo ? codigoSorteoParaFecha(sorteo, fechaKey+'T12:00:00') : null;
+  const nueva = { id: uid(), sorteoId, codigoSorteo, fechaKey, numero, modalidad, cantidad, nota };
+  try{
+    await db.from('coberturas').insert({ id:nueva.id, sorteo_id:nueva.sorteoId, codigo_sorteo:nueva.codigoSorteo, fecha_key:nueva.fechaKey, numero:nueva.numero, modalidad:nueva.modalidad, cantidad:nueva.cantidad, nota:nueva.nota });
+  }catch(e){ avisar('No se pudo guardar. Revisa tu conexión.'); return; }
+  coberturas.unshift(nueva);
+  document.getElementById('cob-numero').value = '';
+  document.getElementById('cob-cantidad').value = '';
+  document.getElementById('cob-nota').value = '';
+  avisar('Cobertura agregada.');
+  renderCobertura();
+}
+async function eliminarCobertura(id){
+  if(!(await mostrarConfirmacion('¿Eliminar esta cobertura?'))) return;
+  try{ await db.from('coberturas').delete().eq('id', id); }catch(e){ avisar('No se pudo eliminar. Revisa tu conexión.'); return; }
+  coberturas = coberturas.filter(c=>c.id!==id);
+  renderCobertura();
+}
+function renderCobertura(){
+  if(!dataLoaded || !currentUser || !puedeVerRiesgoChance()) return;
+  const sorteoId = document.getElementById('cob-sorteo').value;
+  const fechaKey = document.getElementById('cob-fecha').value || toDateKey(ahoraServidor().toISOString());
+
+  // Total acumulado: todas las coberturas con resultado ya conocido, sin
+  // importar sorteo ni fecha — el "balance real" de todo lo cubierto hasta ahora.
+  let acumulado = 0, acumuladoPendientes = 0;
+  coberturas.forEach(c=>{
+    const r = calcularCobertura(c);
+    if(r.pendiente) acumuladoPendientes++; else acumulado += r.neto;
+  });
+  const cajaTotal = document.getElementById('cob-total-acumulado');
+  if(cajaTotal){
+    cajaTotal.innerHTML = `<div class="summary-box" style="border-left-color:${colorMonto(acumulado)}">
+      <div class="num mono" style="color:${colorMonto(acumulado)};">$${acumulado.toFixed(2)}</div>
+      <div class="lbl">Balance real acumulado${acumuladoPendientes?' · '+acumuladoPendientes+' pendiente(s) de resultado':''}</div>
+    </div>`;
+  }
+
+  const lista = document.getElementById('cob-lista');
+  const vacio = document.getElementById('cob-vacio');
+  const resumenSorteo = document.getElementById('cob-resumen-sorteo');
+  if(!sorteoId){
+    lista.innerHTML = '';
+    vacio.style.display = 'block';
+    vacio.textContent = 'Selecciona un sorteo para ver sus coberturas.';
+    resumenSorteo.innerHTML = '';
+    return;
+  }
+  const deEsteSorteo = coberturas.filter(c=>c.sorteoId===sorteoId && c.fechaKey===fechaKey);
+  if(deEsteSorteo.length===0){
+    lista.innerHTML = '';
+    vacio.style.display = 'block';
+    vacio.textContent = 'Todavía no agregaste ninguna cobertura para este sorteo y fecha.';
+    resumenSorteo.innerHTML = '';
+    return;
+  }
+  vacio.style.display = 'none';
+  let netoSorteo = 0, pendientesSorteo = 0;
+  lista.innerHTML = deEsteSorteo.map(c=>{
+    const r = calcularCobertura(c);
+    if(r.pendiente) pendientesSorteo++; else netoSorteo += r.neto;
+    const estado = r.pendiente
+      ? '<span style="color:var(--ink-dim);">Pendiente</span>'
+      : (r.neto>=0 ? `<span style="color:var(--green); font-weight:700;">+$${r.neto.toFixed(2)}</span>` : `<span style="color:var(--red); font-weight:700;">−$${Math.abs(r.neto).toFixed(2)}</span>`);
+    return `<tr>
+      <td class="mono">${escapeHtml(c.numero)} <span style="font-size:10px; color:var(--ink-dim);">${c.modalidad==='chance25'?'$0.25':'$0.20'}</span></td>
+      <td class="mono">${c.cantidad}</td>
+      <td class="mono">$${r.costo.toFixed(2)}</td>
+      <td>${estado}</td>
+      <td><button class="btn btn-text" style="font-size:11px; color:var(--red);" onclick="eliminarCobertura('${c.id}')">✕</button></td>
+    </tr>`;
+  }).join('');
+  resumenSorteo.innerHTML = `<div class="summary-box" style="border-left-color:${colorMonto(netoSorteo)}">
+    <div class="num mono" style="color:${colorMonto(netoSorteo)};">$${netoSorteo.toFixed(2)}</div>
+    <div class="lbl">Balance real de este sorteo/fecha${pendientesSorteo?' · '+pendientesSorteo+' pendiente(s)':''}</div>
+  </div>`;
+}
+
 function renderTablaNumeros(){
   if(!dataLoaded || !currentUser) return;
-  const sorteoId = document.getElementById('tabla-sorteo').value;
   const fechaKey = document.getElementById('tabla-fecha').value || toDateKey(ahoraServidor().toISOString());
   const gridChance = document.getElementById('tabla-chance-grid');
   const gridPale = document.getElementById('tabla-pale-grid');
@@ -3609,6 +3774,7 @@ async function refrescarConfigCompartida(){
   const tabActivo = tabActivoEl ? tabActivoEl.dataset.tab : '';
   if(tabActivo==='independientes') renderListaIndependientes();
   if(tabActivo==='micomision') renderMiComision();
+  if(tabActivo==='cobertura'){ renderCoberturaSorteoSelect(); renderCobertura(); }
 }
 setInterval(()=>{
   if(!currentUser) return;

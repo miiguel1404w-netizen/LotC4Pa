@@ -99,7 +99,7 @@
   .btn-block{ width:100%; }
   .btn-row{ display:flex; gap:10px; flex-wrap:wrap; }
   .btn-sm{ padding:6px 12px; font-size:12.5px; }
-  .btn-editar-amarillo{ background:var(--gold); border-color:var(--gold); color:#fff; }
+  .btn-editar-amarillo{ background:transparent; border-color:var(--gold-dark); color:var(--gold-dark); }
 
   .modalidad-tabs{ display:flex; gap:8px; margin-bottom:14px; }
   .modalidad-tab{ flex:1; text-align:center; padding:10px 6px; border-radius:7px; border:1.5px solid var(--line); cursor:pointer; font-size:13px; font-weight:600; color:var(--ink-dim); background:var(--paper-dim); }
@@ -182,7 +182,7 @@
 
   .pill-list{ display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }
   .pill{ display:flex; align-items:center; gap:6px; background:var(--paper-dim); border:1px solid var(--line); border-radius:20px; padding:6px 6px 6px 14px; font-size:13.5px; font-weight:500; }
-  .pill.pill-block{ border-radius:10px; align-items:flex-start; flex-direction:column; padding:12px 14px; gap:4px; min-width:210px; }
+  .pill.pill-block{ border-radius:10px; align-items:flex-start; flex-direction:column; padding:12px 14px; gap:4px; width:100%; max-width:420px; box-sizing:border-box; }
   .pill button{ background:none; border:none; cursor:pointer; font-weight:700; font-size:13px; padding:2px 6px; border-radius:20px; }
   .pill .edit-btn{ color:var(--blue); }
   .pill .del-btn{ color:var(--red); }
@@ -191,7 +191,7 @@
   .dot{ display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:5px; }
   .dot.abierto{ background:var(--green); }
   .dot.cerrado{ background:var(--red); }
-  .pill-row-actions{ display:flex; gap:4px; margin-top:4px; }
+  .pill-row-actions{ display:flex; gap:4px; margin-top:4px; flex-wrap:wrap; }
   .dias-check{ display:flex; flex-wrap:wrap; gap:8px; margin-bottom:14px; }
   .dias-check label{ display:flex; align-items:center; gap:5px; text-transform:none; font-size:13px; font-weight:500; color:var(--ink); background:var(--paper-dim); padding:6px 10px; border-radius:20px; cursor:pointer; }
   .dias-check input{ width:auto; }
@@ -345,10 +345,13 @@
         </div>
         <div class="summary-strip" id="hs-resumen"></div>
         <div class="card" style="padding:0;">
-          <div style="padding:16px 18px 0 18px; display:flex; align-items:center; justify-content:space-between; gap:10px;">
+          <div style="padding:16px 18px 0 18px; display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap;">
             <h2 style="margin:0;">Tickets de hoy</h2>
-            <div style="position:relative; flex:1; max-width:180px;">
-              <input type="text" id="hs-buscar-cliente" placeholder="🔍 Buscar cliente" oninput="renderHistorialSorteoActual()" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" style="width:100%; padding:7px 10px; border-radius:7px; border:1.5px solid var(--line); font-size:13px;">
+            <div style="display:flex; gap:6px; align-items:center;">
+              <button type="button" id="btn-solo-ganadores" onclick="toggleSoloGanadoresHoy()" title="Ver solo ganadores" style="border:1.5px solid var(--line); background:#fff; border-radius:7px; padding:6px 9px; font-size:13px; cursor:pointer;">🏆</button>
+              <div style="position:relative; max-width:160px;">
+                <input type="text" id="hs-buscar-cliente" placeholder="🔍 Buscar cliente" oninput="renderHistorialSorteoActual()" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" style="width:100%; padding:7px 10px; border-radius:7px; border:1.5px solid var(--line); font-size:13px;">
+              </div>
             </div>
           </div>
           <div class="jugadas-list" id="hs-lista-tickets" style="padding:8px 18px 18px 18px;"></div>
@@ -1081,11 +1084,26 @@ async function intentarLogin(){
     if(!dataLoaded) await conTiempoLimite(cargarDatos(), 10000, 'conectando a la base de datos');
     const u = document.getElementById('login-username').value.trim();
     const p = document.getElementById('login-password').value;
+    const pCifrada = await hashTexto(p);
 
-    if(u===adminAuth.username && p===adminAuth.password){
+    if(u===adminAuth.username && pCifrada===adminAuth.password){
       currentUser = { role:'admin', nombre:'Administrador' };
+    }else if(u===adminAuth.username && p===adminAuth.password){
+      // Cuenta todavía con la contraseña vieja sin cifrar: entra y la
+      // actualiza en silencio para que quede protegida desde ahora.
+      currentUser = { role:'admin', nombre:'Administrador' };
+      adminAuth.password = pCifrada;
+      try{ await db.from('app_config').update({ admin_password: pCifrada }).eq('id',1); }catch(e){}
     }else{
-      const v = vendedores.find(x=>x.username===u && x.password===p);
+      let v = vendedores.find(x=>x.username===u && x.password===pCifrada);
+      if(!v){
+        const vViejo = vendedores.find(x=>x.username===u && x.password===p);
+        if(vViejo){
+          v = vViejo;
+          v.password = pCifrada;
+          try{ await db.from('vendedores').update({ password: pCifrada }).eq('id', v.id); }catch(e){}
+        }
+      }
       if(v){ currentUser = { role:'vendedor', vendedorId:v.id, nombre:v.nombre }; }
     }
     if(!currentUser){ errBox.textContent = 'Usuario o contraseña incorrectos.'; errBox.style.display='block'; return; }
@@ -1370,7 +1388,8 @@ function iniciarEdicionVendedor(id){
   editingVendedorId = id;
   document.getElementById('in-v-nombre').value = v.nombre;
   document.getElementById('in-v-username').value = v.username;
-  document.getElementById('in-v-password').value = v.password;
+  document.getElementById('in-v-password').value = '';
+  document.getElementById('in-v-password').placeholder = 'Déjala vacía para no cambiarla';
   document.getElementById('in-v-equipo').checked = v.enEquipo !== false;
   document.getElementById('in-v-porcentaje').value = v.porcentaje || 0;
   onCambioEquipoVendedor();
@@ -1383,6 +1402,7 @@ function cancelarEdicionVendedor(){
   document.getElementById('in-v-nombre').value='';
   document.getElementById('in-v-username').value='';
   document.getElementById('in-v-password').value='';
+  document.getElementById('in-v-password').placeholder = '';
   document.getElementById('in-v-equipo').checked = true;
   document.getElementById('in-v-porcentaje').value = '';
   onCambioEquipoVendedor();
@@ -1390,21 +1410,29 @@ function cancelarEdicionVendedor(){
   document.getElementById('btn-guardar-vendedor').textContent = 'Agregar vendedor';
   document.getElementById('btn-cancelar-edicion').style.display='none';
 }
+async function hashTexto(texto){
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(texto));
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
 async function guardarVendedor(){
   const nombre = document.getElementById('in-v-nombre').value.trim();
   const username = document.getElementById('in-v-username').value.trim();
-  const password = document.getElementById('in-v-password').value.trim();
+  const passwordEscrita = document.getElementById('in-v-password').value.trim();
   const enEquipo = document.getElementById('in-v-equipo').checked;
   const porcentaje = enEquipo ? 0 : (+document.getElementById('in-v-porcentaje').value || 0);
-  if(!nombre || !username || !password){ avisar('Completa nombre, usuario y contraseña.'); return; }
+  if(!nombre || !username || (!editingVendedorId && !passwordEscrita)){ avisar('Completa nombre, usuario y contraseña.'); return; }
   const usernameEnUso = vendedores.some(v=>v.username===username && v.id!==editingVendedorId) || username===adminAuth.username;
   if(usernameEnUso){ avisar('Ese usuario ya está en uso.'); return; }
   try{
     if(editingVendedorId){
-      await db.from('vendedores').update({ nombre, username, password, en_equipo: enEquipo, porcentaje }).eq('id', editingVendedorId);
-      const v = vendedores.find(x=>x.id===editingVendedorId); v.nombre=nombre; v.username=username; v.password=password; v.enEquipo=enEquipo; v.porcentaje=porcentaje;
+      const v = vendedores.find(x=>x.id===editingVendedorId);
+      const payload = { nombre, username, en_equipo: enEquipo, porcentaje };
+      if(passwordEscrita){ payload.password = await hashTexto(passwordEscrita); v.password = payload.password; }
+      await db.from('vendedores').update(payload).eq('id', editingVendedorId);
+      v.nombre=nombre; v.username=username; v.enEquipo=enEquipo; v.porcentaje=porcentaje;
     }else{
-      const nuevo = { id: uid(), nombre, username, password, enEquipo, porcentaje };
+      const passwordCifrada = await hashTexto(passwordEscrita);
+      const nuevo = { id: uid(), nombre, username, password: passwordCifrada, enEquipo, porcentaje };
       await db.from('vendedores').insert({ id:nuevo.id, nombre:nuevo.nombre, username:nuevo.username, password:nuevo.password, en_equipo:enEquipo, porcentaje });
       vendedores.push(nuevo);
     }
@@ -1730,14 +1758,15 @@ function guardarPremiosBillete(){
   actualizarDisponibilidadPale();
 }
 // ---------------- SEGURIDAD ----------------
-function cambiarAdminAuth(){
+async function cambiarAdminAuth(){
   const actual = document.getElementById('sec-actual').value;
   const nuevoUser = document.getElementById('sec-nuevo-user').value.trim();
   const nuevaPass = document.getElementById('sec-nueva-pass').value.trim();
-  if(actual !== adminAuth.password){ avisar('La contraseña actual no es correcta.'); return; }
+  const actualCifrada = await hashTexto(actual);
+  if(actualCifrada !== adminAuth.password && actual !== adminAuth.password){ avisar('La contraseña actual no es correcta.'); return; }
   if(!nuevoUser && !nuevaPass){ avisar('Escribe el nuevo usuario y/o la nueva contraseña.'); return; }
   if(nuevoUser) adminAuth.username = nuevoUser;
-  if(nuevaPass) adminAuth.password = nuevaPass;
+  if(nuevaPass) adminAuth.password = await hashTexto(nuevaPass);
   guardarConfig();
   document.getElementById('sec-actual').value=''; document.getElementById('sec-nuevo-user').value=''; document.getElementById('sec-nueva-pass').value='';
   avisar('Datos de administrador actualizados.');
@@ -2031,21 +2060,33 @@ function renderListaSorteosVenta(){
   if(visibles.length===0){ cont.innerHTML = '<div class="empty-state">No hay sorteos disponibles hoy.</div>'; ultimoHashListaSorteosVenta=null; return; }
   const ordenados = visibles.slice().sort((a,b)=> (a.horaCierre||'').localeCompare(b.horaCierre||''));
   // Si nada cambió desde el último refresco (mismos sorteos, mismo estado
-  // abierto/cerrado, mismo logo), no reconstruye el HTML — así las imágenes
-  // no "parpadean" cada 30 segundos sin necesidad.
-  const hash = JSON.stringify(ordenados.map(s=>[s.id, sorteoAbierto(s), s.iconoUrl||'']));
+  // abierto/cerrado, mismo logo, mismo resultado), no reconstruye el HTML —
+  // así las imágenes no "parpadean" cada 30 segundos sin necesidad.
+  const hash = JSON.stringify(ordenados.map(s=>{
+    const r = resultadoDe(s.id, todayKey);
+    return [s.id, sorteoAbierto(s), s.iconoUrl||'', r ? (r.primeroCompleto+'-'+r.segundoCompleto+'-'+r.terceroCompleto) : ''];
+  }));
   if(hash === ultimoHashListaSorteosVenta) return;
   ultimoHashListaSorteosVenta = hash;
   cont.innerHTML = ordenados.map(s=>{
     const abierto = sorteoAbierto(s);
     const codigo = codigoSorteoParaFecha(s, ahoraServidor().toISOString());
     const logo = s.iconoUrl ? `<img src="${escapeHtml(s.iconoUrl)}" alt="" class="spc-logo" onerror="this.style.display='none'">` : '';
+    const resultadoHoy = resultadoDe(s.id, todayKey);
+    const numerosPremiados = resultadoHoy ? `<span class="mono" style="color:var(--gold-dark); font-weight:700;"> · ${resultadoHoy.primeroCompleto} · ${resultadoHoy.segundoCompleto} · ${resultadoHoy.terceroCompleto}</span>` : '';
     return `<div class="sorteo-pick-card ${abierto?'':'cerrado'}" onclick="elegirSorteoVenta('${s.id}')">
       <div class="spc-fila1"><span class="spc-nombre">${logo}${escapeHtml(s.nombre)}</span><span class="dot ${abierto?'abierto':'cerrado'}"></span></div>
       <div class="spc-detalle">${escapeHtml(s.horaSorteoTexto)} · cierra ${s.horaCierre}${abierto?'':' · cerrado (solo consulta)'}</div>
-      <div class="spc-codigo mono">${codigo}</div>
+      <div class="spc-codigo mono">${codigo}${numerosPremiados}</div>
     </div>`;
   }).join('');
+}
+let soloGanadoresHoy = false;
+function toggleSoloGanadoresHoy(){
+  soloGanadoresHoy = !soloGanadoresHoy;
+  const btn = document.getElementById('btn-solo-ganadores');
+  if(btn) btn.style.background = soloGanadoresHoy ? 'var(--gold)' : '#fff';
+  renderHistorialSorteoActual();
 }
 function elegirSorteoVenta(sorteoId){
   if(currentUser.role==='admin' && !document.getElementById('sel-vendedor').value){
@@ -2056,6 +2097,9 @@ function elegirSorteoVenta(sorteoId){
   onHeaderChange();
   const buscarCliente = document.getElementById('hs-buscar-cliente');
   if(buscarCliente) buscarCliente.value = '';
+  soloGanadoresHoy = false;
+  const btnGan = document.getElementById('btn-solo-ganadores');
+  if(btnGan) btnGan.style.background = '#fff';
   mostrarPantallaVenta('historial');
   renderHistorialSorteoActual();
 }
@@ -2102,14 +2146,26 @@ function renderHistorialSorteoActual(){
     ? `<div class="summary-box" style="border-left-color:var(--red)"><div class="num mono" style="color:var(--red)">$${totalPremios.toFixed(2)}</div><div class="lbl">Total premios</div></div>`
     : `<div class="summary-box"><div class="num mono" style="color:var(--ink-dim)">$0.00</div><div class="lbl">Total premios</div></div>`;
 
+  let cajaComision = '';
+  if(currentUser.role==='vendedor' && esVendedorIndependiente(currentUser.vendedorId)){
+    const v = vendedores.find(x=>x.id===currentUser.vendedorId);
+    const pct = v ? (v.porcentaje||0) : 0;
+    const comisionHoy = +(total*(pct/100)).toFixed(2);
+    cajaComision = `<div class="summary-box"><div class="num mono" style="color:var(--green)">$${comisionHoy.toFixed(2)}</div><div class="lbl">Comisión — ${pct}%</div></div>`;
+  }
+
   document.getElementById('hs-resumen').innerHTML = `
     <div class="summary-box"><div class="num mono">$${total.toFixed(2)}</div><div class="lbl">Vendido hoy</div></div>
+    ${cajaComision}
     ${cajaPremios}`;
 
   const cont = document.getElementById('hs-lista-tickets');
   const buscarCliente = document.getElementById('hs-buscar-cliente');
   const textoBusqueda = buscarCliente ? buscarCliente.value.trim().toLowerCase() : '';
-  const activasFiltradas = textoBusqueda ? activas.filter(v=>(v.cliente||'').toLowerCase().includes(textoBusqueda)) : activas;
+  let activasFiltradas = textoBusqueda ? activas.filter(v=>(v.cliente||'').toLowerCase().includes(textoBusqueda)) : activas;
+  if(soloGanadoresHoy){
+    activasFiltradas = activasFiltradas.filter(v=>!v.pendienteSync && (premioDeVenta(v)||0)>0);
+  }
   if(activas.length===0){
     cont.innerHTML = '<div class="empty-state">Aún no hay tickets para este sorteo hoy. Toca ✎ para anotar.</div>';
   }else if(activasFiltradas.length===0){
@@ -2675,6 +2731,20 @@ function premioDeVenta(venta){
   venta.jugadas.forEach(j=>{ total += calcularPremioJugada(j, resultado).monto; });
   return +total.toFixed(2);
 }
+function modalidadesGanadorasDeVenta(venta){
+  // Devuelve qué modalidades ganaron algo en este ticket (para mostrar en
+  // el Historial, por ejemplo "🏆 Palé" o "🏆 Billete" junto al premio).
+  if(venta.anulada) return [];
+  const resultado = resultadoDeVenta(venta);
+  if(!resultado) return [];
+  const set = new Set();
+  venta.jugadas.forEach(j=>{
+    const r = calcularPremioJugada(j, resultado);
+    if(r.monto>0) set.add(j.modalidad);
+  });
+  const etiquetas = { chance20:'Chance', chance25:'Chance', pale:'Palé', billete:'Billete' };
+  return [...set].map(m=>etiquetas[m]||m);
+}
 
 // ---------------- VENDEDORES INDEPENDIENTES: COMISIÓN Y BALANCE ----------------
 function efectoMovimiento(l){
@@ -2944,6 +3014,7 @@ async function guardarResultado(){
   renderListaResultados();
   mostrarGanadores(sorteoId, fechaKey);
   renderHistorial();
+  renderListaSorteosVenta();
   await generarMovimientosAutoParaResultado(sorteoId, fechaKey, codigoSorteo);
   renderListaIndependientes();
   // Deja las casillas vacías (en vez de "00") para el siguiente sorteo a
@@ -3077,7 +3148,11 @@ function renderHistorial(){
       else if(v.pendienteSync){ premioCell = '<span class="tag-pendiente">⏳ Pendiente</span>'; }
       else{
         const premio = premioDeVenta(v);
-        premioCell = premio===null ? '<span style="color:var(--ink-dim); font-size:12px;">Sin premiar</span>' : (premio>0 ? `<span class="premio-tag">$${premio.toFixed(2)}</span>` : '');
+        if(premio===null) premioCell = '<span style="color:var(--ink-dim); font-size:12px;">Sin premiar</span>';
+        else if(premio>0){
+          const modalidadesGanadoras = modalidadesGanadorasDeVenta(v);
+          premioCell = `<span class="premio-tag">$${premio.toFixed(2)}</span>${modalidadesGanadoras.length?` <span style="font-size:11px; color:var(--gold-dark); font-weight:700;">🏆 ${modalidadesGanadoras.join(' + ')}</span>`:''}`;
+        }else premioCell = '';
       }
       const botonAnular = v.pendienteSync
         ? `<button class="btn-danger-text" onclick="quitarVentaPendiente('${v.id}')">Quitar</button>`

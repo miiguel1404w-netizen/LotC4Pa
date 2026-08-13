@@ -461,6 +461,17 @@
         <input type="text" id="filtro-cliente" placeholder="Buscar por cliente" oninput="renderHistorial()">
         <input type="text" id="filtro-codigo" placeholder="Buscar por folio o código de sorteo (ej. TIC-)" oninput="renderHistorial()" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
       </div>
+      <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:14px;">
+        <label style="display:flex; align-items:center; gap:6px; text-transform:none; font-size:13.5px; color:var(--ink); cursor:pointer; background:var(--paper-dim); padding:8px 12px; border-radius:8px;">
+          <input type="checkbox" id="filtro-solo-ganadores" onchange="onCambioSoloGanadoresHistorial()" style="width:auto"> 🏆 Solo ganadores
+        </label>
+        <select id="filtro-modalidad-ganador" onchange="renderHistorial()" style="display:none; max-width:180px;">
+          <option value="">Todas las modalidades</option>
+          <option value="chance">Chance</option>
+          <option value="pale">Palé</option>
+          <option value="billete">Billete</option>
+        </select>
+      </div>
       <div class="card" style="padding:0;">
         <div class="jugadas-list" id="tabla-historial-body" style="padding:8px 16px 16px 16px;"></div>
         <div class="empty-state" id="historial-empty" style="display:none">Todavía no hay ventas registradas.</div>
@@ -2743,20 +2754,6 @@ function premioDeVenta(venta){
   venta.jugadas.forEach(j=>{ total += calcularPremioJugada(j, resultado).monto; });
   return +total.toFixed(2);
 }
-function modalidadesGanadorasDeVenta(venta){
-  // Devuelve qué modalidades ganaron algo en este ticket (para mostrar en
-  // el Historial, por ejemplo "🏆 Palé" o "🏆 Billete" junto al premio).
-  if(venta.anulada) return [];
-  const resultado = resultadoDeVenta(venta);
-  if(!resultado) return [];
-  const set = new Set();
-  venta.jugadas.forEach(j=>{
-    const r = calcularPremioJugada(j, resultado);
-    if(r.monto>0) set.add(j.modalidad);
-  });
-  const etiquetas = { chance20:'Chance', chance25:'Chance', pale:'Palé', billete:'Billete' };
-  return [...set].map(m=>etiquetas[m]||m);
-}
 
 // ---------------- VENDEDORES INDEPENDIENTES: COMISIÓN Y BALANCE ----------------
 function efectoMovimiento(l){
@@ -3130,6 +3127,23 @@ async function eliminarResultadoHistorico(id){
 }
 
 // ---------------- HISTORIAL ----------------
+function jugadasGanadorasDeVenta(venta){
+  if(venta.anulada) return [];
+  const resultado = resultadoDeVenta(venta);
+  if(!resultado) return [];
+  const ganadoras = [];
+  venta.jugadas.forEach(j=>{
+    const r = calcularPremioJugada(j, resultado);
+    if(r.monto>0) ganadoras.push({ modalidad:j.modalidad, numero: formatearNumeroJugada(j), monto:r.monto });
+  });
+  return ganadoras;
+}
+function grupoModalidad(m){ return (m==='chance20'||m==='chance25') ? 'chance' : m; }
+function onCambioSoloGanadoresHistorial(){
+  const marcado = document.getElementById('filtro-solo-ganadores').checked;
+  document.getElementById('filtro-modalidad-ganador').style.display = marcado ? 'block' : 'none';
+  renderHistorial();
+}
 function renderHistorial(){
   if(!dataLoaded || !currentUser) return;
   let fv = document.getElementById('filtro-vendedor').value;
@@ -3142,12 +3156,19 @@ function renderHistorial(){
   const ff = document.getElementById('filtro-fecha').value.trim();
   const fc = document.getElementById('filtro-cliente').value.trim().toLowerCase();
   const fcod = document.getElementById('filtro-codigo').value.trim().toUpperCase().replace(/^#/, '');
+  const soloGanadores = document.getElementById('filtro-solo-ganadores').checked;
+  const filtroModalidadGanador = document.getElementById('filtro-modalidad-ganador').value;
   let filtradas = ventasList.filter(v=>{
     if(!vendedorCoincideFiltro(v.vendedorId, fv)) return false;
     if(fs && v.sorteoId!==fs) return false;
     if(ff){ const fechaLocal = new Date(v.fecha).toLocaleDateString('es-DO', {day:'2-digit',month:'2-digit',year:'numeric'}); if(!fechaLocal.includes(ff)) return false; }
     if(fc && !(v.cliente||'').toLowerCase().includes(fc)) return false;
     if(fcod && !folioTexto(v).toUpperCase().includes(fcod) && !(v.codigoSorteo||'').toUpperCase().includes(fcod)) return false;
+    if(soloGanadores){
+      const ganadoras = jugadasGanadorasDeVenta(v);
+      if(ganadoras.length===0) return false;
+      if(filtroModalidadGanador && !ganadoras.some(g=>grupoModalidad(g.modalidad)===filtroModalidadGanador)) return false;
+    }
     return true;
   });
   const tbody = document.getElementById('tabla-historial-body'); const empty = document.getElementById('historial-empty');
@@ -3156,14 +3177,19 @@ function renderHistorial(){
     empty.style.display='none';
     tbody.innerHTML = filtradas.map(v=>{
       let premioCell;
+      let numerosGanadoresTxt = '';
       if(v.anulada){ premioCell = '<span class="tag-anulado">Anulado</span>'; }
       else if(v.pendienteSync){ premioCell = '<span class="tag-pendiente">⏳ Pendiente</span>'; }
       else{
         const premio = premioDeVenta(v);
         if(premio===null) premioCell = '<span style="color:var(--ink-dim); font-size:12px;">Sin premiar</span>';
         else if(premio>0){
-          const modalidadesGanadoras = modalidadesGanadorasDeVenta(v);
+          const ganadorasDetalle = jugadasGanadorasDeVenta(v);
+          const modalidadesGanadoras = [...new Set(ganadorasDetalle.map(g=>({chance20:'Chance',chance25:'Chance',pale:'Palé',billete:'Billete'})[g.modalidad]||g.modalidad))];
           premioCell = `<span class="premio-tag">$${premio.toFixed(2)}</span>${modalidadesGanadoras.length?` <span style="font-size:11px; color:var(--gold-dark); font-weight:700;">🏆 ${modalidadesGanadoras.join(' + ')}</span>`:''}`;
+          if(ganadorasDetalle.length){
+            numerosGanadoresTxt = `<div style="font-size:11px; color:var(--gold-dark); margin-top:1px;" class="mono">Ganó con: ${ganadorasDetalle.map(g=>g.numero+' ($'+g.monto.toFixed(2)+')').join(', ')}</div>`;
+          }
         }else premioCell = '';
       }
       const botonAnular = v.pendienteSync
@@ -3177,6 +3203,7 @@ function renderHistorial(){
           <div style="font-size:14.5px; font-weight:700;">${v.pendienteSync?'⏳ ':''}${nombreCliente}</div>
           <div style="font-size:11px; color:var(--ink-dim); margin-top:1px;" class="mono">#${folioTexto(v)} · ${escapeHtml(nombreVendedor(v.vendedorId).slice(0,3))}${v.editadoPor?' · edit: '+escapeHtml(v.editadoPor.slice(0,3)):''}</div>
           <div style="font-size:11px; color:var(--ink-dim); margin-top:1px;">${nombreSorteoVenta(v)} · ${formatearFecha(v.fecha)}</div>
+          ${numerosGanadoresTxt}
         </div>
         <div style="display:flex; flex-direction:column; align-items:flex-end; gap:6px; flex-shrink:0;">
           <span class="mono" style="font-weight:700;">$${v.total.toFixed(2)}</span>

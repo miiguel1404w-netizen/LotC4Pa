@@ -30,8 +30,8 @@
   .display{font-family:'Fraunces',serif;}
 
   #login-screen{ min-height:100vh; display:none; align-items:center; justify-content:center; background:linear-gradient(160deg, var(--charcoal) 0%, var(--charcoal-dark) 100%); padding:20px; }
-  #pantalla-cargando{ min-height:100vh; display:flex; align-items:center; justify-content:center; background:var(--paper); }
-  .spinner-carga{ width:38px; height:38px; border-radius:50%; border:4px solid var(--line); border-top-color:var(--green); animation:girar 0.8s linear infinite; }
+  #spinner-chequeo-sesion{ position:fixed; top:18px; left:50%; transform:translateX(-50%); z-index:200; }
+  .spinner-carga{ width:32px; height:32px; border-radius:50%; border:4px solid rgba(255,255,255,0.25); border-top-color:#fff; animation:girar 0.8s linear infinite; }
   @keyframes girar{ to{ transform:rotate(360deg); } }
   .login-card{ background:var(--paper); width:100%; max-width:360px; border-radius:14px; padding:34px 30px; box-shadow:0 30px 60px rgba(0,0,0,0.35); border-top:5px solid var(--gold); }
   .login-brand{ text-align:center; margin-bottom:26px; }
@@ -274,7 +274,7 @@
 </head>
 <body>
 
-<div id="pantalla-cargando"><div class="spinner-carga"></div></div>
+<div id="spinner-chequeo-sesion"><div class="spinner-carga"></div></div>
 <div id="login-screen">
   <div class="login-card">
     <div class="login-brand">
@@ -3393,6 +3393,10 @@ if('serviceWorker' in navigator){
   window.addEventListener('load', ()=>{ navigator.serviceWorker.register('sw.js').catch(()=>{}); });
 }
 (async function iniciarApp(){
+  // Muestra la pantalla de inicio de sesión de una vez (con el círculo
+  // pequeño flotando arriba) en vez de tapar todo con una pantalla vacía
+  // mientras se revisa en silencio si ya había una sesión guardada.
+  document.getElementById('login-screen').style.display = 'flex';
   await cargarDatos();
   // Si había una sesión guardada pero la lista de vendedores no cargó bien
   // (mala señal justo al abrir), reintentamos un par de veces antes de darnos
@@ -3405,11 +3409,9 @@ if('serviceWorker' in navigator){
     intentos++;
   }
   const huboSesion = await intentarAutoLogin();
-  document.getElementById('pantalla-cargando').style.display = 'none';
+  document.getElementById('spinner-chequeo-sesion').style.display = 'none';
   if(huboSesion){
     entrarAlApp();
-  }else{
-    document.getElementById('login-screen').style.display = 'flex';
   }
 })();
 </script>

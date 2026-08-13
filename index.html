@@ -635,6 +635,7 @@
           <div class="shc-top"><span id="bal-det-monto">$0.00</span></div>
           <div class="shc-sub" id="bal-det-nombre">--</div>
         </div>
+        <button class="btn btn-text" style="font-size:12px;" onclick="diagnosticoVentasVendedor()">🔍 Ver sus ventas sin premiar (diagnóstico)</button>
         <div class="card" style="padding:0; overflow:hidden;">
           <table>
             <thead><tr><th>Fecha</th><th>Monto</th><th>Sorteo</th><th>Detalle</th></tr></thead>
@@ -2622,8 +2623,9 @@ function calcularBalanceVendedor(vendedorId, filtroSorteoId){
   return { porcentaje, balancePendiente, movimientos: movs.slice().sort((a,b)=> new Date(b.fecha)-new Date(a.fecha)) };
 }
 async function generarMovimientosAutoParaResultado(sorteoId, fechaKey, codigoSorteoTexto){
-  if(!codigoSorteoTexto) return;
+  if(!codigoSorteoTexto) return [];
   const independientes = vendedores.filter(v=>v.enEquipo===false);
+  const errores = [];
   for(const v of independientes){
     const ventasDelDia = ventasList.filter(x=>{
       if(x.anulada || x.pendienteSync || x.vendedorId!==v.id) return false;
@@ -2638,11 +2640,13 @@ async function generarMovimientosAutoParaResultado(sorteoId, fechaKey, codigoSor
     const id = existente ? existente.id : uid();
     const fila = { id, vendedorId:v.id, fecha: fechaKey+'T12:00:00', monto, direccion:null, nota:null, sorteoId: sorteoId||null, codigoSorteo: codigoSorteoTexto };
     try{
-      await db.from('liquidaciones').upsert({ id, vendedor_id:v.id, fecha:fila.fecha, monto, direccion:null, nota:null, sorteo_id: sorteoId||null, codigo_sorteo: codigoSorteoTexto });
+      const { error } = await db.from('liquidaciones').upsert({ id, vendedor_id:v.id, fecha:fila.fecha, monto, direccion:null, nota:null, sorteo_id: sorteoId||null, codigo_sorteo: codigoSorteoTexto });
+      if(error) throw error;
       if(existente){ Object.assign(existente, fila); }
       else{ liquidaciones.unshift(fila); }
-    }catch(e){ /* si falla, se puede regenerar volviendo a guardar el resultado */ }
+    }catch(e){ errores.push((v.nombre||v.id)+': '+(e&&e.message?e.message:'error desconocido')); }
   }
+  return errores;
 }
 function textoBalance(balancePendiente, paraAdmin){
   if(balancePendiente>0.004){
@@ -2699,6 +2703,7 @@ async function refrescarBalances(){
 async function recalcularTodosLosBalances(){
   if(!(await mostrarConfirmacion('Esto revisa TODOS los resultados que ya has cargado y genera las filas de balance que falten (por ejemplo, sorteos que premiaste antes de tener este módulo). Puede tardar un momento si tienes muchos resultados. ¿Continuar?'))) return;
   avisar('Poniendo al día... no cierres esta pantalla.');
+  const erroresTotales = [];
   for(const r of resultados){
     // Resultados guardados antes de que existiera esta función no tienen
     // codigoSorteo guardado — si el sorteo todavía existe, se recalcula
@@ -2709,11 +2714,16 @@ async function recalcularTodosLosBalances(){
       if(s) codigo = codigoSorteoParaFecha(s, r.fechaKey+'T12:00:00');
     }
     if(!codigo) continue;
-    await generarMovimientosAutoParaResultado(r.sorteoId, r.fechaKey, codigo);
+    const errores = await generarMovimientosAutoParaResultado(r.sorteoId, r.fechaKey, codigo);
+    errores.forEach(e=>erroresTotales.push(codigo+' → '+e));
   }
   renderListaIndependientes();
   if(detalleIndependienteId) renderDetalleIndependiente();
-  avisar('Balance puesto al día con todos los resultados ya cargados.');
+  if(erroresTotales.length>0){
+    avisar('Terminó, pero con errores en '+erroresTotales.length+' caso(s). Primer error: '+erroresTotales[0]);
+  }else{
+    avisar('Balance puesto al día con todos los resultados ya cargados.');
+  }
 }
 let detalleIndependienteId = null;
 function abrirDetalleIndependiente(vendedorId){
@@ -2728,6 +2738,19 @@ function cerrarDetalleIndependiente(){
   document.getElementById('bal-pantalla-detalle').style.display = 'none';
   document.getElementById('bal-pantalla-lista').style.display = 'block';
   renderListaIndependientes();
+}
+function diagnosticoVentasVendedor(){
+  if(!detalleIndependienteId) return;
+  const v = vendedores.find(x=>x.id===detalleIndependienteId);
+  if(!v) return;
+  const ventasV = ventasList.filter(x=>x.vendedorId===v.id && !x.anulada && !x.pendienteSync);
+  if(ventasV.length===0){ alert('Esta persona no tiene ventas activas registradas.'); return; }
+  const lineas = ventasV.map(x=>{
+    const fechaLocal = toDateKey(x.fecha);
+    const hayResultadoExacto = resultados.some(r=>r.sorteoId===x.sorteoId && r.fechaKey===fechaLocal);
+    return '#'+folioTexto(x)+' | fecha:'+fechaLocal+' | sorteoId:'+(x.sorteoId||'null')+' | codigo:'+(x.codigoSorteo||'—')+' | $'+x.total.toFixed(2)+' | '+(hayResultadoExacto?'SÍ hay resultado con ese sorteoId+fecha':'NO hay resultado con ese sorteoId+fecha exacto');
+  });
+  alert('Ventas de '+v.nombre+' ('+ventasV.length+'):\n\n'+lineas.join('\n\n'));
 }
 function renderDetalleIndependiente(){
   if(!detalleIndependienteId) return;

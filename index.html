@@ -2700,8 +2700,16 @@ async function recalcularTodosLosBalances(){
   if(!(await mostrarConfirmacion('Esto revisa TODOS los resultados que ya has cargado y genera las filas de balance que falten (por ejemplo, sorteos que premiaste antes de tener este módulo). Puede tardar un momento si tienes muchos resultados. ¿Continuar?'))) return;
   avisar('Poniendo al día... no cierres esta pantalla.');
   for(const r of resultados){
-    if(!r.codigoSorteo) continue;
-    await generarMovimientosAutoParaResultado(r.sorteoId, r.fechaKey, r.codigoSorteo);
+    // Resultados guardados antes de que existiera esta función no tienen
+    // codigoSorteo guardado — si el sorteo todavía existe, se recalcula
+    // aquí mismo en vez de saltárselos.
+    let codigo = r.codigoSorteo;
+    if(!codigo && r.sorteoId){
+      const s = sorteos.find(x=>x.id===r.sorteoId);
+      if(s) codigo = codigoSorteoParaFecha(s, r.fechaKey+'T12:00:00');
+    }
+    if(!codigo) continue;
+    await generarMovimientosAutoParaResultado(r.sorteoId, r.fechaKey, codigo);
   }
   renderListaIndependientes();
   if(detalleIndependienteId) renderDetalleIndependiente();

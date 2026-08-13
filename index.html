@@ -313,7 +313,7 @@
   <div class="nav-item admin-only" data-tab="reportes" onclick="irATab('reportes')">📊 Reportes</div>
   <div class="nav-item" data-tab="historial" onclick="irATab('historial')">📖 Historial general</div>
   <div class="nav-item" data-tab="tabla" onclick="irATab('tabla')">🔢 Tabla de números</div>
-  <div class="nav-item admin-only" data-tab="ranking" onclick="irATab('ranking')">🏅 Ranking de números</div>
+  <div class="nav-item" data-tab="ranking" onclick="irATab('ranking')">🏅 Ranking de números</div>
   <div class="nav-item admin-only" data-tab="resultados" onclick="irATab('resultados')">🏆 Resultados</div>
   <div class="nav-item admin-only" data-tab="independientes" onclick="irATab('independientes')">💵 Vendedores Independientes</div>
   <div class="nav-item" data-tab="cobertura" id="nav-cobertura" style="display:none" onclick="irATab('cobertura')">🛡️ Balance real</div>
@@ -657,7 +657,7 @@
 
       <div class="card">
         <h2 style="font-size:14px;">🔥 Más vendidos</h2>
-        <p class="hint">Números con más tiempos jugados (Chance $0.20 + $0.25 juntas).</p>
+        <p class="hint" id="rank-vendidos-hint">Números con más tiempos jugados (Chance $0.20 + $0.25 juntas).</p>
         <div id="rank-vendidos"></div>
       </div>
 
@@ -767,6 +767,12 @@
     <div id="tab-config" style="display:none">
       <h1 class="page-title">Administración</h1>
       <div class="page-sub">Vendedores, sorteos, premiación y seguridad.</div>
+
+      <div class="card">
+        <h2>Orden del menú</h2>
+        <p class="hint">Acomoda el menú ☰ como prefieras (solo se guarda en este celular).</p>
+        <div id="orden-menu-lista"></div>
+      </div>
 
       <div class="card">
         <h2 id="vendedor-form-title">Agregar vendedor</h2>
@@ -1314,6 +1320,65 @@ function aplicarRol(){
   if(navMiComision) navMiComision.style.display = (esVendedor && esVendedorIndependiente(currentUser.vendedorId)) ? 'flex' : 'none';
   const navCobertura = document.getElementById('nav-cobertura');
   if(navCobertura) navCobertura.style.display = puedeVerRiesgoChance() ? 'flex' : 'none';
+  aplicarOrdenMenu();
+}
+
+// ---------------- ORDEN DEL MENÚ (personalizable por dispositivo) ----------------
+const ORDEN_MENU_KEY = 'lotc4pa_orden_menu';
+function leerOrdenMenu(){
+  try{ const raw = localStorage.getItem(ORDEN_MENU_KEY); return raw ? JSON.parse(raw) : []; }catch(e){ return []; }
+}
+function guardarOrdenMenu(orden){
+  try{ localStorage.setItem(ORDEN_MENU_KEY, JSON.stringify(orden)); }catch(e){}
+}
+function aplicarOrdenMenu(){
+  const drawer = document.getElementById('menu-drawer');
+  if(!drawer) return;
+  const orden = leerOrdenMenu();
+  if(!orden.length) return; // sin orden personalizado todavía: se deja el orden por defecto del HTML
+  const items = [...drawer.querySelectorAll('.nav-item[data-tab]')];
+  const porTab = {}; items.forEach(el=>{ porTab[el.dataset.tab] = el; });
+  const logout = drawer.querySelector('.nav-item.logout');
+  const yaColocados = new Set();
+  orden.forEach(tab=>{
+    const el = porTab[tab];
+    if(el){ drawer.insertBefore(el, logout); yaColocados.add(tab); }
+  });
+  // Cualquier módulo que no estuviera guardado (ej. uno agregado después)
+  // se acomoda al final, antes de "Cerrar sesión", sin perder los demás.
+  items.forEach(el=>{ if(!yaColocados.has(el.dataset.tab)) drawer.insertBefore(el, logout); });
+}
+function renderOrdenMenuLista(){
+  const cont = document.getElementById('orden-menu-lista');
+  if(!cont) return;
+  const drawer = document.getElementById('menu-drawer');
+  const visibles = [...drawer.querySelectorAll('.nav-item[data-tab]')].filter(el=>el.style.display!=='none');
+  cont.innerHTML = visibles.map((el,i)=>{
+    const tab = el.dataset.tab;
+    return `<div style="display:flex; align-items:center; justify-content:space-between; padding:8px 4px; border-bottom:1px solid var(--line);">
+      <span style="font-size:13.5px;">${escapeHtml(el.textContent.trim())}</span>
+      <span style="display:flex; gap:6px;">
+        <button type="button" class="btn btn-outline btn-sm" style="padding:3px 10px;" ${i===0?'disabled':''} onclick="moverItemMenu('${tab}',-1)">▲</button>
+        <button type="button" class="btn btn-outline btn-sm" style="padding:3px 10px;" ${i===visibles.length-1?'disabled':''} onclick="moverItemMenu('${tab}',1)">▼</button>
+      </span>
+    </div>`;
+  }).join('');
+}
+function moverItemMenu(tab, dir){
+  const drawer = document.getElementById('menu-drawer');
+  const todos = [...drawer.querySelectorAll('.nav-item[data-tab]')];
+  const visibles = todos.filter(el=>el.style.display!=='none');
+  const idxVis = visibles.findIndex(el=>el.dataset.tab===tab);
+  const nuevoIdxVis = idxVis+dir;
+  if(idxVis<0 || nuevoIdxVis<0 || nuevoIdxVis>=visibles.length) return;
+  [visibles[idxVis], visibles[nuevoIdxVis]] = [visibles[nuevoIdxVis], visibles[idxVis]];
+  // Reconstruye el orden completo: los módulos ocultos para esta cuenta se
+  // quedan en su misma posición relativa, solo se mueven los visibles.
+  let vi = 0;
+  const nuevoOrden = todos.map(el => el.style.display!=='none' ? visibles[vi++].dataset.tab : el.dataset.tab);
+  guardarOrdenMenu(nuevoOrden);
+  aplicarOrdenMenu();
+  renderOrdenMenuLista();
 }
 
 // ---------------- MENÚ DESPLEGABLE ----------------
@@ -1362,6 +1427,7 @@ function aplicarEstadoNav(estado){
   if(estado.tab==='reportes') renderReportes();
   if(estado.tab==='tabla'){ renderTablaSorteoSelect(); renderTablaNumeros(); }
   if(estado.tab==='ranking'){ renderRankingSorteoSelect(); renderRanking(); }
+  if(estado.tab==='config') renderOrdenMenuLista();
   if(estado.tab==='resultados'){ renderResultadosSorteoSelect(); renderListaResultados(); }
   if(estado.tab==='cobertura'){ renderCoberturaSorteoSelect(); renderCobertura(); }
   if(estado.tab==='ventas'){
@@ -1379,7 +1445,7 @@ function mostrarTabInterno(tab){
   });
 }
 function switchTab(tab){
-  if((tab==='config' || tab==='resultados' || tab==='reportes' || tab==='independientes' || tab==='ranking') && currentUser.role!=='admin') return;
+  if((tab==='config' || tab==='resultados' || tab==='reportes' || tab==='independientes') && currentUser.role!=='admin') return;
   if(tab==='micomision' && !(currentUser.role==='vendedor' && esVendedorIndependiente(currentUser.vendedorId))) return;
   if(tab==='cobertura' && !puedeVerRiesgoChance()) return;
   if(tab!=='ventas'){ document.documentElement.classList.remove('sin-scroll'); document.body.classList.remove('sin-scroll'); }
@@ -1392,6 +1458,7 @@ function switchTab(tab){
   if(tab==='cobertura'){ renderCoberturaSorteoSelect(); renderCobertura(); }
   if(tab==='ventas'){ renderVentaSorteoSelect(); mostrarPantallaVenta('sorteo'); renderListaSorteosVenta(); }
   if(tab==='independientes'){ cerrarDetalleIndependiente(); }
+  if(tab==='config') renderOrdenMenuLista();
   if(tab==='micomision') renderMiComision();
   registrarNavegacion();
 }
@@ -3544,15 +3611,26 @@ function renderRankingLista(contenedorId, entradas, etiquetaCant){
     </div>`).join('');
 }
 function renderRanking(){
-  if(!dataLoaded || !currentUser || currentUser.role!=='admin') return;
+  if(!dataLoaded || !currentUser) return;
   const sorteoId = document.getElementById('rank-sorteo').value;
   const periodo = document.getElementById('rank-periodo').value;
   const { desde, hasta } = calcularRangoPeriodo(periodo);
+  // Igual que en Tabla de números: un vendedor de equipo ve la combinada de
+  // su equipo, un independiente solo la suya propia; el admin ve todo.
+  const filtroVendedorId = currentUser.role==='admin'
+    ? ''
+    : (esVendedorIndependiente(currentUser.vendedorId) ? currentUser.vendedorId : 'grupo:equipo');
+  const hintVendidos = document.getElementById('rank-vendidos-hint');
+  if(hintVendidos){
+    const alcance = currentUser.role==='admin' ? 'de todo el negocio'
+      : (esVendedorIndependiente(currentUser.vendedorId) ? 'tuyas' : 'de tu equipo');
+    hintVendidos.textContent = `Números con más tiempos jugados (Chance $0.20 + $0.25 juntas), ${alcance}.`;
+  }
 
   // Más vendidos: suma de tiempos de Chance ($0.20 + $0.25) por número,
   // sobre todas las ventas que caigan dentro del sorteo/período elegidos.
   const porVendido = {};
-  ventasList.filter(v=>!v.anulada && (!sorteoId || v.sorteoId===sorteoId) && fechaEnRango(toDateKey(v.fecha), desde, hasta)).forEach(v=>{
+  ventasList.filter(v=>!v.anulada && (!sorteoId || v.sorteoId===sorteoId) && fechaEnRango(toDateKey(v.fecha), desde, hasta) && vendedorCoincideFiltro(v.vendedorId, filtroVendedorId)).forEach(v=>{
     v.jugadas.forEach(j=>{
       if(j.modalidad==='chance20' || j.modalidad==='chance25'){
         porVendido[j.numero] = (porVendido[j.numero]||0) + j.cantidad;
@@ -3562,8 +3640,8 @@ function renderRanking(){
   const rankingVendidos = Object.entries(porVendido).sort((a,b)=>b[1]-a[1]);
   renderRankingLista('rank-vendidos', rankingVendidos, 'tiempos');
 
-  // Más premiados: cuenta cada vez que un número aparece como 1ro/2do/3ro en
-  // los resultados guardados que caigan dentro del sorteo/período elegidos.
+  // Más premiados: es el resultado objetivo del sorteo, igual para todos —
+  // no se filtra por vendedor.
   const porSalido = {};
   resultados.filter(r=>(!sorteoId || r.sorteoId===sorteoId) && fechaEnRango(r.fechaKey, desde, hasta)).forEach(r=>{
     [r.primero, r.segundo, r.tercero].forEach(n=>{

@@ -585,6 +585,7 @@
 
       <div class="filters">
         <select id="tabla-sorteo" onchange="renderTablaNumeros()"></select>
+        <select id="tabla-filtro-vendedor" class="admin-only" style="display:none;" onchange="renderTablaNumeros()"></select>
         <input type="date" id="tabla-fecha" onchange="renderTablaNumeros()">
       </div>
 
@@ -3475,21 +3476,47 @@ function renderTablaSorteoSelect(){
   const opts = sorteosOrdenados().map(s=>`<option value="${s.id}">${escapeHtml(s.nombre+' · '+s.horaSorteoTexto)}</option>`).join('');
   const sel = document.getElementById('tabla-sorteo');
   const valorPrevio = sel.value;
-  sel.innerHTML = '<option value="">Selecciona un sorteo</option>'+opts;
-  if(valorPrevio && [...sel.options].some(o=>o.value===valorPrevio)) sel.value = valorPrevio;
+  const esAdmin = currentUser && currentUser.role==='admin';
+  sel.innerHTML = '<option value="">Todos los sorteos</option>'+opts;
+  if(esAdmin && valorPrevio && [...sel.options].some(o=>o.value===valorPrevio)) sel.value = valorPrevio;
+  else sel.value = '';
+  // Los vendedores solo ven la vista combinada de todos los sorteos aquí —
+  // la tabla de un sorteo puntual ya la tienen dentro de su propia pantalla
+  // de venta (botón "📊 Tabla de números"). El filtro completo (por sorteo
+  // y por vendedor) es solo para el admin.
+  sel.disabled = !esAdmin;
+  sel.style.display = esAdmin ? '' : 'none';
+  const filtroV = document.getElementById('tabla-filtro-vendedor');
+  if(filtroV) filtroV.style.display = esAdmin ? '' : 'none';
+  if(esAdmin) renderTablaFiltroVendedor();
   const fecha = document.getElementById('tabla-fecha');
   if(!fecha.value) fecha.value = toDateKey(ahoraServidor().toISOString());
+}
+function renderTablaFiltroVendedor(){
+  const filtroV = document.getElementById('tabla-filtro-vendedor');
+  if(!filtroV) return;
+  const equipo = vendedores.filter(v=>v.enEquipo!==false);
+  const indep = vendedores.filter(v=>v.enEquipo===false);
+  const opcionesGrupo =
+    (equipo.length ? '<option value="grupo:equipo">🧑‍🤝‍🧑 Todo mi equipo junto</option>' : '') +
+    (indep.length ? '<option value="grupo:independientes">💵 Todos los independientes juntos</option>' : '');
+  const optsAgrupados = opcionesGrupo +
+    (equipo.length ? `<optgroup label="Equipo">${equipo.map(v=>`<option value="${v.id}">${escapeHtml(v.nombre)}</option>`).join('')}</optgroup>` : '') +
+    (indep.length ? `<optgroup label="Vendedores Independientes">${indep.map(v=>`<option value="${v.id}">${escapeHtml(v.nombre)}</option>`).join('')}</optgroup>` : '');
+  const valorPrevio = filtroV.value;
+  filtroV.innerHTML = '<option value="">Todos los vendedores</option>'+optsAgrupados;
+  if(valorPrevio && [...filtroV.options].some(o=>o.value===valorPrevio)) filtroV.value = valorPrevio;
 }
 function nivelChance(cant){ if(cant>=300) return 'nivel-rojo'; if(cant>=100) return 'nivel-naranja'; return ''; }
 function nivelPale(cant){ if(cant>=4) return 'nivel-rojo'; if(cant>=2) return 'nivel-naranja'; return ''; }
 function nivelBillete(cant){ if(cant>=5) return 'nivel-rojo'; if(cant>=2) return 'nivel-amarillo'; return ''; }
-function calcularTablaNumeros(sorteoId, fechaKey){
+function calcularTablaNumeros(sorteoId, fechaKey, filtroVendedorId){
   const porNumero = {};
   const porNumero20 = {};
   const porNumero25 = {};
   const porPale = {};
   const porBillete = {};
-  ventasList.filter(v=>v.sorteoId===sorteoId && toDateKey(v.fecha)===fechaKey && !v.anulada).forEach(v=>{
+  ventasList.filter(v=>(!sorteoId || v.sorteoId===sorteoId) && toDateKey(v.fecha)===fechaKey && !v.anulada && vendedorCoincideFiltro(v.vendedorId, filtroVendedorId)).forEach(v=>{
     v.jugadas.forEach(j=>{
       if(j.modalidad==='pale'){
         const key = formatearNumeroJugada(j);
@@ -3708,34 +3735,27 @@ function renderTablaNumeros(){
   if(!dataLoaded || !currentUser) return;
   const sorteoId = document.getElementById('tabla-sorteo').value;
   const fechaKey = document.getElementById('tabla-fecha').value || toDateKey(ahoraServidor().toISOString());
+  const esAdmin = currentUser.role==='admin';
+  const filtroVendedorId = esAdmin ? document.getElementById('tabla-filtro-vendedor').value : '';
   const gridChance = document.getElementById('tabla-chance-grid');
   const gridPale = document.getElementById('tabla-pale-grid');
   const gridBillete = document.getElementById('tabla-billete-grid');
   const cardBillete = document.getElementById('tabla-billete-card');
   const resumen = document.getElementById('tabla-resumen');
 
-  if(!sorteoId){
-    gridChance.innerHTML = '<div class="empty-state">Selecciona un sorteo para ver la tabla.</div>';
-    gridPale.innerHTML = '';
-    if(gridBillete) gridBillete.innerHTML = '';
-    if(cardBillete) cardBillete.style.display = 'none';
-    const gc20 = document.getElementById('tabla-chance20-grid'); if(gc20) gc20.innerHTML = '';
-    const gc25 = document.getElementById('tabla-chance25-grid'); if(gc25) gc25.innerHTML = '';
-    resumen.innerHTML = '';
-    const dr = document.getElementById('tabla-riesgo-detalle'); if(dr) dr.style.display = 'none';
-    const lr = document.getElementById('tabla-leyenda-riesgo'); if(lr) lr.style.display = 'none';
-    return;
-  }
-
-  const sorteo = sorteos.find(s=>s.id===sorteoId);
-  const { porNumero, porNumero20, porNumero25, porPale, porBillete } = calcularTablaNumeros(sorteoId, fechaKey);
+  const sorteo = sorteoId ? sorteos.find(s=>s.id===sorteoId) : null;
+  const { porNumero, porNumero20, porNumero25, porPale, porBillete } = calcularTablaNumeros(sorteoId, fechaKey, filtroVendedorId);
   const numeros = Object.keys(porNumero).sort();
   const numeros20 = Object.keys(porNumero20).sort();
   const numeros25 = Object.keys(porNumero25).sort();
   const combos = Object.keys(porPale).sort();
   const billetes = Object.keys(porBillete).sort();
-  const { riesgoPorNumero, pagoPotencialPorNumero } = calcularRiesgoChance(sorteoId, fechaKey, porNumero20, porNumero25);
-  const puedeVerRiesgo = puedeVerRiesgoChance();
+  // El riesgo (⚠️) solo tiene sentido con un sorteo puntual — combinar todos
+  // los sorteos mezclaría números de resultados distintos e independientes.
+  const puedeVerRiesgo = puedeVerRiesgoChance() && !!sorteoId;
+  const { riesgoPorNumero, pagoPotencialPorNumero } = sorteoId
+    ? calcularRiesgoChance(sorteoId, fechaKey, porNumero20, porNumero25)
+    : { riesgoPorNumero:{}, pagoPotencialPorNumero:{} };
   const leyendaRiesgo = document.getElementById('tabla-leyenda-riesgo');
   if(leyendaRiesgo) leyendaRiesgo.style.display = puedeVerRiesgo ? 'inline' : 'none';
 
@@ -3743,7 +3763,7 @@ function renderTablaNumeros(){
     const cant = porNumero[n];
     const claseRiesgo = (puedeVerRiesgo && riesgoPorNumero[n]) ? 'en-riesgo' : '';
     return `<div class="num-chip ${nivelChance(cant)} ${claseRiesgo}"><span class="num">${n}</span><span class="cant">${cant}</span></div>`;
-  }).join('') : '<div class="empty-state">Sin ventas de chance todavía para este sorteo y fecha.</div>';
+  }).join('') : `<div class="empty-state">Sin ventas de chance todavía para ${sorteoId?'este sorteo y':'ningún sorteo,'} esta fecha.</div>`;
 
   const detalleRiesgo = document.getElementById('tabla-riesgo-detalle');
   const listaRiesgo = document.getElementById('tabla-riesgo-lista');
@@ -3778,13 +3798,13 @@ function renderTablaNumeros(){
     return `<div class="num-chip ${nivelPale(cant)}"><span class="num">${c}</span><span class="cant">${cant}</span></div>`;
   }).join('') : '<div class="empty-state">Sin ventas de palé todavía para este sorteo y fecha.</div>';
 
-  const vendeBilletes = sorteo && sorteo.tipoBillete && sorteo.tipoBillete!=='ninguno';
+  const vendeBilletes = sorteoId ? (sorteo && sorteo.tipoBillete && sorteo.tipoBillete!=='ninguno') : billetes.length>0;
   if(cardBillete) cardBillete.style.display = vendeBilletes ? 'block' : 'none';
   if(vendeBilletes && gridBillete){
     gridBillete.innerHTML = billetes.length ? billetes.map(b=>{
       const cant = porBillete[b];
       return `<div class="num-chip ${nivelBillete(cant)}"><span class="num">${b}</span><span class="cant">${cant}</span></div>`;
-    }).join('') : '<div class="empty-state">Sin ventas de billetes todavía para este sorteo y fecha.</div>';
+    }).join('') : '<div class="empty-state">Sin ventas de billetes todavía para esta fecha.</div>';
   }
 
   const totalTiemposChance = numeros.reduce((s,n)=>s+porNumero[n],0);

@@ -2106,13 +2106,25 @@ function editarDesdeHistorialGeneral(id){
   iniciarEdicionTicket(id);
 }
 let editandoVentaSnapshot = null;
+function jsonCanonico(valor){
+  // Compara datos sin que importe el orden interno de las propiedades ni
+  // pequeñas diferencias de precisión decimal — evita falsos positivos de
+  // "esto ya cambió" cuando en realidad el contenido es idéntico.
+  if(Array.isArray(valor)) return '['+valor.map(jsonCanonico).join(',')+']';
+  if(valor && typeof valor==='object'){
+    const claves = Object.keys(valor).sort();
+    return '{'+claves.map(k=>JSON.stringify(k)+':'+jsonCanonico(valor[k])).join(',')+'}';
+  }
+  if(typeof valor==='number') return String(+valor.toFixed(6));
+  return JSON.stringify(valor===undefined ? null : valor);
+}
 function iniciarEdicionTicket(ventaId){
   const venta = ventasList.find(v=>v.id===ventaId);
   if(!venta) return;
   if(venta.pendienteSync){ avisar('Este ticket todavía no se ha subido. Espera a que se sincronice para poder editarlo.'); return; }
   if(!puedeAnular(venta)){ avisar('Ya no puedes editar este ticket (el sorteo cerró, o no te pertenece).'); return; }
   editandoVentaId = venta.id;
-  editandoVentaSnapshot = JSON.stringify({ jugadas: venta.jugadas, total: venta.total, cliente: venta.cliente||'' });
+  editandoVentaSnapshot = jsonCanonico({ jugadas: venta.jugadas, total: venta.total, cliente: venta.cliente||'' });
   jugadasTicket = venta.jugadas.map(j=>({...j}));
   document.getElementById('sel-sorteo').value = venta.sorteoId;
   if(currentUser.role==='admin'){
@@ -2189,7 +2201,7 @@ async function guardarEdicionTicket(){
       mostrarPantallaVenta('historial'); renderHistorialSorteoActual();
       return;
     }
-    const actualSnapshot = JSON.stringify({ jugadas: actual.jugadas, total: +actual.total, cliente: actual.cliente||'' });
+    const actualSnapshot = jsonCanonico({ jugadas: actual.jugadas, total: +actual.total, cliente: actual.cliente||'' });
     if(actualSnapshot !== editandoVentaSnapshot){
       avisar('⚠️ Alguien más ya guardó un cambio en este ticket mientras lo editabas. Para no sobrescribir su cambio, tus ediciones NO se guardaron — vuelve a tocar "Editar" para ver la versión más reciente y repetir tu cambio ahí.');
       if(btn){ btn.disabled=false; btn.textContent='Guardar cambios'; }

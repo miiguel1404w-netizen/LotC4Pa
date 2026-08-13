@@ -595,9 +595,13 @@
           <span><span class="nivel-dot" style="background:var(--card); border:1px solid var(--line);"></span> Normal</span>
           <span><span class="nivel-dot" style="background:#FDEBD0; border:1px solid var(--gold-dark);"></span> 100 o más</span>
           <span><span class="nivel-dot" style="background:#FBDAD7; border:1px solid var(--red);"></span> 300 o más</span>
-          <span>⚠️ Riesgo: desde $100 vendidos en el sorteo, pagarías más del doble de lo vendido si ese número sale en 1er lugar</span>
+          <span id="tabla-leyenda-riesgo" style="display:none;">⚠️ Riesgo: desde $100 vendidos en el sorteo, pagarías más del doble de lo vendido si ese número sale en 1er lugar</span>
         </div>
         <div class="numeros-grid" id="tabla-chance-grid"></div>
+        <details id="tabla-riesgo-detalle" style="display:none; margin-top:14px;">
+          <summary style="cursor:pointer; font-weight:700; font-size:13px; color:var(--red);">⚠️ Números en riesgo</summary>
+          <div id="tabla-riesgo-lista" style="margin-top:10px;"></div>
+        </details>
       </div>
 
       <details class="card" style="padding:0;">
@@ -654,6 +658,10 @@
             <tbody id="lista-independientes"></tbody>
           </table>
         </div>
+        <details id="bal-eliminados-detalle" style="display:none;" class="card">
+          <summary style="cursor:pointer; font-weight:700; font-size:13px;">🗂️ Vendedores eliminados con movimientos</summary>
+          <div id="bal-eliminados-lista" style="margin-top:10px;"></div>
+        </details>
       </div>
 
       <div id="bal-pantalla-detalle" style="display:none">
@@ -969,7 +977,7 @@ function ahoraServidor(){
   return new Date(refServidorMs + (performance.now() - refPerfMs));
 }
 function filaAVendedor(v){ return { id:v.id, nombre:v.nombre, username:v.username, password:v.password, enEquipo: v.en_equipo !== false, porcentaje: +v.porcentaje || 0 }; }
-function filaALiquidacion(l){ return { id:l.id, vendedorId:l.vendedor_id, fecha:l.fecha, monto:+l.monto, direccion:l.direccion, nota:l.nota||'', sorteoId:l.sorteo_id||null, codigoSorteo:l.codigo_sorteo||null }; }
+function filaALiquidacion(l){ return { id:l.id, vendedorId:l.vendedor_id, vendedorNombre:l.vendedor_nombre||null, fecha:l.fecha, monto:+l.monto, direccion:l.direccion, nota:l.nota||'', sorteoId:l.sorteo_id||null, codigoSorteo:l.codigo_sorteo||null }; }
 function filaASorteo(s){
   return { id:s.id, nombre:s.nombre, horaSorteoTexto:s.hora_sorteo_texto, horaCierre:s.hora_cierre,
     dias:s.dias||[], notas:s.notas||'', excepcionFecha:s.excepcion_fecha, pausaFecha:s.pausa_fecha, paleHabilitado: s.pale_habilitado!==false,
@@ -1440,6 +1448,8 @@ async function guardarVendedor(){
   if(!nombre || !username || (!editingVendedorId && !passwordEscrita)){ avisar('Completa nombre, usuario y contraseña.'); return; }
   const usernameEnUso = vendedores.some(v=>v.username===username && v.id!==editingVendedorId) || username===adminAuth.username;
   if(usernameEnUso){ avisar('Ese usuario ya está en uso.'); return; }
+  const nombreEnUso = vendedores.some(v=>v.nombre.trim().toLowerCase()===nombre.toLowerCase() && v.id!==editingVendedorId);
+  if(nombreEnUso){ avisar('Ya existe un vendedor con ese nombre.'); return; }
   try{
     if(editingVendedorId){
       const v = vendedores.find(x=>x.id===editingVendedorId);
@@ -2178,9 +2188,12 @@ function renderHistorialSorteoActual(){
 
   const btnTabla = document.getElementById('btn-tabla-sorteo');
   if(btnTabla){
-    const { porNumero20, porNumero25 } = calcularTablaNumeros(sorteoId, hoyKey);
-    const { riesgoPorNumero } = calcularRiesgoChance(sorteoId, hoyKey, porNumero20, porNumero25);
-    const hayRiesgo = Object.values(riesgoPorNumero).some(r=>r);
+    let hayRiesgo = false;
+    if(puedeVerRiesgoChance()){
+      const { porNumero20, porNumero25 } = calcularTablaNumeros(sorteoId, hoyKey);
+      const { riesgoPorNumero } = calcularRiesgoChance(sorteoId, hoyKey, porNumero20, porNumero25);
+      hayRiesgo = Object.values(riesgoPorNumero).some(r=>r);
+    }
     btnTabla.classList.toggle('btn-riesgo', hayRiesgo);
     btnTabla.textContent = hayRiesgo ? '⚠️ Tabla de números' : '📊 Tabla de números';
   }
@@ -2807,9 +2820,9 @@ async function generarMovimientosAutoParaResultado(sorteoId, fechaKey, codigoSor
     const monto = +(vendido - comision - premios).toFixed(2);
     const existente = liquidaciones.find(l=>l.vendedorId===v.id && l.codigoSorteo===codigoSorteoTexto);
     const id = existente ? existente.id : uid();
-    const fila = { id, vendedorId:v.id, fecha: fechaKey+'T12:00:00', monto, direccion:null, nota:null, sorteoId: sorteoId||null, codigoSorteo: codigoSorteoTexto };
+    const fila = { id, vendedorId:v.id, vendedorNombre:v.nombre, fecha: fechaKey+'T12:00:00', monto, direccion:null, nota:null, sorteoId: sorteoId||null, codigoSorteo: codigoSorteoTexto };
     try{
-      const { error } = await db.from('liquidaciones').upsert({ id, vendedor_id:v.id, fecha:fila.fecha, monto, direccion:null, nota:null, sorteo_id: sorteoId||null, codigo_sorteo: codigoSorteoTexto });
+      const { error } = await db.from('liquidaciones').upsert({ id, vendedor_id:v.id, vendedor_nombre:v.nombre, fecha:fila.fecha, monto, direccion:null, nota:null, sorteo_id: sorteoId||null, codigo_sorteo: codigoSorteoTexto });
       if(error) throw error;
       if(existente){ Object.assign(existente, fila); }
       else{ liquidaciones.unshift(fila); }
@@ -2856,6 +2869,34 @@ function renderListaIndependientes(){
   const cajaTotal = document.getElementById('bal-total-general');
   if(cajaTotal && cajaTotal.style.display!=='none'){
     cajaTotal.innerHTML = `<div class="summary-box" style="border-left-color:${colorMonto(totalGeneral)}"><div class="num mono" style="color:${colorMonto(totalGeneral)};">$${totalGeneral.toFixed(2)}</div><div class="lbl">Total de todos los independientes${filtroSorteo?' (solo ese sorteo)':''}</div></div>`;
+  }
+
+  // Movimientos de vendedores ya eliminados: no desaparecen (la relación es
+  // SET NULL, no CASCADE), pero tampoco entran en la lista de arriba porque
+  // ya no hay vendedor vivo al cual asociarlos. Se agrupan aquí por el nombre
+  // guardado como respaldo, para no perder el historial.
+  const detalleEliminados = document.getElementById('bal-eliminados-detalle');
+  const listaEliminados = document.getElementById('bal-eliminados-lista');
+  if(detalleEliminados && listaEliminados){
+    const huerfanas = liquidaciones.filter(l=>!l.vendedorId && l.vendedorNombre);
+    if(huerfanas.length===0){
+      detalleEliminados.style.display = 'none';
+    }else{
+      const porNombre = {};
+      huerfanas.forEach(l=>{
+        if(!porNombre[l.vendedorNombre]) porNombre[l.vendedorNombre] = { balance:0, cantidad:0 };
+        porNombre[l.vendedorNombre].balance += efectoMovimiento(l);
+        porNombre[l.vendedorNombre].cantidad++;
+      });
+      detalleEliminados.style.display = 'block';
+      listaEliminados.innerHTML = Object.keys(porNombre).sort().map(nombre=>{
+        const b = porNombre[nombre];
+        return `<div style="display:flex; justify-content:space-between; padding:6px 4px; border-bottom:1px solid var(--line); font-size:13px;">
+          <span>${escapeHtml(nombre)} <span style="color:var(--ink-dim); font-size:11px;">(${b.cantidad} mov.)</span></span>
+          <span style="font-weight:700; color:${colorMonto(b.balance)};" class="mono">$${b.balance.toFixed(2)}</span>
+        </div>`;
+      }).join('');
+    }
   }
 }
 function toggleTotalBalance(){
@@ -2994,9 +3035,10 @@ async function guardarLiquidacion(){
   if(!liquidacionVendedorId || !monto || monto<=0){ avisar('Escribe un monto válido, mayor a 0.'); return; }
   const direccion = liquidacionDireccionElegida;
   const nota = document.getElementById('liq-nota').value.trim();
-  const nueva = { id: uid(), vendedorId: liquidacionVendedorId, fecha: ahoraServidor().toISOString(), monto:+monto.toFixed(2), direccion, nota, sorteoId:null, codigoSorteo:null };
+  const v = vendedores.find(x=>x.id===liquidacionVendedorId);
+  const nueva = { id: uid(), vendedorId: liquidacionVendedorId, vendedorNombre: v?v.nombre:null, fecha: ahoraServidor().toISOString(), monto:+monto.toFixed(2), direccion, nota, sorteoId:null, codigoSorteo:null };
   try{
-    await db.from('liquidaciones').insert({ id:nueva.id, vendedor_id:nueva.vendedorId, fecha:nueva.fecha, monto:nueva.monto, direccion:nueva.direccion, nota:nueva.nota });
+    await db.from('liquidaciones').insert({ id:nueva.id, vendedor_id:nueva.vendedorId, vendedor_nombre:nueva.vendedorNombre, fecha:nueva.fecha, monto:nueva.monto, direccion:nueva.direccion, nota:nueva.nota });
   }catch(e){ avisar('No se pudo guardar el pago. Revisa tu conexión.'); return; }
   liquidaciones.unshift(nueva);
   cerrarModalLiquidacion();
@@ -3412,6 +3454,13 @@ function calcularTablaNumeros(sorteoId, fechaKey){
 // solo chance). Solo empieza a evaluarse una vez que lo vendido en el sorteo
 // llega a $100 — antes de eso no se marca nada, para no disparar avisos con
 // montos chicos. Es solo una señal visual: no toca premiación, ventas ni balances.
+// Visible solo para admin y el vendedor cuyo username sea exactamente "Miguel".
+function puedeVerRiesgoChance(){
+  if(!currentUser) return false;
+  if(currentUser.role==='admin') return true;
+  const v = vendedores.find(x=>x.id===currentUser.vendedorId);
+  return !!v && v.username === 'Miguel';
+}
 function calcularRiesgoChance(sorteoId, fechaKey, porNumero20, porNumero25){
   const totalVendidoSorteo = ventasList
     .filter(v=>v.sorteoId===sorteoId && toDateKey(v.fecha)===fechaKey && !v.anulada)
@@ -3421,13 +3470,15 @@ function calcularRiesgoChance(sorteoId, fechaKey, porNumero20, porNumero25){
   const pago20 = premios.chance20[1];
   const pago25 = premios.chance25[1];
   const riesgoPorNumero = {};
+  const pagoPotencialPorNumero = {};
   const todos = new Set([...Object.keys(porNumero20), ...Object.keys(porNumero25)]);
   todos.forEach(n=>{
-    if(totalVendidoSorteo < PISO_ACTIVACION){ riesgoPorNumero[n] = false; return; }
     const pagoPotencial = (porNumero20[n]||0)*pago20 + (porNumero25[n]||0)*pago25;
+    pagoPotencialPorNumero[n] = pagoPotencial;
+    if(totalVendidoSorteo < PISO_ACTIVACION){ riesgoPorNumero[n] = false; return; }
     riesgoPorNumero[n] = pagoPotencial > umbral;
   });
-  return { riesgoPorNumero, umbral, totalVendidoSorteo };
+  return { riesgoPorNumero, pagoPotencialPorNumero, umbral, totalVendidoSorteo };
 }
 function renderTablaNumeros(){
   if(!dataLoaded || !currentUser) return;
@@ -3447,6 +3498,8 @@ function renderTablaNumeros(){
     const gc20 = document.getElementById('tabla-chance20-grid'); if(gc20) gc20.innerHTML = '';
     const gc25 = document.getElementById('tabla-chance25-grid'); if(gc25) gc25.innerHTML = '';
     resumen.innerHTML = '';
+    const dr = document.getElementById('tabla-riesgo-detalle'); if(dr) dr.style.display = 'none';
+    const lr = document.getElementById('tabla-leyenda-riesgo'); if(lr) lr.style.display = 'none';
     return;
   }
 
@@ -3457,13 +3510,33 @@ function renderTablaNumeros(){
   const numeros25 = Object.keys(porNumero25).sort();
   const combos = Object.keys(porPale).sort();
   const billetes = Object.keys(porBillete).sort();
-  const { riesgoPorNumero } = calcularRiesgoChance(sorteoId, fechaKey, porNumero20, porNumero25);
+  const { riesgoPorNumero, pagoPotencialPorNumero } = calcularRiesgoChance(sorteoId, fechaKey, porNumero20, porNumero25);
+  const puedeVerRiesgo = puedeVerRiesgoChance();
+  const leyendaRiesgo = document.getElementById('tabla-leyenda-riesgo');
+  if(leyendaRiesgo) leyendaRiesgo.style.display = puedeVerRiesgo ? 'inline' : 'none';
 
   gridChance.innerHTML = numeros.length ? numeros.map(n=>{
     const cant = porNumero[n];
-    const claseRiesgo = riesgoPorNumero[n] ? 'en-riesgo' : '';
+    const claseRiesgo = (puedeVerRiesgo && riesgoPorNumero[n]) ? 'en-riesgo' : '';
     return `<div class="num-chip ${nivelChance(cant)} ${claseRiesgo}"><span class="num">${n}</span><span class="cant">${cant}</span></div>`;
   }).join('') : '<div class="empty-state">Sin ventas de chance todavía para este sorteo y fecha.</div>';
+
+  const detalleRiesgo = document.getElementById('tabla-riesgo-detalle');
+  const listaRiesgo = document.getElementById('tabla-riesgo-lista');
+  if(detalleRiesgo && listaRiesgo){
+    if(!puedeVerRiesgo){
+      detalleRiesgo.style.display = 'none';
+    }else{
+      const numerosEnRiesgo = numeros.filter(n=>riesgoPorNumero[n]).sort((a,b)=>pagoPotencialPorNumero[b]-pagoPotencialPorNumero[a]);
+      detalleRiesgo.style.display = 'block';
+      listaRiesgo.innerHTML = numerosEnRiesgo.length ? numerosEnRiesgo.map(n=>
+        `<div style="display:flex; justify-content:space-between; padding:6px 4px; border-bottom:1px solid var(--line); font-size:13px;">
+          <span class="mono" style="font-weight:700;">${n}</span>
+          <span style="color:var(--red); font-weight:700;">Perderías $${pagoPotencialPorNumero[n].toFixed(2)} si sale 1ro</span>
+        </div>`
+      ).join('') : '<div class="empty-state">Ningún número en riesgo por ahora.</div>';
+    }
+  }
 
   const gridChance20 = document.getElementById('tabla-chance20-grid');
   const gridChance25 = document.getElementById('tabla-chance25-grid');

@@ -696,7 +696,10 @@
       <h1 class="page-title">🛡️ Balance real</h1>
       <div class="page-sub">Cobertura comprada por fuera (a otra persona/casa) para números de alto riesgo — no toca ventas, premios ni Balance de cuentas.</div>
 
-      <div id="cob-total-acumulado"></div>
+      <div class="filters">
+        <div id="cob-total-acumulado" style="flex:1;"></div>
+        <div id="cob-total-hoy" style="flex:1;"></div>
+      </div>
 
       <div class="card" style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
         <select id="cob-sorteo" onchange="renderCobertura()" style="flex:1; min-width:160px;"></select>
@@ -3648,6 +3651,7 @@ function renderCobertura(){
   if(!dataLoaded || !currentUser || !puedeVerRiesgoChance()) return;
   const sorteoId = document.getElementById('cob-sorteo').value;
   const fechaKey = document.getElementById('cob-fecha').value || toDateKey(ahoraServidor().toISOString());
+  const hoyKey = toDateKey(ahoraServidor().toISOString());
 
   // Balance real acumulado = Ganancia/pérdida global del negocio (vendido -
   // premios pagados, todas las ventas de siempre) + el efecto neto de todas
@@ -3666,6 +3670,24 @@ function renderCobertura(){
     cajaTotal.innerHTML = `<div class="summary-box" style="border-left-color:${colorMonto(balanceReal)}">
       <div class="num mono" style="color:${colorMonto(balanceReal)};">$${balanceReal.toFixed(2)}</div>
       <div class="lbl">Balance real acumulado (ganancia/pérdida global + coberturas${acumuladoPendientes?' · '+acumuladoPendientes+' pendiente(s)':''})</div>
+    </div>`;
+  }
+
+  // Mismo cálculo, pero recortado solo al día de hoy: vendido hoy − premios
+  // pagados hoy + coberturas de hoy ya resueltas.
+  const { totalVendido:vendidoHoy, totalPremios:premiosHoy } = calcularReportes(hoyKey, hoyKey, null, null);
+  const gananciaHoy = +(vendidoHoy-premiosHoy).toFixed(2);
+  let coberturaHoy = 0, pendientesHoy = 0;
+  coberturas.filter(c=>c.fechaKey===hoyKey).forEach(c=>{
+    const r = calcularCobertura(c);
+    if(r.pendiente) pendientesHoy++; else coberturaHoy += r.neto;
+  });
+  const balanceHoy = +(gananciaHoy+coberturaHoy).toFixed(2);
+  const cajaHoy = document.getElementById('cob-total-hoy');
+  if(cajaHoy){
+    cajaHoy.innerHTML = `<div class="summary-box" style="border-left-color:${colorMonto(balanceHoy)}">
+      <div class="num mono" style="color:${colorMonto(balanceHoy)};">$${balanceHoy.toFixed(2)}</div>
+      <div class="lbl">Balance real de hoy${pendientesHoy?' · '+pendientesHoy+' pendiente(s)':''}</div>
     </div>`;
   }
 

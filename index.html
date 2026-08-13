@@ -30,7 +30,9 @@
   .display{font-family:'Fraunces',serif;}
 
   #login-screen{ min-height:100vh; display:none; align-items:center; justify-content:center; background:linear-gradient(160deg, var(--charcoal) 0%, var(--charcoal-dark) 100%); padding:20px; }
-  #pantalla-cargando{ min-height:100vh; display:flex; align-items:center; justify-content:center; background:linear-gradient(160deg, var(--charcoal) 0%, var(--charcoal-dark) 100%); color:#fff; font-family:'Fraunces',serif; font-size:18px; }
+  #pantalla-cargando{ min-height:100vh; display:flex; align-items:center; justify-content:center; background:var(--paper); }
+  .spinner-carga{ width:38px; height:38px; border-radius:50%; border:4px solid var(--line); border-top-color:var(--green); animation:girar 0.8s linear infinite; }
+  @keyframes girar{ to{ transform:rotate(360deg); } }
   .login-card{ background:var(--paper); width:100%; max-width:360px; border-radius:14px; padding:34px 30px; box-shadow:0 30px 60px rgba(0,0,0,0.35); border-top:5px solid var(--gold); }
   .login-brand{ text-align:center; margin-bottom:26px; }
   .login-brand .name{ font-family:'Fraunces',serif; font-weight:700; font-size:24px; color:var(--green); }
@@ -97,6 +99,7 @@
   .btn-block{ width:100%; }
   .btn-row{ display:flex; gap:10px; flex-wrap:wrap; }
   .btn-sm{ padding:6px 12px; font-size:12.5px; }
+  .btn-editar-amarillo{ background:var(--gold); border-color:var(--gold); color:#fff; }
 
   .modalidad-tabs{ display:flex; gap:8px; margin-bottom:14px; }
   .modalidad-tab{ flex:1; text-align:center; padding:10px 6px; border-radius:7px; border:1.5px solid var(--line); cursor:pointer; font-size:13px; font-weight:600; color:var(--ink-dim); background:var(--paper-dim); }
@@ -271,7 +274,7 @@
 </head>
 <body>
 
-<div id="pantalla-cargando">Cargando…</div>
+<div id="pantalla-cargando"><div class="spinner-carga"></div></div>
 <div id="login-screen">
   <div class="login-card">
     <div class="login-brand">
@@ -342,7 +345,12 @@
         </div>
         <div class="summary-strip" id="hs-resumen"></div>
         <div class="card" style="padding:0;">
-          <h2 style="padding:16px 18px 0 18px;">Tickets de hoy</h2>
+          <div style="padding:16px 18px 0 18px; display:flex; align-items:center; justify-content:space-between; gap:10px;">
+            <h2 style="margin:0;">Tickets de hoy</h2>
+            <div style="position:relative; flex:1; max-width:180px;">
+              <input type="text" id="hs-buscar-cliente" placeholder="🔍 Buscar cliente" oninput="renderHistorialSorteoActual()" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" style="width:100%; padding:7px 10px; border-radius:7px; border:1.5px solid var(--line); font-size:13px;">
+            </div>
+          </div>
           <div class="jugadas-list" id="hs-lista-tickets" style="padding:8px 18px 18px 18px;"></div>
         </div>
         <button class="fab-anotar" onclick="abrirTecladoFullscreen()" title="Anotar">✎</button>
@@ -879,6 +887,23 @@ try{
 let vendedores = [];
 let sorteos = [];       // {id,nombre,horaSorteoTexto,horaCierre:'HH:MM',dias:[0..6],notas,excepcionFecha}
 function sorteosOrdenados(){ return sorteos.slice().sort((a,b)=> (a.horaCierre||'').localeCompare(b.horaCierre||'')); }
+function sorteoActualPorDefecto(){
+  const abiertos = sorteosOrdenados().filter(s=>sorteoAbierto(s));
+  if(abiertos.length>0) return abiertos[0].id;
+  const sel = document.getElementById('sel-sorteo');
+  if(sel && sel.value) return sel.value;
+  const ordenados = sorteosOrdenados();
+  return ordenados.length ? ordenados[0].id : '';
+}
+function aplicarFiltrosHistorialPorDefecto(){
+  const filtroFecha = document.getElementById('filtro-fecha');
+  const filtroSorteo = document.getElementById('filtro-sorteo');
+  if(filtroFecha) filtroFecha.value = ahoraServidor().toLocaleDateString('es-DO', {day:'2-digit', month:'2-digit', year:'numeric'});
+  if(filtroSorteo){
+    const actual = sorteoActualPorDefecto();
+    if(actual && [...filtroSorteo.options].some(o=>o.value===actual)) filtroSorteo.value = actual;
+  }
+}
 let adminAuth = { username:'admin', password:'admin123' };
 let premios = { chance20:{1:11,2:3,3:2}, chance25:{1:14,2:3,3:2}, pale:{"12":1000,"23":200},
   billete: {
@@ -933,7 +958,7 @@ function filaASorteo(s){
 function filaAVenta(v){
   return { id:v.id, folio:v.folio, vendedorId:v.vendedor_id, sorteoId:v.sorteo_id, codigoSorteo:v.codigo_sorteo,
     cliente:v.cliente, fecha:v.fecha, jugadas:v.jugadas, total:+v.total,
-    anulada:v.anulada, anuladaPor:v.anulada_por, anuladaEn:v.anulada_en, motivoAnulacion:v.motivo_anulacion };
+    anulada:v.anulada, anuladaPor:v.anulada_por, anuladaEn:v.anulada_en, motivoAnulacion:v.motivo_anulacion, editadoPor:v.editado_por||null };
 }
 function filaAResultado(r){ return { id:r.id, sorteoId:r.sorteo_id, codigoSorteo:r.codigo_sorteo, fechaKey:r.fecha_key, primero:r.primero, segundo:r.segundo, tercero:r.tercero, primeroCompleto:r.primero_completo||r.primero, segundoCompleto:r.segundo_completo||r.segundo, terceroCompleto:r.tercero_completo||r.tercero, updatedAt:r.updated_at||r.created_at }; }
 
@@ -954,6 +979,19 @@ async function fetchTodasFilas(tabla, selectStr, columnaOrden){
     desde += tamanoBloque;
   }
   return todas;
+}
+let logosPrecargados = {};
+function precargarLogosSorteos(){
+  // Descarga los logos en segundo plano apenas se conocen los sorteos, así
+  // ya están listos (decodificados) para cuando el usuario entre a la
+  // pantalla de "Seleccionar sorteo" y no se sienta la demora.
+  sorteos.forEach(s=>{
+    if(s.iconoUrl && !logosPrecargados[s.iconoUrl]){
+      logosPrecargados[s.iconoUrl] = true;
+      const img = new Image();
+      img.src = s.iconoUrl;
+    }
+  });
 }
 async function cargarDatos(){
   try{
@@ -982,6 +1020,7 @@ async function cargarDatos(){
     const { data } = await db.from('sorteos').select('*').order('created_at');
     sorteos = (data||[]).map(filaASorteo);
     cargaOk.sorteos = true;
+    precargarLogosSorteos();
   }catch(e){ cargaOk.sorteos = false; }
 
   try{
@@ -1211,7 +1250,7 @@ function switchTab(tab){
   if(tab==='micomision' && !(currentUser.role==='vendedor' && esVendedorIndependiente(currentUser.vendedorId))) return;
   if(tab!=='ventas'){ document.documentElement.classList.remove('sin-scroll'); document.body.classList.remove('sin-scroll'); }
   mostrarTabInterno(tab);
-  if(tab==='historial') renderHistorial();
+  if(tab==='historial'){ aplicarFiltrosHistorialPorDefecto(); renderHistorial(); }
   if(tab==='reportes') renderReportes();
   if(tab==='tabla'){ renderTablaSorteoSelect(); renderTablaNumeros(); }
   if(tab==='resultados'){ renderResultadosSorteoSelect(); renderListaResultados(); }
@@ -1980,6 +2019,7 @@ function mostrarPantallaVenta(p){
   if(cajaAdminVend) cajaAdminVend.style.display = (p==='sorteo' && currentUser.role==='admin') ? 'block' : 'none';
   document.documentElement.classList.toggle('sin-scroll', p==='teclado');
   document.body.classList.toggle('sin-scroll', p==='teclado');
+  window.scrollTo(0,0);
   registrarNavegacion();
 }
 let ultimoHashListaSorteosVenta = null;
@@ -2014,6 +2054,8 @@ function elegirSorteoVenta(sorteoId){
   }
   document.getElementById('sel-sorteo').value = sorteoId;
   onHeaderChange();
+  const buscarCliente = document.getElementById('hs-buscar-cliente');
+  if(buscarCliente) buscarCliente.value = '';
   mostrarPantallaVenta('historial');
   renderHistorialSorteoActual();
 }
@@ -2065,10 +2107,15 @@ function renderHistorialSorteoActual(){
     ${cajaPremios}`;
 
   const cont = document.getElementById('hs-lista-tickets');
+  const buscarCliente = document.getElementById('hs-buscar-cliente');
+  const textoBusqueda = buscarCliente ? buscarCliente.value.trim().toLowerCase() : '';
+  const activasFiltradas = textoBusqueda ? activas.filter(v=>(v.cliente||'').toLowerCase().includes(textoBusqueda)) : activas;
   if(activas.length===0){
     cont.innerHTML = '<div class="empty-state">Aún no hay tickets para este sorteo hoy. Toca ✎ para anotar.</div>';
+  }else if(activasFiltradas.length===0){
+    cont.innerHTML = '<div class="empty-state">Ningún cliente coincide con "'+escapeHtml(textoBusqueda)+'".</div>';
   }else{
-    cont.innerHTML = activas.map(v=>{
+    cont.innerHTML = activasFiltradas.map(v=>{
       const premio = v.pendienteSync ? null : premioDeVenta(v);
       let premioTxt;
       if(v.pendienteSync) premioTxt = '<span class="tag-pendiente">⏳ Pendiente</span>';
@@ -2079,12 +2126,12 @@ function renderHistorialSorteoActual(){
       const botonAnular = v.pendienteSync
         ? `<button class="btn-danger-text" onclick="quitarVentaPendiente('${v.id}')">Quitar</button>`
         : (puedeAnular(v) ? `<button class="btn-danger-text" onclick="anularDesdeHistorialSorteo('${v.id}')">Anular</button>` : '');
-      const botonEditar = (!v.pendienteSync && puedeAnular(v)) ? `<button class="btn btn-outline btn-sm" onclick="iniciarEdicionTicket('${v.id}')">Editar</button>` : '';
+      const botonEditar = (!v.pendienteSync && puedeAnular(v)) ? `<button class="btn btn-sm btn-editar-amarillo" onclick="iniciarEdicionTicket('${v.id}')">Editar</button>` : '';
       const nombreCliente = v.cliente?escapeHtml(v.cliente):'<span style="color:var(--ink-dim); font-weight:500;">Sin nombre</span>';
       return `<div class="jugada-row ${esGanador?'row-ganadora':''} ${v.pendienteSync?'row-pendiente':''}">
         <div>
           <div style="font-size:15.5px; font-weight:700; color:${esGanador?'var(--green)':'var(--ink)'};">${v.pendienteSync?'⏳ ':''}${esGanador?'🏆 ':''}${nombreCliente}</div>
-          <div style="color:var(--ink-dim); font-size:11.5px; margin-top:1px;" class="mono">#${folioTexto(v)} · ${escapeHtml(nombreVendedor(v.vendedorId))}</div>
+          <div style="color:var(--ink-dim); font-size:11.5px; margin-top:1px;" class="mono">#${folioTexto(v)} · ${escapeHtml(nombreVendedor(v.vendedorId).slice(0,3))}${v.editadoPor?' · edit: '+escapeHtml(v.editadoPor.slice(0,3)):''}</div>
         </div>
         <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; justify-content:flex-end;"><span class="mono" style="font-weight:600">$${v.total.toFixed(2)}</span>${premioTxt}
           <button class="btn btn-outline btn-sm" onclick="verComprobante('${v.id}')">Ver</button>${botonEditar}${botonAnular}</div>
@@ -2229,7 +2276,7 @@ async function guardarEdicionTicket(){
 
   if(btn) btn.textContent='Guardando...';
   try{
-    await conTiempoLimite(db.from('ventas').update({ jugadas: jugadasTicket, total, cliente }).eq('id', venta.id), 15000, 'guardando los cambios');
+    await conTiempoLimite(db.from('ventas').update({ jugadas: jugadasTicket, total, cliente, editado_por: currentUser.nombre }).eq('id', venta.id), 15000, 'guardando los cambios');
   }catch(e){
     avisar('No se pudo guardar los cambios ('+(e&&e.message?e.message:'sin conexión')+'). Intenta de nuevo.');
     if(btn){ btn.disabled=false; btn.textContent='Guardar cambios'; }
@@ -2238,6 +2285,7 @@ async function guardarEdicionTicket(){
   venta.jugadas = jugadasTicket.map(j=>({...j}));
   venta.total = total;
   venta.cliente = cliente;
+  venta.editadoPor = currentUser.nombre;
   avisar('Ticket actualizado.');
   mostrarComprobante(venta);
   editandoVentaId = null; editandoVentaSnapshot = null;
@@ -3034,14 +3082,14 @@ function renderHistorial(){
       const botonAnular = v.pendienteSync
         ? `<button class="btn-danger-text" onclick="quitarVentaPendiente('${v.id}')">Quitar</button>`
         : (puedeAnular(v) ? `<button class="btn-danger-text" onclick="anularVenta('${v.id}')">Anular</button>` : '');
-      const botonEditar = (!v.pendienteSync && puedeAnular(v)) ? `<button class="btn btn-outline btn-sm" onclick="editarDesdeHistorialGeneral('${v.id}')">Editar</button>` : '';
+      const botonEditar = (!v.pendienteSync && puedeAnular(v)) ? `<button class="btn btn-sm btn-editar-amarillo" onclick="editarDesdeHistorialGeneral('${v.id}')">Editar</button>` : '';
       const tituloAnulado = v.anulada ? `title="Anulado por ${escapeHtml(v.anuladaPor||'')}${v.motivoAnulacion? ': '+escapeHtml(v.motivoAnulacion):''}"` : '';
       const nombreCliente = v.cliente ? escapeHtml(v.cliente) : '<span style="color:var(--ink-dim); font-weight:500;">Sin nombre</span>';
       return `<div class="jugada-row ${v.anulada?'row-anulada':''}" ${tituloAnulado}>
         <div>
           <div style="font-size:14.5px; font-weight:700;">${v.pendienteSync?'⏳ ':''}${nombreCliente}</div>
-          <div style="font-size:11px; color:var(--ink-dim); margin-top:1px;" class="mono">#${folioTexto(v)} · ${escapeHtml(nombreVendedor(v.vendedorId))}</div>
-          <div style="font-size:11px; color:var(--ink-dim); margin-top:1px;">${nombreSorteoVenta(v)} · ${formatearFecha(v.fecha)} · ${v.jugadas.length} jugada(s)</div>
+          <div style="font-size:11px; color:var(--ink-dim); margin-top:1px;" class="mono">#${folioTexto(v)} · ${escapeHtml(nombreVendedor(v.vendedorId).slice(0,3))}${v.editadoPor?' · edit: '+escapeHtml(v.editadoPor.slice(0,3)):''}</div>
+          <div style="font-size:11px; color:var(--ink-dim); margin-top:1px;">${nombreSorteoVenta(v)} · ${formatearFecha(v.fecha)}</div>
         </div>
         <div style="display:flex; flex-direction:column; align-items:flex-end; gap:6px; flex-shrink:0;">
           <span class="mono" style="font-weight:700;">$${v.total.toFixed(2)}</span>

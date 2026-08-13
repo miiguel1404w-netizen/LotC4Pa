@@ -597,7 +597,7 @@
           <span><span class="nivel-dot" style="background:var(--card); border:1px solid var(--line);"></span> Normal</span>
           <span><span class="nivel-dot" style="background:#FDEBD0; border:1px solid var(--gold-dark);"></span> 100 o más</span>
           <span><span class="nivel-dot" style="background:#FBDAD7; border:1px solid var(--red);"></span> 300 o más</span>
-          <span id="tabla-leyenda-riesgo" style="display:none;">⚠️ Riesgo: desde $100 vendidos en el sorteo, pagarías más del doble de lo vendido si ese número sale en 1er lugar</span>
+          <span id="tabla-leyenda-riesgo" style="display:none;">⚠️ Riesgo: pagarías más de $200 (o más del doble de lo vendido, lo que sea mayor) si ese número sale en 1er lugar</span>
         </div>
         <div class="numeros-grid" id="tabla-chance-grid"></div>
         <details id="tabla-riesgo-detalle" style="display:none; margin-top:14px;">
@@ -3551,8 +3551,13 @@ function calcularRiesgoChance(sorteoId, fechaKey, porNumero20, porNumero25){
   const totalVendidoSorteo = ventasList
     .filter(v=>v.sorteoId===sorteoId && toDateKey(v.fecha)===fechaKey && !v.anulada)
     .reduce((s,v)=>s+v.total, 0);
-  const PISO_ACTIVACION = 100;
-  const umbral = totalVendidoSorteo * 2;
+  // El umbral es el mayor entre un piso fijo ($200 de pago potencial) y 2x lo
+  // vendido en el sorteo. El piso fijo es lo que evita que alguien concentre
+  // muchos tiempos en un solo número (ej. 25-50 tiempos) se cuele sin aviso
+  // solo porque el sorteo, en total, todavía no llegó a $100 vendidos — antes
+  // el riesgo no se evaluaba en absoluto hasta ese punto.
+  const PISO_PAGO_POTENCIAL = 200;
+  const umbral = Math.max(PISO_PAGO_POTENCIAL, totalVendidoSorteo*2);
   const pago20 = premios.chance20[1];
   const pago25 = premios.chance25[1];
   const riesgoPorNumero = {};
@@ -3561,7 +3566,6 @@ function calcularRiesgoChance(sorteoId, fechaKey, porNumero20, porNumero25){
   todos.forEach(n=>{
     const pagoPotencial = (porNumero20[n]||0)*pago20 + (porNumero25[n]||0)*pago25;
     pagoPotencialPorNumero[n] = pagoPotencial;
-    if(totalVendidoSorteo < PISO_ACTIVACION){ riesgoPorNumero[n] = false; return; }
     riesgoPorNumero[n] = pagoPotencial > umbral;
   });
   return { riesgoPorNumero, pagoPotencialPorNumero, umbral, totalVendidoSorteo };

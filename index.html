@@ -701,6 +701,8 @@
         <div id="cob-total-hoy" style="flex:1;"></div>
       </div>
 
+      <div id="cob-desglose"></div>
+
       <div class="card" style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
         <select id="cob-sorteo" onchange="renderCobertura()" style="flex:1; min-width:160px;"></select>
         <input type="date" id="cob-fecha" onchange="renderCobertura()">
@@ -3660,9 +3662,14 @@ function renderCobertura(){
   const { totalVendido, totalPremios } = calcularReportes(null, null, null, null);
   const gananciaGlobal = +(totalVendido-totalPremios).toFixed(2);
   let acumuladoCobertura = 0, acumuladoPendientes = 0;
+  let coberturasGanadas = 0, coberturasPerdidas = 0, costoTotalResueltas = 0, recuperadoTotalResueltas = 0;
   coberturas.forEach(c=>{
     const r = calcularCobertura(c);
-    if(r.pendiente) acumuladoPendientes++; else acumuladoCobertura += r.neto;
+    if(r.pendiente){ acumuladoPendientes++; return; }
+    acumuladoCobertura += r.neto;
+    costoTotalResueltas += r.costo;
+    recuperadoTotalResueltas += r.pago;
+    if(r.neto>=0) coberturasGanadas++; else coberturasPerdidas++;
   });
   const balanceReal = +(gananciaGlobal+acumuladoCobertura).toFixed(2);
   const cajaTotal = document.getElementById('cob-total-acumulado');
@@ -3671,6 +3678,20 @@ function renderCobertura(){
       <div class="num mono" style="color:${colorMonto(balanceReal)};">$${balanceReal.toFixed(2)}</div>
       <div class="lbl">Balance real acumulado (ganancia/pérdida global + coberturas${acumuladoPendientes?' · '+acumuladoPendientes+' pendiente(s)':''})</div>
     </div>`;
+  }
+  const totalResueltas = coberturasGanadas+coberturasPerdidas;
+  const cajaDesglose = document.getElementById('cob-desglose');
+  if(cajaDesglose){
+    cajaDesglose.innerHTML = totalResueltas>0 ? `<div class="card" style="font-size:13px;">
+      <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+        <span style="color:var(--ink-dim);">Coberturas resueltas</span>
+        <span><span style="color:var(--green); font-weight:700;">${coberturasGanadas} ganadas</span> · <span style="color:var(--red); font-weight:700;">${coberturasPerdidas} perdidas</span></span>
+      </div>
+      <div style="display:flex; justify-content:space-between;">
+        <span style="color:var(--ink-dim);">Costo total vs. recuperado</span>
+        <span class="mono">$${costoTotalResueltas.toFixed(2)} → $${recuperadoTotalResueltas.toFixed(2)}</span>
+      </div>
+    </div>` : '';
   }
 
   // Mismo cálculo, pero recortado solo al día de hoy: vendido hoy − premios

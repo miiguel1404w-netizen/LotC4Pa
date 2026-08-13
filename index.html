@@ -173,6 +173,7 @@
   .ganancia-neg{ font-family:'IBM Plex Mono',monospace; font-weight:700; color:var(--red); }
   .tag-anulado{ display:inline-block; font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:0.4px; padding:3px 8px; border-radius:20px; color:#fff; background:var(--red); }
   tr.row-anulada td{ opacity:0.55; }
+  div.jugada-row.row-anulada{ opacity:0.55; }
   .jugada-row.row-ganadora{ background:#FDF3D9; border-left:4px solid var(--gold); margin:0 -8px; padding-left:12px; padding-right:8px; border-radius:6px; }
   .ticket-anulado-banner{ text-align:center; background:var(--red); color:#fff; font-weight:700; font-size:12px; letter-spacing:0.6px; text-transform:uppercase; padding:6px; border-radius:5px; margin-bottom:12px; }
 
@@ -301,9 +302,9 @@
     <div class="role" id="session-rol">—</div>
   </div>
   <div class="nav-item active" data-tab="ventas" onclick="irATab('ventas')">🎟️ Vender</div>
+  <div class="nav-item admin-only" data-tab="reportes" onclick="irATab('reportes')">📊 Reportes</div>
   <div class="nav-item" data-tab="historial" onclick="irATab('historial')">📖 Historial general</div>
   <div class="nav-item" data-tab="tabla" onclick="irATab('tabla')">🔢 Tabla de números</div>
-  <div class="nav-item admin-only" data-tab="reportes" onclick="irATab('reportes')">📊 Reportes</div>
   <div class="nav-item admin-only" data-tab="resultados" onclick="irATab('resultados')">🏆 Resultados</div>
   <div class="nav-item admin-only" data-tab="independientes" onclick="irATab('independientes')">💵 Vendedores Independientes</div>
   <div class="nav-item" data-tab="micomision" id="nav-micomision" style="display:none" onclick="irATab('micomision')">💵 Mi comisión</div>
@@ -425,7 +426,7 @@
           </div>
           <div class="field" style="margin-top:14px;">
             <label>Cliente (opcional)</label>
-            <input type="text" id="vp-cliente" placeholder="Nombre del cliente, para identificar el comprobante" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+            <input type="text" id="vp-cliente" placeholder="Nombre del cliente, para identificar el comprobante" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" oninput="capitalizarCampoCliente(this)">
             <input type="text" id="in-cliente" style="display:none">
           </div>
           <div class="modal-actions" style="margin-top:16px;">
@@ -449,11 +450,8 @@
         <input type="text" id="filtro-cliente" placeholder="Buscar por cliente" oninput="renderHistorial()">
         <input type="text" id="filtro-codigo" placeholder="Buscar por folio o código de sorteo (ej. TIC-)" oninput="renderHistorial()" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
       </div>
-      <div class="card" style="padding:0; overflow-x:auto;">
-        <table id="tabla-historial">
-          <thead><tr><th>Folio</th><th>Fecha y hora</th><th>Cliente</th><th>Vendedor</th><th>Sorteo</th><th>Jugadas</th><th>Total</th><th>Premio</th><th></th></tr></thead>
-          <tbody id="tabla-historial-body"></tbody>
-        </table>
+      <div class="card" style="padding:0;">
+        <div class="jugadas-list" id="tabla-historial-body" style="padding:8px 16px 16px 16px;"></div>
         <div class="empty-state" id="historial-empty" style="display:none">Todavía no hay ventas registradas.</div>
       </div>
     </div>
@@ -480,31 +478,22 @@
 
       <div class="summary-strip" id="reportes-global"></div>
 
-      <div class="card" style="padding:0; overflow-x:auto;">
+      <div class="card" style="padding:0;">
         <h2 style="padding:20px 20px 0 20px">Por vendedor · Equipo</h2>
-        <table style="margin-top:12px">
-          <thead><tr><th>Vendedor</th><th>Total vendido</th><th>Premios pagados</th><th>Ganancia / pérdida</th></tr></thead>
-          <tbody id="reportes-vendedor-body"></tbody>
-        </table>
+        <div id="reportes-vendedor-body" style="padding:8px 16px 16px 16px;"></div>
         <div class="empty-state" id="reportes-vendedor-empty" style="display:none">No hay ventas para este filtro.</div>
       </div>
 
-      <div class="card" style="padding:0; overflow-x:auto;">
+      <div class="card" style="padding:0;">
         <h2 style="padding:20px 20px 0 20px">Por vendedor · Independientes</h2>
         <p class="hint" style="padding:0 20px;">La "Ganancia/pérdida" ya descuenta la comisión del vendedor, además de los premios pagados.</p>
-        <table style="margin-top:12px">
-          <thead><tr><th>Vendedor</th><th>Total vendido</th><th>% Com.</th><th>Comisión</th><th>Premios pagados</th><th>Ganancia / pérdida</th></tr></thead>
-          <tbody id="reportes-independientes-body"></tbody>
-        </table>
+        <div id="reportes-independientes-body" style="padding:8px 16px 16px 16px;"></div>
         <div class="empty-state" id="reportes-independientes-empty" style="display:none">No hay ventas de vendedores independientes para este filtro.</div>
       </div>
 
-      <div class="card" style="padding:0; overflow-x:auto;">
+      <div class="card" style="padding:0;">
         <h2 style="padding:20px 20px 0 20px">Por sorteo</h2>
-        <table style="margin-top:12px">
-          <thead><tr><th>Sorteo</th><th>Total vendido</th><th>Premios pagados</th><th>Ganancia / pérdida</th></tr></thead>
-          <tbody id="reportes-sorteo-body"></tbody>
-        </table>
+        <div id="reportes-sorteo-body" style="padding:8px 16px 16px 16px;"></div>
         <div class="empty-state" id="reportes-sorteo-empty" style="display:none">No hay ventas para este filtro.</div>
       </div>
     </div>
@@ -946,7 +935,7 @@ function filaAVenta(v){
     cliente:v.cliente, fecha:v.fecha, jugadas:v.jugadas, total:+v.total,
     anulada:v.anulada, anuladaPor:v.anulada_por, anuladaEn:v.anulada_en, motivoAnulacion:v.motivo_anulacion };
 }
-function filaAResultado(r){ return { id:r.id, sorteoId:r.sorteo_id, codigoSorteo:r.codigo_sorteo, fechaKey:r.fecha_key, primero:r.primero, segundo:r.segundo, tercero:r.tercero, primeroCompleto:r.primero_completo||r.primero, segundoCompleto:r.segundo_completo||r.segundo, terceroCompleto:r.tercero_completo||r.tercero }; }
+function filaAResultado(r){ return { id:r.id, sorteoId:r.sorteo_id, codigoSorteo:r.codigo_sorteo, fechaKey:r.fecha_key, primero:r.primero, segundo:r.segundo, tercero:r.tercero, primeroCompleto:r.primero_completo||r.primero, segundoCompleto:r.segundo_completo||r.segundo, terceroCompleto:r.tercero_completo||r.tercero, updatedAt:r.updated_at||r.created_at }; }
 
 let cargaOk = { vendedores:true, sorteos:true, ventas:true };
 async function fetchTodasFilas(tabla, selectStr, columnaOrden){
@@ -1323,6 +1312,14 @@ function confirmAceptar(){
 }
 function confirmCancelar(){ _resolverConfirm(null); }
 function escapeHtml(str){ const d=document.createElement('div'); d.textContent=str; return d.innerHTML; }
+function capitalizarCampoCliente(el){
+  if(el.value.length>0){
+    const cursor = el.selectionStart;
+    const capitalizado = el.value.charAt(0).toUpperCase() + el.value.slice(1);
+    if(capitalizado!==el.value){ el.value = capitalizado; el.selectionStart = el.selectionEnd = cursor; }
+  }
+}
+function capitalizarPrimera(str){ return str ? (str.charAt(0).toUpperCase() + str.slice(1)) : str; }
 
 // ---------------- VENDEDORES ----------------
 function onCambioEquipoVendedor(){
@@ -1615,8 +1612,12 @@ function renderSorteoFiltros(){
   const opts = sorteosOrdenados().map(s=>`<option value="${s.id}">${escapeHtml(s.nombre+' · '+s.horaSorteoTexto)}</option>`).join('');
   const filtroS = document.getElementById('filtro-sorteo');
   const valorPrevioFS = filtroS.value;
-  filtroS.innerHTML = '<option value="">Todos los sorteos</option>'+opts;
+  const esVendedor = currentUser && currentUser.role==='vendedor';
+  // Los vendedores ven el historial de su equipo, así que no les damos la
+  // opción de "Todos los sorteos" mezclados — tienen que elegir uno.
+  filtroS.innerHTML = (esVendedor ? '' : '<option value="">Todos los sorteos</option>') + opts;
   if(valorPrevioFS && [...filtroS.options].some(o=>o.value===valorPrevioFS)) filtroS.value = valorPrevioFS;
+  else if(esVendedor && filtroS.options.length>0) filtroS.value = filtroS.options[0].value;
 
   const repS = document.getElementById('rep-sorteo');
   const valorPrevioRS = repS.value;
@@ -2193,7 +2194,7 @@ async function guardarEdicionTicket(){
   if(!venta){ avisar('No se encontró el ticket.'); editandoVentaId=null; editandoVentaSnapshot=null; mostrarPantallaVenta('historial'); renderHistorialSorteoActual(); return; }
   if(!puedeAnular(venta)){ avisar('Ya no puedes editar este ticket (el sorteo cerró).'); editandoVentaId=null; editandoVentaSnapshot=null; jugadasTicket=[]; mostrarPantallaVenta('historial'); renderHistorialSorteoActual(); return; }
   if(jugadasTicket.length===0){ avisar('El ticket debe tener al menos una jugada. Si quieres eliminarlo por completo, usa "Anular" en vez de editar.'); return; }
-  const cliente = document.getElementById('vp-cliente').value.trim();
+  const cliente = capitalizarPrimera(document.getElementById('vp-cliente').value.trim());
   const total = +jugadasTicket.reduce((s,j)=>s+j.monto,0).toFixed(2);
   const btn = document.getElementById('btn-completar-venta');
   if(btn){ btn.disabled=true; btn.textContent='Revisando...'; }
@@ -2248,7 +2249,7 @@ async function guardarEdicionTicket(){
 }
 async function completarVentaDesdeVistaPrevia(){
   if(editandoVentaId){ await guardarEdicionTicket(); return; }
-  document.getElementById('in-cliente').value = document.getElementById('vp-cliente').value.trim();
+  document.getElementById('in-cliente').value = capitalizarPrimera(document.getElementById('vp-cliente').value.trim());
   await confirmarVenta();
   if(jugadasTicket.length===0){
     document.getElementById('vp-cliente').value = '';
@@ -2410,12 +2411,13 @@ function construirTicketHTML(venta){
   const jugadasHtml = venta.jugadas.map(j=>`
     <div class="ticket-jugada"><span><span class="jugada-tag ${TAG_CLASS[j.modalidad]}" style="font-size:9px;">${NOMBRES_MOD[j.modalidad]}</span> <span class="ticket-numero-vendido">${formatearNumeroJugada(j)}</span> <span class="ticket-cantidad-vendida">×${j.cantidad}</span></span><span>$${j.monto.toFixed(2)}</span></div>`).join('');
   const clienteRow = venta.cliente ? `<div class="ticket-row"><span class="k">Cliente</span><span class="v">${escapeHtml(venta.cliente)}</span></div>` : '';
+  const vendedorCorto = nombreVendedor(venta.vendedorId).slice(0,3);
   return `
     <div class="ticket-header"><div class="logo-badge">L4P</div><div class="name">LotC4Pa</div><div class="folio">Comprobante N.° ${folioTexto(venta)}</div></div>
     <div class="ticket-divider"></div>
     ${clienteRow}
-    <div class="ticket-row"><span class="k">Vendedor</span><span class="v">${escapeHtml(nombreVendedor(venta.vendedorId))}</span></div>
-    <div class="ticket-row"><span class="k">Sorteo</span><span class="v">${escapeHtml(nombreSorteo(venta.sorteoId))}</span></div>
+    <div class="ticket-row"><span class="k">Vendedor</span><span class="v">${escapeHtml(vendedorCorto)}</span></div>
+    <div class="ticket-row"><span class="k">Sorteo</span><span class="v" style="color:var(--red); font-weight:700;">${escapeHtml(nombreSorteo(venta.sorteoId))}</span></div>
     <div class="ticket-row"><span class="k">Código</span><span class="v mono">${escapeHtml(venta.codigoSorteo || codigoTextoDeVenta(venta))}</span></div>
     <div class="ticket-row"><span class="k">Fecha</span><span class="v">${formatearFecha(venta.fecha)}</span></div>
     <div class="ticket-divider"></div>
@@ -2881,25 +2883,26 @@ async function guardarResultado(){
   const codigoSorteo = sorteo ? codigoSorteoParaFecha(sorteo, fechaKey+'T12:00:00') : null;
   let r = resultadoDe(sorteoId, fechaKey);
   const idAUsar = r ? r.id : uid();
+  const ahoraIso = ahoraServidor().toISOString();
   try{
     await db.from('resultados').upsert(
       { id: idAUsar, sorteo_id: sorteoId, codigo_sorteo: codigoSorteo, fecha_key: fechaKey, primero:p1, segundo:p2, tercero:p3,
-        primero_completo:c1, segundo_completo:c2, tercero_completo:c3 },
+        primero_completo:c1, segundo_completo:c2, tercero_completo:c3, updated_at: ahoraIso },
       { onConflict: 'sorteo_id,fecha_key' }
     );
   }catch(e){ avisar('No se pudo guardar el resultado.'); return; }
-  if(r){ r.primero=p1; r.segundo=p2; r.tercero=p3; r.primeroCompleto=c1; r.segundoCompleto=c2; r.terceroCompleto=c3; r.codigoSorteo=codigoSorteo; }
-  else{ r = { id: idAUsar, sorteoId, codigoSorteo, fechaKey, primero:p1, segundo:p2, tercero:p3, primeroCompleto:c1, segundoCompleto:c2, terceroCompleto:c3 }; resultados.unshift(r); }
+  if(r){ r.primero=p1; r.segundo=p2; r.tercero=p3; r.primeroCompleto=c1; r.segundoCompleto=c2; r.terceroCompleto=c3; r.codigoSorteo=codigoSorteo; r.updatedAt=ahoraIso; }
+  else{ r = { id: idAUsar, sorteoId, codigoSorteo, fechaKey, primero:p1, segundo:p2, tercero:p3, primeroCompleto:c1, segundoCompleto:c2, terceroCompleto:c3, updatedAt:ahoraIso }; resultados.unshift(r); }
   renderListaResultados();
   mostrarGanadores(sorteoId, fechaKey);
   renderHistorial();
   await generarMovimientosAutoParaResultado(sorteoId, fechaKey, codigoSorteo);
   renderListaIndependientes();
-  // Vuelve los números a 00 como confirmación visual de que ya se guardó,
-  // así no quedan los mismos números puestos como si faltara guardar.
-  document.getElementById('res-primero').value = '00';
-  document.getElementById('res-segundo').value = '00';
-  document.getElementById('res-tercero').value = '00';
+  // Deja las casillas vacías (en vez de "00") para el siguiente sorteo a
+  // premiar, así no hay que borrar nada antes de escribir los números.
+  document.getElementById('res-primero').value = '';
+  document.getElementById('res-segundo').value = '';
+  document.getElementById('res-tercero').value = '';
   avisar('Resultado guardado.');
 }
 async function guardarResultadoHistorico(){
@@ -2913,20 +2916,21 @@ async function guardarResultadoHistorico(){
   const p1 = ultimosDosDigitos(c1), p2 = ultimosDosDigitos(c2), p3 = ultimosDosDigitos(c3);
   let r = resultados.find(x=>x.codigoSorteo===codigo);
   const idAUsar = r ? r.id : uid();
+  const ahoraIso = ahoraServidor().toISOString();
   try{
     await db.from('resultados').upsert(
       { id: idAUsar, sorteo_id: null, codigo_sorteo: codigo, fecha_key: fechaKey, primero:p1, segundo:p2, tercero:p3,
-        primero_completo:c1, segundo_completo:c2, tercero_completo:c3 }
+        primero_completo:c1, segundo_completo:c2, tercero_completo:c3, updated_at: ahoraIso }
     );
   }catch(e){ avisar('No se pudo guardar el resultado histórico.'); return; }
-  if(r){ r.primero=p1; r.segundo=p2; r.tercero=p3; r.primeroCompleto=c1; r.segundoCompleto=c2; r.terceroCompleto=c3; r.fechaKey=fechaKey; }
-  else{ r = { id: idAUsar, sorteoId:null, codigoSorteo:codigo, fechaKey, primero:p1, segundo:p2, tercero:p3, primeroCompleto:c1, segundoCompleto:c2, terceroCompleto:c3 }; resultados.unshift(r); }
+  if(r){ r.primero=p1; r.segundo=p2; r.tercero=p3; r.primeroCompleto=c1; r.segundoCompleto=c2; r.terceroCompleto=c3; r.fechaKey=fechaKey; r.updatedAt=ahoraIso; }
+  else{ r = { id: idAUsar, sorteoId:null, codigoSorteo:codigo, fechaKey, primero:p1, segundo:p2, tercero:p3, primeroCompleto:c1, segundoCompleto:c2, terceroCompleto:c3, updatedAt:ahoraIso }; resultados.unshift(r); }
   renderHistorial();
   await generarMovimientosAutoParaResultado(null, fechaKey, codigo);
   renderListaIndependientes();
-  document.getElementById('reshist-primero').value = '00';
-  document.getElementById('reshist-segundo').value = '00';
-  document.getElementById('reshist-tercero').value = '00';
+  document.getElementById('reshist-primero').value = '';
+  document.getElementById('reshist-segundo').value = '';
+  document.getElementById('reshist-tercero').value = '';
   avisar('Resultado histórico guardado — revisa el Historial, los premios de esos tickets ya deberían calcularse.');
 }
 function mostrarGanadores(sorteoId, fechaKey){
@@ -2963,15 +2967,24 @@ function mostrarGanadores(sorteoId, fechaKey){
 function renderListaResultados(){
   const cont = document.getElementById('lista-resultados');
   if(resultados.length===0){ cont.innerHTML = '<div class="empty-state">Aún no has registrado resultados.</div>'; return; }
-  cont.innerHTML = `<table><thead><tr><th>Sorteo</th><th>Fecha</th><th>1ro</th><th>2do</th><th>3ro</th><th></th></tr></thead><tbody>
-    ${resultados.map(r=>{
-      const nombreCol = r.sorteoId ? escapeHtml(nombreSorteo(r.sorteoId)) : `<span style="color:var(--ink-dim);">Histórico · ${escapeHtml(r.codigoSorteo||'')}</span>`;
-      const boton = r.sorteoId
-        ? `<button class="btn btn-outline btn-sm" onclick="mostrarGanadores('${r.sorteoId}','${r.fechaKey}')">Ver ganadores</button> <button class="btn-danger-text" onclick="eliminarResultadoHistorico('${r.id}')">Borrar</button>`
-        : `<span style="font-size:11.5px; color:var(--ink-dim);">Busca "${escapeHtml(r.codigoSorteo||'')}" en Historial</span> <button class="btn-danger-text" onclick="eliminarResultadoHistorico('${r.id}')">Borrar</button>`;
-      return `<tr><td>${nombreCol}</td><td>${r.fechaKey}</td><td class="mono">${r.primeroCompleto||r.primero}</td><td class="mono">${r.segundoCompleto||r.segundo}</td><td class="mono">${r.terceroCompleto||r.tercero}</td>
-      <td>${boton}</td></tr>`;
-    }).join('')}</tbody></table>`;
+  const ordenados = resultados.slice().sort((a,b)=> new Date(b.updatedAt||0) - new Date(a.updatedAt||0));
+  cont.innerHTML = ordenados.map(r=>{
+    const nombreCol = r.sorteoId ? escapeHtml(nombreSorteo(r.sorteoId)) : `Histórico · ${escapeHtml(r.codigoSorteo||'')}`;
+    const boton = r.sorteoId
+      ? `<button class="btn btn-outline btn-sm" onclick="mostrarGanadores('${r.sorteoId}','${r.fechaKey}')">Ver ganadores</button>`
+      : `<span style="font-size:11px; color:var(--ink-dim);">Busca "${escapeHtml(r.codigoSorteo||'')}" en Historial</span>`;
+    return `<div class="jugada-row">
+      <div>
+        <div style="font-size:14px; font-weight:700;">${nombreCol}</div>
+        <div style="font-size:11px; color:var(--ink-dim); margin-top:1px;">${r.fechaKey}</div>
+        <div class="mono" style="font-size:13px; margin-top:3px; font-weight:600;">${r.primeroCompleto||r.primero} · ${r.segundoCompleto||r.segundo} · ${r.terceroCompleto||r.tercero}</div>
+      </div>
+      <div style="display:flex; flex-direction:column; align-items:flex-end; gap:6px;">
+        ${boton}
+        <button class="btn-danger-text" onclick="eliminarResultadoHistorico('${r.id}')">Borrar</button>
+      </div>
+    </div>`;
+  }).join('');
 }
 async function eliminarResultadoHistorico(id){
   if(!(await mostrarConfirmacion('¿Borrar este resultado histórico? Si algún ticket ya lo estaba usando para calcular su premio, dejaría de calcularlo.'))) return;
@@ -3006,26 +3019,38 @@ function renderHistorial(){
     if(fcod && !folioTexto(v).toUpperCase().includes(fcod) && !(v.codigoSorteo||'').toUpperCase().includes(fcod)) return false;
     return true;
   });
-  const tbody = document.getElementById('tabla-historial-body'); const tabla = document.getElementById('tabla-historial'); const empty = document.getElementById('historial-empty');
-  if(filtradas.length===0){ tabla.style.display='none'; empty.style.display='block'; }
+  const tbody = document.getElementById('tabla-historial-body'); const empty = document.getElementById('historial-empty');
+  if(filtradas.length===0){ tbody.innerHTML=''; empty.style.display='block'; }
   else{
-    tabla.style.display='table'; empty.style.display='none';
+    empty.style.display='none';
     tbody.innerHTML = filtradas.map(v=>{
       let premioCell;
       if(v.anulada){ premioCell = '<span class="tag-anulado">Anulado</span>'; }
       else if(v.pendienteSync){ premioCell = '<span class="tag-pendiente">⏳ Pendiente</span>'; }
       else{
         const premio = premioDeVenta(v);
-        premioCell = premio===null ? '<span style="color:var(--ink-dim)">—</span>' : (premio>0 ? `<span class="premio-tag">$${premio.toFixed(2)}</span>` : '$0.00');
+        premioCell = premio===null ? '<span style="color:var(--ink-dim); font-size:12px;">Sin premiar</span>' : (premio>0 ? `<span class="premio-tag">$${premio.toFixed(2)}</span>` : '');
       }
       const botonAnular = v.pendienteSync
         ? `<button class="btn-danger-text" onclick="quitarVentaPendiente('${v.id}')">Quitar</button>`
         : (puedeAnular(v) ? `<button class="btn-danger-text" onclick="anularVenta('${v.id}')">Anular</button>` : '');
       const botonEditar = (!v.pendienteSync && puedeAnular(v)) ? `<button class="btn btn-outline btn-sm" onclick="editarDesdeHistorialGeneral('${v.id}')">Editar</button>` : '';
       const tituloAnulado = v.anulada ? `title="Anulado por ${escapeHtml(v.anuladaPor||'')}${v.motivoAnulacion? ': '+escapeHtml(v.motivoAnulacion):''}"` : '';
-      return `<tr class="${v.anulada?'row-anulada':''}" ${tituloAnulado}><td class="mono">#${folioTexto(v)}</td><td>${formatearFecha(v.fecha)}</td><td>${v.cliente? escapeHtml(v.cliente) : '<span style="color:var(--ink-dim)">—</span>'}</td><td>${escapeHtml(nombreVendedor(v.vendedorId))}</td>
-      <td>${nombreSorteoVenta(v)}</td><td>${v.jugadas.length}</td><td class="mono" style="font-weight:600;">$${v.total.toFixed(2)}</td><td>${premioCell}</td>
-      <td style="display:flex; gap:6px; flex-wrap:wrap;"><button class="btn btn-outline btn-sm" onclick="verComprobante('${v.id}')">Ver / Imprimir</button>${botonEditar}${botonAnular}</td></tr>`;
+      const nombreCliente = v.cliente ? escapeHtml(v.cliente) : '<span style="color:var(--ink-dim); font-weight:500;">Sin nombre</span>';
+      return `<div class="jugada-row ${v.anulada?'row-anulada':''}" ${tituloAnulado}>
+        <div>
+          <div style="font-size:14.5px; font-weight:700;">${v.pendienteSync?'⏳ ':''}${nombreCliente}</div>
+          <div style="font-size:11px; color:var(--ink-dim); margin-top:1px;" class="mono">#${folioTexto(v)} · ${escapeHtml(nombreVendedor(v.vendedorId))}</div>
+          <div style="font-size:11px; color:var(--ink-dim); margin-top:1px;">${nombreSorteoVenta(v)} · ${formatearFecha(v.fecha)} · ${v.jugadas.length} jugada(s)</div>
+        </div>
+        <div style="display:flex; flex-direction:column; align-items:flex-end; gap:6px; flex-shrink:0;">
+          <span class="mono" style="font-weight:700;">$${v.total.toFixed(2)}</span>
+          ${premioCell}
+          <div style="display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end;">
+            <button class="btn btn-outline btn-sm" onclick="verComprobante('${v.id}')">Ver</button>${botonEditar}${botonAnular}
+          </div>
+        </div>
+      </div>`;
     }).join('');
   }
   const activas = filtradas.filter(v=>!v.anulada);
@@ -3118,7 +3143,13 @@ function renderReportes(){
     emptyV.style.display='none';
     bodyV.innerHTML = idsEquipo.map(id=>{
       const d = porVendedor[id];
-      return `<tr><td>${escapeHtml(nombreVendedor(id))}</td><td class="mono">$${d.vendido.toFixed(2)}</td><td class="mono premio-tag">$${d.premios.toFixed(2)}</td><td>${celdaGanancia(d.vendido,d.premios)}</td></tr>`;
+      return `<div class="jugada-row">
+        <div>
+          <div style="font-weight:700;">${escapeHtml(nombreVendedor(id))}</div>
+          <div style="font-size:11.5px; color:var(--ink-dim); margin-top:1px;">Vendido: $${d.vendido.toFixed(2)} · Premios: $${d.premios.toFixed(2)}</div>
+        </div>
+        <div style="font-weight:700; font-size:15px;">${celdaGanancia(d.vendido,d.premios)}</div>
+      </div>`;
     }).join('');
   }
 
@@ -3132,7 +3163,13 @@ function renderReportes(){
       const v = vendedores.find(x=>x.id===id);
       const pct = v ? (v.porcentaje||0) : 0;
       const comision = +(d.vendido*(pct/100)).toFixed(2);
-      return `<tr><td>${escapeHtml(nombreVendedor(id))}</td><td class="mono">$${d.vendido.toFixed(2)}</td><td class="mono">${pct}%</td><td class="mono">$${comision.toFixed(2)}</td><td class="mono premio-tag">$${d.premios.toFixed(2)}</td><td>${celdaGanancia(d.vendido, d.premios+comision)}</td></tr>`;
+      return `<div class="jugada-row">
+        <div>
+          <div style="font-weight:700;">${escapeHtml(nombreVendedor(id))} <span style="font-weight:400; font-size:11.5px; color:var(--ink-dim);">(${pct}% com.)</span></div>
+          <div style="font-size:11.5px; color:var(--ink-dim); margin-top:1px;">Vendido: $${d.vendido.toFixed(2)} · Comisión: $${comision.toFixed(2)} · Premios: $${d.premios.toFixed(2)}</div>
+        </div>
+        <div style="font-weight:700; font-size:15px;">${celdaGanancia(d.vendido, d.premios+comision)}</div>
+      </div>`;
     }).join('');
   }
 
@@ -3144,7 +3181,13 @@ function renderReportes(){
     emptyS.style.display='none';
     bodyS.innerHTML = idsSorteo.map(id=>{
       const d = porSorteo[id];
-      return `<tr><td>${escapeHtml(nombreSorteo(id))}</td><td class="mono">$${d.vendido.toFixed(2)}</td><td class="mono premio-tag">$${d.premios.toFixed(2)}</td><td>${celdaGanancia(d.vendido,d.premios)}</td></tr>`;
+      return `<div class="jugada-row">
+        <div>
+          <div style="font-weight:700;">${escapeHtml(nombreSorteo(id))}</div>
+          <div style="font-size:11.5px; color:var(--ink-dim); margin-top:1px;">Vendido: $${d.vendido.toFixed(2)} · Premios: $${d.premios.toFixed(2)}</div>
+        </div>
+        <div style="font-weight:700; font-size:15px;">${celdaGanancia(d.vendido,d.premios)}</div>
+      </div>`;
     }).join('');
   }
 }

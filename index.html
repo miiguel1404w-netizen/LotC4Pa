@@ -24,7 +24,7 @@
   *{box-sizing:border-box;}
   summary::-webkit-details-marker{ display:none; }
   summary{ outline:none; }
-  html,body{margin:0;padding:0;}
+  html,body{margin:0;padding:0; overscroll-behavior-y:contain;}
   body{ background:var(--paper); color:var(--ink); font-family:'Inter',sans-serif; -webkit-font-smoothing:antialiased; }
   .mono{font-family:'IBM Plex Mono',monospace;}
   .display{font-family:'Fraunces',serif;}
@@ -301,6 +301,7 @@
     <div class="topbar-nombre">LotC4Pa</div>
     <div class="topbar-sesion" id="topbar-sesion-nombre">—</div>
   </div>
+  <button id="btn-refrescar-manual" onclick="refrescoManual()" title="Actualizar" style="margin-left:auto; background:none; border:1px solid rgba(245,241,230,0.35); color:var(--paper); border-radius:8px; width:34px; height:34px; font-size:16px; cursor:pointer;">↻</button>
 </div>
 <div id="menu-overlay" class="no-print" onclick="cerrarMenu()"></div>
 <div id="menu-drawer" class="no-print">
@@ -594,7 +595,7 @@
           <span><span class="nivel-dot" style="background:var(--card); border:1px solid var(--line);"></span> Normal</span>
           <span><span class="nivel-dot" style="background:#FDEBD0; border:1px solid var(--gold-dark);"></span> 100 o más</span>
           <span><span class="nivel-dot" style="background:#FBDAD7; border:1px solid var(--red);"></span> 300 o más</span>
-          <span>⚠️ Riesgo: pagarías más del doble de lo vendido en el sorteo si sale en 1er lugar</span>
+          <span>⚠️ Riesgo: desde $100 vendidos en el sorteo, pagarías más del doble de lo vendido si ese número sale en 1er lugar</span>
         </div>
         <div class="numeros-grid" id="tabla-chance-grid"></div>
       </div>
@@ -3408,17 +3409,21 @@ function calcularTablaNumeros(sorteoId, fechaKey){
 // Riesgo de chance: para cada número (combinando $0.20 y $0.25), calcula cuánto
 // pagarías si ese número sale en 1er lugar (peor caso) y lo marca si ese pago
 // supera 2x el total vendido en el sorteo ese día (todas las modalidades, no
-// solo chance). Es solo una señal visual: no toca premiación, ventas ni balances.
+// solo chance). Solo empieza a evaluarse una vez que lo vendido en el sorteo
+// llega a $100 — antes de eso no se marca nada, para no disparar avisos con
+// montos chicos. Es solo una señal visual: no toca premiación, ventas ni balances.
 function calcularRiesgoChance(sorteoId, fechaKey, porNumero20, porNumero25){
   const totalVendidoSorteo = ventasList
     .filter(v=>v.sorteoId===sorteoId && toDateKey(v.fecha)===fechaKey && !v.anulada)
     .reduce((s,v)=>s+v.total, 0);
+  const PISO_ACTIVACION = 100;
   const umbral = totalVendidoSorteo * 2;
   const pago20 = premios.chance20[1];
   const pago25 = premios.chance25[1];
   const riesgoPorNumero = {};
   const todos = new Set([...Object.keys(porNumero20), ...Object.keys(porNumero25)]);
   todos.forEach(n=>{
+    if(totalVendidoSorteo < PISO_ACTIVACION){ riesgoPorNumero[n] = false; return; }
     const pagoPotencial = (porNumero20[n]||0)*pago20 + (porNumero25[n]||0)*pago25;
     riesgoPorNumero[n] = pagoPotencial > umbral;
   });
@@ -3536,6 +3541,20 @@ setInterval(()=>{
   if(!currentUser) return;
   refrescarConfigCompartida();
 }, 30000);
+// Refresco manual desde el botón ↻ de la barra superior: usa el mismo
+// mecanismo que el refresco automático de cada 30s (vuelve a traer los
+// datos y repinta la pantalla actual), sin recargar la página ni sacar
+// a la persona de donde está.
+async function refrescoManual(){
+  const btn = document.getElementById('btn-refrescar-manual');
+  if(!currentUser || !btn) return;
+  btn.disabled = true;
+  btn.style.transition = 'transform 0.6s linear';
+  btn.style.transform = 'rotate(360deg)';
+  try{ await refrescarConfigCompartida(); }finally{
+    setTimeout(()=>{ btn.style.transition='none'; btn.style.transform='rotate(0deg)'; btn.disabled=false; }, 650);
+  }
+}
 
 // ---------------- INIT ----------------
 if('serviceWorker' in navigator){

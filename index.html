@@ -704,6 +704,7 @@
 
       <div class="card">
         <h2 style="font-size:14px;">＋ Agregar cobertura</h2>
+        <div id="cob-riesgo-chips" style="margin-bottom:10px;"></div>
         <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:8px;">
           <input type="text" id="cob-numero" placeholder="Número (00-99)" maxlength="2" inputmode="numeric" style="width:110px;">
           <select id="cob-modalidad" style="width:110px;">
@@ -3586,24 +3587,47 @@ async function eliminarCobertura(id){
   coberturas = coberturas.filter(c=>c.id!==id);
   renderCobertura();
 }
+function elegirNumeroRiesgo(n){
+  document.getElementById('cob-numero').value = n;
+}
 function renderCobertura(){
   if(!dataLoaded || !currentUser || !puedeVerRiesgoChance()) return;
   const sorteoId = document.getElementById('cob-sorteo').value;
   const fechaKey = document.getElementById('cob-fecha').value || toDateKey(ahoraServidor().toISOString());
 
-  // Total acumulado: todas las coberturas con resultado ya conocido, sin
-  // importar sorteo ni fecha — el "balance real" de todo lo cubierto hasta ahora.
-  let acumulado = 0, acumuladoPendientes = 0;
+  // Balance real acumulado = Ganancia/pérdida global del negocio (vendido -
+  // premios pagados, todas las ventas de siempre) + el efecto neto de todas
+  // las coberturas ya resueltas. Así el número refleja lo que de verdad
+  // ganaste o perdiste, cobertura incluida — no solo el ajuste aislado.
+  const { totalVendido, totalPremios } = calcularReportes(null, null, null, null);
+  const gananciaGlobal = +(totalVendido-totalPremios).toFixed(2);
+  let acumuladoCobertura = 0, acumuladoPendientes = 0;
   coberturas.forEach(c=>{
     const r = calcularCobertura(c);
-    if(r.pendiente) acumuladoPendientes++; else acumulado += r.neto;
+    if(r.pendiente) acumuladoPendientes++; else acumuladoCobertura += r.neto;
   });
+  const balanceReal = +(gananciaGlobal+acumuladoCobertura).toFixed(2);
   const cajaTotal = document.getElementById('cob-total-acumulado');
   if(cajaTotal){
-    cajaTotal.innerHTML = `<div class="summary-box" style="border-left-color:${colorMonto(acumulado)}">
-      <div class="num mono" style="color:${colorMonto(acumulado)};">$${acumulado.toFixed(2)}</div>
-      <div class="lbl">Balance real acumulado${acumuladoPendientes?' · '+acumuladoPendientes+' pendiente(s) de resultado':''}</div>
+    cajaTotal.innerHTML = `<div class="summary-box" style="border-left-color:${colorMonto(balanceReal)}">
+      <div class="num mono" style="color:${colorMonto(balanceReal)};">$${balanceReal.toFixed(2)}</div>
+      <div class="lbl">Balance real acumulado (ganancia/pérdida global + coberturas${acumuladoPendientes?' · '+acumuladoPendientes+' pendiente(s)':''})</div>
     </div>`;
+  }
+
+  const cajaChips = document.getElementById('cob-riesgo-chips');
+  if(cajaChips){
+    if(!sorteoId){
+      cajaChips.innerHTML = '';
+    }else{
+      const { porNumero20, porNumero25 } = calcularTablaNumeros(sorteoId, fechaKey);
+      const { riesgoPorNumero } = calcularRiesgoChance(sorteoId, fechaKey, porNumero20, porNumero25);
+      const enRiesgo = Object.keys(riesgoPorNumero).filter(n=>riesgoPorNumero[n]).sort();
+      cajaChips.innerHTML = enRiesgo.length
+        ? `<div style="font-size:11.5px; color:var(--ink-dim); margin-bottom:6px;">⚠️ Números en riesgo de este sorteo/fecha — toca uno para cargarlo:</div>
+           <div style="display:flex; gap:6px; flex-wrap:wrap;">${enRiesgo.map(n=>`<button type="button" onclick="elegirNumeroRiesgo('${n}')" class="btn btn-outline btn-sm" style="padding:4px 10px; font-size:12px; border-color:#7a0d0d; color:var(--red);">${n}</button>`).join('')}</div>`
+        : '';
+    }
   }
 
   const lista = document.getElementById('cob-lista');

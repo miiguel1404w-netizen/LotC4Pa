@@ -3706,6 +3706,7 @@ function renderCobertura(){
 
 function renderTablaNumeros(){
   if(!dataLoaded || !currentUser) return;
+  const sorteoId = document.getElementById('tabla-sorteo').value;
   const fechaKey = document.getElementById('tabla-fecha').value || toDateKey(ahoraServidor().toISOString());
   const gridChance = document.getElementById('tabla-chance-grid');
   const gridPale = document.getElementById('tabla-pale-grid');

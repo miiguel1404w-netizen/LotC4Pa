@@ -616,6 +616,7 @@
           <button class="btn btn-outline btn-sm" onclick="toggleTotalBalance()" title="Ver total de todos">Σ Total</button>
           <button class="btn btn-outline btn-sm" onclick="refrescarBalances()" title="Actualizar">↻</button>
         </div>
+        <button class="btn btn-text" style="font-size:12px; margin-top:-6px;" onclick="recalcularTodosLosBalances()">🔄 Poner al día con resultados ya cargados</button>
         <div id="bal-total-general" style="display:none;"></div>
         <div class="card" style="padding:0; overflow:hidden;">
           <table>
@@ -2021,7 +2022,7 @@ function renderHistorialSorteoActual(){
   if(!sorteo){ volverASeleccionarSorteo(); return; }
   document.getElementById('hs-nombre').textContent = sorteo.nombre;
   document.getElementById('hs-hora').textContent = sorteo.horaSorteoTexto;
-  document.getElementById('hs-fecha').textContent = formatearFecha(ahoraServidor().toISOString());
+  document.getElementById('hs-fecha').textContent = ahoraServidor().toLocaleDateString('es-DO', {day:'2-digit', month:'2-digit', year:'numeric'});
   document.getElementById('hs-codigo').textContent = codigoSorteoParaFecha(sorteo, ahoraServidor().toISOString());
   actualizarEstadoSorteo();
 
@@ -2602,9 +2603,11 @@ function premioDeVenta(venta){
 // ---------------- VENDEDORES INDEPENDIENTES: COMISIÓN Y BALANCE ----------------
 function efectoMovimiento(l){
   // Las filas automáticas (generadas por resultado de sorteo) ya traen el
-  // monto con el signo correcto. Las manuales (Pago/Abono) usan dirección.
+  // monto con el signo correcto. Las manuales: un Abono (el vendedor me
+  // entrega a mí) RESTA lo que debe; un Pago (yo le entrego a él) SUMA
+  // porque es un adelanto que él me tiene que reponer.
   if(l.codigoSorteo) return l.monto;
-  return l.direccion==='vendedor_a_admin' ? l.monto : -l.monto;
+  return l.direccion==='vendedor_a_admin' ? -l.monto : l.monto;
 }
 function calcularBalanceVendedor(vendedorId, filtroSorteoId){
   const v = vendedores.find(x=>x.id===vendedorId);
@@ -2692,6 +2695,17 @@ async function refrescarBalances(){
   await cargarDatos();
   renderListaIndependientes();
   avisar('Actualizado.');
+}
+async function recalcularTodosLosBalances(){
+  if(!(await mostrarConfirmacion('Esto revisa TODOS los resultados que ya has cargado y genera las filas de balance que falten (por ejemplo, sorteos que premiaste antes de tener este módulo). Puede tardar un momento si tienes muchos resultados. ¿Continuar?'))) return;
+  avisar('Poniendo al día... no cierres esta pantalla.');
+  for(const r of resultados){
+    if(!r.codigoSorteo) continue;
+    await generarMovimientosAutoParaResultado(r.sorteoId, r.fechaKey, r.codigoSorteo);
+  }
+  renderListaIndependientes();
+  if(detalleIndependienteId) renderDetalleIndependiente();
+  avisar('Balance puesto al día con todos los resultados ya cargados.');
 }
 let detalleIndependienteId = null;
 function abrirDetalleIndependiente(vendedorId){

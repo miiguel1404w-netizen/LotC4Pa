@@ -37,7 +37,8 @@
   .login-brand{ text-align:center; margin-bottom:26px; }
   .login-brand .name{ font-family:'Fraunces',serif; font-weight:700; font-size:24px; color:var(--green); }
   .login-brand .sub{ font-size:12px; color:var(--ink-dim); text-transform:uppercase; letter-spacing:1px; margin-top:4px; }
-  .logo-badge{ width:46px; height:46px; border-radius:50%; background:var(--charcoal); border:3px solid var(--gold); display:flex; align-items:center; justify-content:center; font-family:'Fraunces',serif; font-weight:700; color:#fff; font-size:16px; margin:0 auto 10px auto; box-shadow:0 3px 8px rgba(0,0,0,0.15); }
+  .logo-badge{ width:46px; height:46px; border-radius:50%; overflow:hidden; border:3px solid var(--gold); display:flex; align-items:center; justify-content:center; flex-shrink:0; margin:0 auto 10px auto; box-shadow:0 3px 8px rgba(0,0,0,0.15); }
+  .logo-badge img{ width:100%; height:100%; object-fit:cover; display:block; }
   .logo-badge-sm{ width:36px; height:36px; border:2px solid var(--gold); font-size:13px; margin:0; flex-shrink:0; }
   .brand-row{ display:flex; align-items:center; gap:10px; }
   .login-error{ background:rgba(162,59,30,0.1); color:var(--red); font-size:13px; padding:9px 12px; border-radius:7px; margin-bottom:14px; display:none; }
@@ -282,7 +283,7 @@
 <div id="login-screen">
   <div class="login-card">
     <div class="login-brand">
-      <div class="logo-badge">L4P</div>
+      <div class="logo-badge"><img src="icons/icon-192.png" alt="LotC4Pa"></div>
       <div class="name">LotC4Pa</div>
       <div class="sub">🎟️ Acceso al sistema · versión de prueba v3</div>
     </div>
@@ -296,7 +297,7 @@
 <div id="app-shell">
 <div id="topbar" class="no-print">
   <button id="btn-hamburguesa" onclick="toggleMenu()">☰</button>
-  <div class="logo-badge logo-badge-sm">L4P</div>
+  <div class="logo-badge logo-badge-sm"><img src="icons/icon-192.png" alt="LotC4Pa"></div>
   <div class="topbar-titulos">
     <div class="topbar-nombre">LotC4Pa</div>
     <div class="topbar-sesion" id="topbar-sesion-nombre">—</div>
@@ -2728,7 +2729,7 @@ function construirTicketHTML(venta){
   const clienteRow = venta.cliente ? `<div class="ticket-row"><span class="k">Cliente</span><span class="v">${escapeHtml(venta.cliente)}</span></div>` : '';
   const vendedorCorto = nombreVendedor(venta.vendedorId).slice(0,3);
   return `
-    <div class="ticket-header"><div class="logo-badge">L4P</div><div class="name">LotC4Pa</div><div class="folio">Comprobante N.° ${folioTexto(venta)}</div></div>
+    <div class="ticket-header"><div class="logo-badge"><img src="icons/icon-192.png" alt="LotC4Pa"></div><div class="name">LotC4Pa</div><div class="folio">Comprobante N.° ${folioTexto(venta)}</div></div>
     <div class="ticket-divider"></div>
     ${clienteRow}
     <div class="ticket-row"><span class="k">Vendedor</span><span class="v">${escapeHtml(vendedorCorto)}</span></div>

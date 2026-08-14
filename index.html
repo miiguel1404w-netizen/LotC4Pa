@@ -1323,8 +1323,12 @@ async function cerrarSesion(){
   document.body.classList.remove('sin-scroll');
   document.getElementById('app-shell').style.display='none';
   document.getElementById('login-screen').style.display='flex';
-  document.getElementById('login-username').value='';
-  document.getElementById('login-password').value='';
+  const inUser = document.getElementById('login-username');
+  const inPass = document.getElementById('login-password');
+  inUser.value=''; inPass.value='';
+  inUser.readOnly=false; inPass.readOnly=false;
+  const btnEntrar = document.getElementById('btn-entrar');
+  if(btnEntrar){ btnEntrar.disabled=false; btnEntrar.textContent='Entrar'; }
   document.getElementById('login-error').style.display='none';
 }
 function esVendedorIndependiente(vendedorId){

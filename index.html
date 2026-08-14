@@ -272,6 +272,10 @@
   .shc-card .sorteo-status.abierto{ color:#34D399; }
   .shc-card .sorteo-status.cerrado{ color:#FF5C5C; }
   .fab-anotar{ position:fixed; right:20px; bottom:26px; width:58px; height:58px; border-radius:50%; background:var(--gold); color:#fff; border:none; font-size:24px; box-shadow:0 8px 20px rgba(0,0,0,0.3); cursor:pointer; z-index:20; }
+  .hs-wrap{ display:flex; flex-direction:column; height:calc(100vh - 110px); }
+  .hs-card-lista{ flex:1; min-height:0; display:flex; flex-direction:column; }
+  .hs-card-header{ flex-shrink:0; }
+  .hs-lista-scroll{ flex:1; min-height:0; overflow-y:auto; -webkit-overflow-scrolling:touch; }
   .numeros-grid{ display:flex; flex-wrap:wrap; gap:8px; }
   .num-chip{ min-width:62px; text-align:center; background:var(--card); border:1.5px solid var(--line); border-radius:8px; padding:8px 6px; }
   .num-chip .num{ display:block; font-family:'IBM Plex Mono',monospace; font-weight:700; font-size:16px; color:var(--ink); }
@@ -363,6 +367,7 @@
 
       <!-- PANTALLA 2: HISTORIAL DEL SORTEO ELEGIDO -->
       <div id="pantalla-historial-sorteo" style="display:none">
+        <div class="hs-wrap">
         <div class="shc-card">
           <div style="display:flex; justify-content:space-between; align-items:center;">
             <button class="btn-cambiar-sorteo" onclick="volverASeleccionarSorteo()">← Cambiar sorteo</button>
@@ -373,8 +378,8 @@
           <div class="sorteo-status" id="hs-estado"></div>
         </div>
         <div class="summary-strip" id="hs-resumen"></div>
-        <div class="card" style="padding:0;">
-          <div style="padding:16px 18px 0 18px; display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap;">
+        <div class="card hs-card-lista" style="padding:0;">
+          <div class="hs-card-header" style="padding:16px 18px 0 18px; display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap;">
             <h2 style="margin:0;">Tickets de hoy</h2>
             <div style="display:flex; gap:6px; align-items:center;">
               <button type="button" id="btn-solo-ganadores" onclick="toggleSoloGanadoresHoy()" title="Ver solo ganadores" style="border:1.5px solid var(--line); background:#fff; border-radius:7px; padding:6px 9px; font-size:13px; cursor:pointer;">🏆</button>
@@ -383,7 +388,8 @@
               </div>
             </div>
           </div>
-          <div class="jugadas-list" id="hs-lista-tickets" style="padding:8px 18px 18px 18px;"></div>
+          <div class="jugadas-list hs-lista-scroll" id="hs-lista-tickets" style="padding:8px 18px 18px 18px;"></div>
+        </div>
         </div>
         <button class="fab-anotar" onclick="abrirTecladoFullscreen()" title="Anotar">✎</button>
       </div>
@@ -2286,8 +2292,8 @@ function mostrarPantallaVenta(p){
   // pegada abajo tapando los botones de esa pantalla.
   const barraMulti = document.getElementById('barra-multi-sorteo');
   if(barraMulti) barraMulti.style.display = (p==='sorteo' && modoMultiSorteo) ? 'flex' : 'none';
-  document.documentElement.classList.toggle('sin-scroll', p==='teclado');
-  document.body.classList.toggle('sin-scroll', p==='teclado');
+  document.documentElement.classList.toggle('sin-scroll', p==='teclado' || p==='historial');
+  document.body.classList.toggle('sin-scroll', p==='teclado' || p==='historial');
   window.scrollTo(0,0);
   registrarNavegacion();
 }

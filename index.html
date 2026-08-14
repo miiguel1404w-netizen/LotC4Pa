@@ -2272,6 +2272,11 @@ function mostrarPantallaVenta(p){
   });
   const cajaAdminVend = document.getElementById('admin-vendedor-box');
   if(cajaAdminVend) cajaAdminVend.style.display = (p==='sorteo' && currentUser.role==='admin') ? 'block' : 'none';
+  // La barra de "Anotar ▶" de la selección múltiple es solo para elegir los
+  // sorteos — una vez que se pasa al teclado/vista previa no debe quedar
+  // pegada abajo tapando los botones de esa pantalla.
+  const barraMulti = document.getElementById('barra-multi-sorteo');
+  if(barraMulti) barraMulti.style.display = (p==='sorteo' && modoMultiSorteo) ? 'flex' : 'none';
   document.documentElement.classList.toggle('sin-scroll', p==='teclado');
   document.body.classList.toggle('sin-scroll', p==='teclado');
   window.scrollTo(0,0);

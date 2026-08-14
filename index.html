@@ -2770,7 +2770,27 @@ function construirTextoTicket(venta){
 }
 async function generarImagenTicket(){
   const el = document.getElementById('ticket-content');
-  const canvas = await html2canvas(el, { scale: 2, backgroundColor: '#ffffff', useCORS: true });
+  const contenedor = el.parentElement; // .ticket — también recorta con max-height+overflow:hidden
+  // El ticket tiene scroll interno para que los botones no se corran con
+  // tickets largos (ver .ticket-body / .ticket). Si lo capturamos tal cual,
+  // html2canvas solo agarra lo que se ve en pantalla en ese momento, cortando
+  // jugadas. Se expanden ambos niveles sin recorte justo para la captura y
+  // se restauran después.
+  const estiloEl = { overflow: el.style.overflow, maxHeight: el.style.maxHeight, height: el.style.height };
+  const estiloCont = contenedor ? { overflow: contenedor.style.overflow, maxHeight: contenedor.style.maxHeight } : null;
+  el.style.overflow = 'visible';
+  el.style.maxHeight = 'none';
+  el.style.height = 'auto';
+  if(contenedor){ contenedor.style.overflow = 'visible'; contenedor.style.maxHeight = 'none'; }
+  let canvas;
+  try{
+    canvas = await html2canvas(el, { scale: 2, backgroundColor: '#ffffff', useCORS: true });
+  }finally{
+    el.style.overflow = estiloEl.overflow;
+    el.style.maxHeight = estiloEl.maxHeight;
+    el.style.height = estiloEl.height;
+    if(contenedor && estiloCont){ contenedor.style.overflow = estiloCont.overflow; contenedor.style.maxHeight = estiloCont.maxHeight; }
+  }
   return await new Promise(resolve => canvas.toBlob(blob => resolve(blob), 'image/png'));
 }
 async function compartirTicketActual(){

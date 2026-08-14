@@ -256,7 +256,8 @@
   .barra-multi-sorteo button:disabled{ opacity:0.5; }
   .sorteo-pick-card.bloqueado{ opacity:0.5; cursor:not-allowed; }
   .spc-fila1{ display:flex; justify-content:space-between; align-items:center; }
-  .spc-nombre{ font-family:'Fraunces',serif; font-weight:700; font-size:17px; display:inline-flex; align-items:center; gap:8px; }
+  .spc-nombre{ font-family:'Fraunces',serif; font-weight:700; font-size:17px; display:inline-flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .spc-hora{ font-size:14px; }
   .spc-logo{ width:22px; height:22px; border-radius:4px; object-fit:cover; flex-shrink:0; }
   .spc-detalle{ font-size:12.5px; color:var(--ink-dim); margin-top:2px; }
   .spc-codigo{ font-size:11px; color:var(--ink-dim); margin-top:4px; }
@@ -2305,15 +2306,15 @@ function renderListaSorteosVenta(){
     const codigo = codigoSorteoParaFecha(s, ahoraServidor().toISOString());
     const logo = s.iconoUrl ? `<img src="${escapeHtml(s.iconoUrl)}" alt="" class="spc-logo" onerror="this.style.display='none'">` : '';
     const resultadoHoy = resultadoDe(s.id, todayKey);
-    const numerosPremiados = resultadoHoy ? `<span class="mono" style="color:var(--gold-dark); font-weight:700;"> · ${resultadoHoy.primeroCompleto} · ${resultadoHoy.segundoCompleto} · ${resultadoHoy.terceroCompleto}</span>` : '';
+    const numerosPremiados = resultadoHoy ? `<span class="mono" style="color:var(--red); font-weight:700;"> · ${resultadoHoy.primeroCompleto} · ${resultadoHoy.segundoCompleto} · ${resultadoHoy.terceroCompleto}</span>` : '';
     const marcada = sorteosSeleccionadosVenta.includes(s.id);
     const marcaDerecha = modoMultiSorteo
       ? `<span class="spc-check ${marcada?'marcado':''}">${marcada?'✓':''}</span>`
       : `<span class="dot ${abierto?'abierto':'cerrado'}"></span>`;
     const onclick = modoMultiSorteo ? `toggleSeleccionSorteoMulti('${s.id}')` : `elegirSorteoVenta('${s.id}')`;
     return `<div class="sorteo-pick-card ${abierto?'':'cerrado'} ${marcada?'seleccionada-multi':''}" onclick="${onclick}">
-      <div class="spc-fila1"><span class="spc-nombre">${logo}${escapeHtml(s.nombre)}</span>${marcaDerecha}</div>
-      <div class="spc-detalle">${escapeHtml(s.horaSorteoTexto)} · cierra ${s.horaCierre}${abierto?'':' · cerrado (solo consulta)'}</div>
+      <div class="spc-fila1"><span class="spc-nombre">${logo}${escapeHtml(s.nombre)} <span class="spc-hora">· ${escapeHtml(s.horaSorteoTexto)}</span></span>${marcaDerecha}</div>
+      <div class="spc-detalle">cierra ${s.horaCierre}${abierto?'':' · cerrado (solo consulta)'}</div>
       <div class="spc-codigo mono">${codigo}${numerosPremiados}</div>
     </div>`;
   }).join('');

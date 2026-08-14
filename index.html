@@ -276,6 +276,14 @@
   .hs-card-lista{ flex:1; min-height:0; display:flex; flex-direction:column; }
   .hs-card-header{ flex-shrink:0; }
   .hs-lista-scroll{ flex:1; min-height:0; overflow-y:auto; -webkit-overflow-scrolling:touch; }
+  /* Espaciado más compacto solo en esta pantalla (no afecta shc-card/summary-strip
+     en otras pantallas, que reutilizan las mismas clases con su tamaño normal) —
+     así queda más alto disponible para la lista de tickets sin quitar nada. */
+  .hs-wrap .shc-card{ padding:11px 16px; margin-bottom:10px; }
+  .hs-wrap .shc-sub{ margin-top:2px; }
+  .hs-wrap .summary-strip{ margin-bottom:10px; gap:10px; }
+  .hs-wrap .summary-box{ padding:9px 14px; }
+  .hs-wrap .hs-card-header{ padding:10px 18px 0 18px; }
   .numeros-grid{ display:flex; flex-wrap:wrap; gap:8px; }
   .num-chip{ min-width:62px; text-align:center; background:var(--card); border:1.5px solid var(--line); border-radius:8px; padding:8px 6px; }
   .num-chip .num{ display:block; font-family:'IBM Plex Mono',monospace; font-weight:700; font-size:16px; color:var(--ink); }

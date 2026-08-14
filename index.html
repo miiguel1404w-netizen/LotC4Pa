@@ -726,7 +726,14 @@
 
       <div class="filters">
         <div id="cob-total-acumulado" style="flex:1;"></div>
-        <div id="cob-total-hoy" style="flex:1;"></div>
+        <div style="flex:1; min-width:220px;">
+          <div style="display:flex; gap:6px; margin-bottom:6px;">
+            <input type="date" id="cob-rango-desde" onchange="actualizarRangoCobertura()" style="flex:1; min-width:0;">
+            <input type="date" id="cob-rango-hasta" onchange="actualizarRangoCobertura()" style="flex:1; min-width:0;">
+            <button type="button" class="btn btn-outline btn-sm" onclick="verTodoElTiempoCobertura()">Todos</button>
+          </div>
+          <div id="cob-total-hoy"></div>
+        </div>
       </div>
 
       <div id="cob-desglose"></div>
@@ -740,14 +747,14 @@
         <h2 style="font-size:14px;">＋ Agregar cobertura</h2>
         <div id="cob-riesgo-chips" style="margin-bottom:10px;"></div>
         <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:8px;">
-          <input type="number" id="cob-cantidad" placeholder="Tiempos" min="1" step="1" style="width:100px;">
-          <input type="text" id="cob-numero" placeholder="Número (00-99)" maxlength="2" inputmode="numeric" style="width:110px;">
           <select id="cob-modalidad" style="width:130px;" onchange="actualizarCampoNumeroCobertura()">
             <option value="chance20">Chance $0.20</option>
             <option value="chance25">Chance $0.25</option>
             <option value="pale">Palé $1.00</option>
             <option value="billete">Billete $1.00</option>
           </select>
+          <input type="number" id="cob-cantidad" placeholder="Tiempos" min="1" step="1" style="width:100px;">
+          <input type="text" id="cob-numero" placeholder="Número (00-99)" maxlength="2" inputmode="numeric" style="width:110px;">
         </div>
         <input type="text" id="cob-nota" placeholder="Nota (opcional, ej. a quién se lo compraste)" style="width:100%; margin-bottom:8px;">
         <button class="btn btn-primary btn-sm" onclick="agregarCobertura()">＋ Agregar cobertura</button>
@@ -1842,6 +1849,12 @@ function renderVendedorSelects(){
   const valorPrevioV = selV.value;
   selV.innerHTML = '<option value="">Selecciona un vendedor</option>'+opts;
   if(valorPrevioV && [...selV.options].some(o=>o.value===valorPrevioV)) selV.value = valorPrevioV;
+  else{
+    // Por defecto, el admin vende como Miguel (evita tener que elegirlo
+    // cada vez antes de poder vender).
+    const miguel = vendedores.find(v=>v.username==='Miguel');
+    if(miguel) selV.value = miguel.id;
+  }
 
   const equipo = vendedores.filter(v=>v.enEquipo!==false);
   const indep = vendedores.filter(v=>v.enEquipo===false);
@@ -2041,17 +2054,15 @@ function actualizarDisponibilidadPale(){
   if(!billeteVisible && modalidadActual==='billete') setModalidad('chance20');
 }
 function seleccionarCampo(campo){
-  if(pasoActivo===campo && !duplicadoPendiente){
-    // Ya estaba en este campo: al volver a tocarlo, se "selecciona" para que
-    // el próximo número escrito lo reemplace, sin tener que tocar "C" antes.
-    if(campo==='cantidad') bufferCantidad='';
-    else bufferNumero='';
-    refrescarPantallaKeypad();
-  }
+  // Un solo toque en "Tiempos" o "Número" borra lo que estaba escrito ahí,
+  // para empezar de cero sin tener que tocar "C" aparte.
+  if(campo==='cantidad') bufferCantidad='';
+  else bufferNumero='';
   pasoActivo = campo;
   document.getElementById('kp-col-cantidad').classList.toggle('active', campo==='cantidad');
   document.getElementById('kp-col-numero').classList.toggle('active', campo==='numero');
   if(duplicadoPendiente) ocultarDuplicado();
+  refrescarPantallaKeypad();
 }
 function refrescarPantallaKeypad(){
   document.getElementById('kp-cantidad').textContent = bufferCantidad || '0';
@@ -2084,7 +2095,8 @@ function tecla(valor){
 function presionarOK(){
   if(duplicadoPendiente) return;
   if(pasoActivo==='cantidad'){
-    if(!bufferCantidad){ bufferCantidad = '1'; refrescarPantallaKeypad(); }
+    // Ya no completa "1" solo ni avanza si no escribiste ningún tiempo.
+    if(!bufferCantidad) return;
     seleccionarCampo('numero');
   }else{
     intentarAgregarJugada();
@@ -3846,6 +3858,18 @@ function elegirNumeroRiesgo(n, modalidad){
   actualizarCampoNumeroCobertura();
   document.getElementById('cob-numero').value = n.replace(/\D/g,'');
 }
+function actualizarRangoCobertura(){
+  const inputDesde = document.getElementById('cob-rango-desde');
+  if(inputDesde) inputDesde.dataset.modo = 'rango';
+  renderCobertura();
+}
+function verTodoElTiempoCobertura(){
+  const inputDesde = document.getElementById('cob-rango-desde');
+  const inputHasta = document.getElementById('cob-rango-hasta');
+  if(inputDesde){ inputDesde.value = ''; inputDesde.dataset.modo = 'todos'; }
+  if(inputHasta) inputHasta.value = '';
+  renderCobertura();
+}
 function renderCobertura(){
   if(!dataLoaded || !currentUser || !puedeVerRiesgoChance()) return;
   const sorteoId = document.getElementById('cob-sorteo').value;
@@ -3891,21 +3915,35 @@ function renderCobertura(){
     </div>` : '';
   }
 
-  // Mismo cálculo, pero recortado solo al día de hoy: vendido hoy − premios
-  // pagados hoy + coberturas de hoy ya resueltas.
-  const { totalVendido:vendidoHoy, totalPremios:premiosHoy } = calcularReportes(hoyKey, hoyKey, null, null);
-  const gananciaHoy = +(vendidoHoy-premiosHoy).toFixed(2);
-  let coberturaHoy = 0, pendientesHoy = 0;
-  coberturas.filter(c=>c.fechaKey===hoyKey).forEach(c=>{
+  // Segunda casilla: mismo cálculo que el acumulado, pero recortado al rango
+  // de fechas elegido arriba (por defecto, hoy). "Todos" limpia el rango y
+  // queda igual que la casilla de acumulado. dataset.modo distingue "todavía
+  // sin tocar → usar hoy" de "el admin pidió Todos a propósito", para que el
+  // refresco automático de cada 30s no lo pise.
+  const inputDesde = document.getElementById('cob-rango-desde');
+  const inputHasta = document.getElementById('cob-rango-hasta');
+  if(inputDesde && !inputDesde.dataset.modo){
+    inputDesde.value = hoyKey; inputHasta.value = hoyKey; inputDesde.dataset.modo = 'rango';
+  }
+  const rangoDesde = inputDesde ? inputDesde.value : hoyKey;
+  const rangoHasta = inputHasta ? inputHasta.value : hoyKey;
+  const { totalVendido:vendidoRango, totalPremios:premiosRango } = calcularReportes(rangoDesde||null, rangoHasta||null, null, null);
+  const gananciaRango = +(vendidoRango-premiosRango).toFixed(2);
+  let coberturaRango = 0, pendientesRango = 0;
+  coberturas.filter(c=>fechaEnRango(c.fechaKey, rangoDesde||null, rangoHasta||null)).forEach(c=>{
     const r = calcularCobertura(c);
-    if(r.pendiente) pendientesHoy++; else coberturaHoy += r.neto;
+    if(r.pendiente) pendientesRango++; else coberturaRango += r.neto;
   });
-  const balanceHoy = +(gananciaHoy+coberturaHoy).toFixed(2);
+  const balanceRango = +(gananciaRango+coberturaRango).toFixed(2);
   const cajaHoy = document.getElementById('cob-total-hoy');
   if(cajaHoy){
-    cajaHoy.innerHTML = `<div class="summary-box" style="border-left-color:${colorMonto(balanceHoy)}">
-      <div class="num mono" style="color:${colorMonto(balanceHoy)};">$${balanceHoy.toFixed(2)}</div>
-      <div class="lbl">Balance real de hoy${pendientesHoy?' · '+pendientesHoy+' pendiente(s)':''}</div>
+    let etiquetaRango;
+    if(!rangoDesde && !rangoHasta) etiquetaRango = 'Balance real (todo el tiempo)';
+    else if(rangoDesde===hoyKey && rangoHasta===hoyKey) etiquetaRango = 'Balance real de hoy';
+    else etiquetaRango = `Balance real (${rangoDesde||'…'} a ${rangoHasta||'…'})`;
+    cajaHoy.innerHTML = `<div class="summary-box" style="border-left-color:${colorMonto(balanceRango)}">
+      <div class="num mono" style="color:${colorMonto(balanceRango)};">$${balanceRango.toFixed(2)}</div>
+      <div class="lbl">${etiquetaRango}${pendientesRango?' · '+pendientesRango+' pendiente(s)':''}</div>
     </div>`;
   }
 

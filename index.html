@@ -2306,7 +2306,7 @@ function renderListaSorteosVenta(){
     const codigo = codigoSorteoParaFecha(s, ahoraServidor().toISOString());
     const logo = s.iconoUrl ? `<img src="${escapeHtml(s.iconoUrl)}" alt="" class="spc-logo" onerror="this.style.display='none'">` : '';
     const resultadoHoy = resultadoDe(s.id, todayKey);
-    const numerosPremiados = resultadoHoy ? `<span class="mono" style="color:var(--red); font-weight:700;"> · ${resultadoHoy.primeroCompleto} · ${resultadoHoy.segundoCompleto} · ${resultadoHoy.terceroCompleto}</span>` : '';
+    const numerosPremiados = resultadoHoy ? `<span class="mono" style="color:var(--gold-dark); font-weight:700;"> · ${resultadoHoy.primeroCompleto} · ${resultadoHoy.segundoCompleto} · ${resultadoHoy.terceroCompleto}</span>` : '';
     const marcada = sorteosSeleccionadosVenta.includes(s.id);
     const marcaDerecha = modoMultiSorteo
       ? `<span class="spc-check ${marcada?'marcado':''}">${marcada?'✓':''}</span>`

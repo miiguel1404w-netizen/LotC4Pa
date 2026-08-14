@@ -92,6 +92,7 @@
   .btn-gold:hover{ opacity:0.9; }
   .btn-outline{ background:transparent; color:var(--green); border:1.5px solid var(--green); }
   .btn-outline:hover{ background:var(--paper-dim); }
+  .btn-danger{ background:transparent; color:var(--red); border:1.5px solid var(--red); }
   .btn-danger-text{ background:transparent; color:var(--red); border:none; font-size:13px; font-weight:600; cursor:pointer; padding:4px 8px;}
   .btn-liq-tipo{ flex:1; padding:12px 6px; border-radius:9px; border:1.5px solid var(--line); background:var(--paper-dim); color:var(--ink-dim); font-weight:700; font-size:14px; cursor:pointer; text-align:center; line-height:1.5; }
   .btn-liq-tipo.activo{ background:var(--green); border-color:var(--green); color:#fff; }
@@ -245,6 +246,14 @@
   .sorteo-pick-card.cerrado .spc-detalle{ color:#5C5C5C; }
   .sorteo-pick-card.cerrado .spc-codigo{ color:#6E6E6E; }
   .sorteo-pick-card:active{ transform:scale(0.98); }
+  .sorteo-pick-card.seleccionada-multi{ border-color:var(--green); border-width:2px; background:#EAFBF3; }
+  .sorteo-pick-card.seleccionada-multi.cerrado{ background:#DCDCDC; }
+  .spc-check{ width:22px; height:22px; border-radius:50%; border:2px solid var(--line); flex-shrink:0; display:flex; align-items:center; justify-content:center; background:#fff; color:#fff; font-weight:700; font-size:13px; }
+  .spc-check.marcado{ background:var(--green); border-color:var(--green-dark); }
+  .barra-multi-sorteo{ position:fixed; left:0; right:0; bottom:0; background:var(--charcoal); color:#fff; padding:12px 16px calc(12px + env(safe-area-inset-bottom)) 16px; display:flex; align-items:center; justify-content:space-between; gap:10px; z-index:25; box-shadow:0 -4px 14px rgba(0,0,0,0.3); }
+  .barra-multi-sorteo .txt{ font-size:13.5px; }
+  .barra-multi-sorteo button{ background:var(--gold); color:#1F2937; border:none; border-radius:8px; padding:11px 18px; font-weight:700; font-size:14px; cursor:pointer; white-space:nowrap; }
+  .barra-multi-sorteo button:disabled{ opacity:0.5; }
   .sorteo-pick-card.bloqueado{ opacity:0.5; cursor:not-allowed; }
   .spc-fila1{ display:flex; justify-content:space-between; align-items:center; }
   .spc-nombre{ font-family:'Fraunces',serif; font-weight:700; font-size:17px; display:inline-flex; align-items:center; gap:8px; }
@@ -332,7 +341,11 @@
 
       <!-- PANTALLA 1: SELECCIONAR SORTEO -->
       <div id="pantalla-sorteo">
-        <h1 class="page-title" style="font-size:22px;">Seleccionar sorteo</h1>
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:2px;">
+          <h1 class="page-title" style="font-size:22px; margin-bottom:0;">Seleccionar sorteo</h1>
+          <button type="button" class="btn btn-outline btn-sm" id="btn-toggle-multi" onclick="toggleModoMultiSorteo()" style="white-space:nowrap;">☑️ Varios sorteos</button>
+        </div>
+        <p id="hint-multi-sorteo" style="display:none; font-size:12.5px; color:var(--ink-dim); margin:2px 0 12px 0;">Toca los sorteos donde quieras anotarle al mismo cliente (con los mismos números). Después anotas una sola vez.</p>
         <div id="admin-vendedor-box" class="card admin-only" style="display:none; margin-bottom:12px; padding:14px 16px;">
           <label>Vendiendo como</label>
           <select id="sel-vendedor" onchange="onHeaderChange()"></select>
@@ -340,6 +353,11 @@
         </div>
         <div id="lista-sorteos-venta"></div>
         <select id="sel-sorteo" style="display:none"></select>
+      </div>
+
+      <div class="barra-multi-sorteo" id="barra-multi-sorteo" style="display:none;">
+        <span class="txt" id="txt-multi-sorteo">0 sorteos elegidos</span>
+        <button id="btn-continuar-multi" onclick="continuarConMultiSorteo()" disabled>Anotar ▶</button>
       </div>
 
       <!-- PANTALLA 2: HISTORIAL DEL SORTEO ELEGIDO -->
@@ -1978,6 +1996,8 @@ async function cambiarAdminAuth(){
 // ---------------- MODALIDAD / JUGADA (TECLADO) ----------------
 let pasoActivo = 'cantidad';   // 'cantidad' | 'numero'
 let bufferCantidad = '';
+let modoMultiSorteo = false;
+let sorteosSeleccionadosVenta = []; // ids, en orden en que se tocaron
 let bufferNumero = '';
 let duplicadoPendiente = null; // { existente, cantidadNueva }
 let decenaActiva = false;
@@ -2044,7 +2064,11 @@ function billeteHabilitadoParaSorteo(sorteoId){
 }
 function actualizarDisponibilidadPale(){
   const sorteoId = document.getElementById('sel-sorteo').value;
-  const habilitado = !sorteoId || paleHabilitadoParaSorteo(sorteoId);
+  // En modo "varios sorteos", una modalidad solo se habilita si TODOS los
+  // sorteos elegidos la permiten — así no se anota por error algo que no
+  // aplica en alguno de ellos.
+  const idsAConsiderar = (modoMultiSorteo && sorteosSeleccionadosVenta.length>1) ? sorteosSeleccionadosVenta : [sorteoId];
+  const habilitado = !sorteoId || idsAConsiderar.every(id=>paleHabilitadoParaSorteo(id));
   const tabPale = document.querySelector('.modalidad-tab[data-mod="pale"]');
   const aviso = document.getElementById('pale-bloqueado-aviso');
   if(tabPale) tabPale.classList.toggle('deshabilitado', !habilitado);
@@ -2052,7 +2076,7 @@ function actualizarDisponibilidadPale(){
   if(!habilitado && modalidadActual==='pale') setModalidad('chance20');
 
   const tabBillete = document.getElementById('tab-billete');
-  const billeteVisible = sorteoId && billeteHabilitadoParaSorteo(sorteoId);
+  const billeteVisible = sorteoId && idsAConsiderar.every(id=>billeteHabilitadoParaSorteo(id));
   if(tabBillete) tabBillete.style.display = billeteVisible ? '' : 'none';
   if(!billeteVisible && modalidadActual==='billete') setModalidad('chance20');
 }
@@ -2262,12 +2286,13 @@ function renderListaSorteosVenta(){
   if(visibles.length===0){ cont.innerHTML = '<div class="empty-state">No hay sorteos disponibles hoy.</div>'; ultimoHashListaSorteosVenta=null; return; }
   const ordenados = visibles.slice().sort((a,b)=> (a.horaCierre||'').localeCompare(b.horaCierre||''));
   // Si nada cambió desde el último refresco (mismos sorteos, mismo estado
-  // abierto/cerrado, mismo logo, mismo resultado), no reconstruye el HTML —
-  // así las imágenes no "parpadean" cada 30 segundos sin necesidad.
+  // abierto/cerrado, mismo logo, mismo resultado, misma selección múltiple),
+  // no reconstruye el HTML — así las imágenes no "parpadean" cada 30 segundos
+  // sin necesidad.
   const hash = JSON.stringify(ordenados.map(s=>{
     const r = resultadoDe(s.id, todayKey);
     return [s.id, sorteoAbierto(s), s.iconoUrl||'', r ? (r.primeroCompleto+'-'+r.segundoCompleto+'-'+r.terceroCompleto) : ''];
-  }));
+  })) + '|' + modoMultiSorteo + '|' + sorteosSeleccionadosVenta.join(',');
   if(hash === ultimoHashListaSorteosVenta) return;
   ultimoHashListaSorteosVenta = hash;
   cont.innerHTML = ordenados.map(s=>{
@@ -2276,12 +2301,66 @@ function renderListaSorteosVenta(){
     const logo = s.iconoUrl ? `<img src="${escapeHtml(s.iconoUrl)}" alt="" class="spc-logo" onerror="this.style.display='none'">` : '';
     const resultadoHoy = resultadoDe(s.id, todayKey);
     const numerosPremiados = resultadoHoy ? `<span class="mono" style="color:var(--gold-dark); font-weight:700;"> · ${resultadoHoy.primeroCompleto} · ${resultadoHoy.segundoCompleto} · ${resultadoHoy.terceroCompleto}</span>` : '';
-    return `<div class="sorteo-pick-card ${abierto?'':'cerrado'}" onclick="elegirSorteoVenta('${s.id}')">
-      <div class="spc-fila1"><span class="spc-nombre">${logo}${escapeHtml(s.nombre)}</span><span class="dot ${abierto?'abierto':'cerrado'}"></span></div>
+    const marcada = sorteosSeleccionadosVenta.includes(s.id);
+    const marcaDerecha = modoMultiSorteo
+      ? `<span class="spc-check ${marcada?'marcado':''}">${marcada?'✓':''}</span>`
+      : `<span class="dot ${abierto?'abierto':'cerrado'}"></span>`;
+    const onclick = modoMultiSorteo ? `toggleSeleccionSorteoMulti('${s.id}')` : `elegirSorteoVenta('${s.id}')`;
+    return `<div class="sorteo-pick-card ${abierto?'':'cerrado'} ${marcada?'seleccionada-multi':''}" onclick="${onclick}">
+      <div class="spc-fila1"><span class="spc-nombre">${logo}${escapeHtml(s.nombre)}</span>${marcaDerecha}</div>
       <div class="spc-detalle">${escapeHtml(s.horaSorteoTexto)} · cierra ${s.horaCierre}${abierto?'':' · cerrado (solo consulta)'}</div>
       <div class="spc-codigo mono">${codigo}${numerosPremiados}</div>
     </div>`;
   }).join('');
+}
+function toggleModoMultiSorteo(){
+  modoMultiSorteo = !modoMultiSorteo;
+  sorteosSeleccionadosVenta = [];
+  const btn = document.getElementById('btn-toggle-multi');
+  const hint = document.getElementById('hint-multi-sorteo');
+  const barra = document.getElementById('barra-multi-sorteo');
+  if(btn){ btn.textContent = modoMultiSorteo ? '✕ Cancelar' : '☑️ Varios sorteos'; btn.classList.toggle('btn-outline', !modoMultiSorteo); btn.classList.toggle('btn-danger', modoMultiSorteo); }
+  if(hint) hint.style.display = modoMultiSorteo ? 'block' : 'none';
+  if(barra) barra.style.display = modoMultiSorteo ? 'flex' : 'none';
+  actualizarBarraMultiSorteo();
+  ultimoHashListaSorteosVenta = null;
+  renderListaSorteosVenta();
+}
+function toggleSeleccionSorteoMulti(sorteoId){
+  const s = sorteos.find(x=>x.id===sorteoId);
+  if(!s) return;
+  if(currentUser.role==='vendedor' && !sorteoAbierto(s)){ avisar('Ese sorteo ya cerró — no se puede anotar ahí.'); return; }
+  const i = sorteosSeleccionadosVenta.indexOf(sorteoId);
+  if(i>=0) sorteosSeleccionadosVenta.splice(i,1);
+  else sorteosSeleccionadosVenta.push(sorteoId);
+  actualizarBarraMultiSorteo();
+  ultimoHashListaSorteosVenta = null;
+  renderListaSorteosVenta();
+}
+function actualizarBarraMultiSorteo(){
+  const n = sorteosSeleccionadosVenta.length;
+  const txt = document.getElementById('txt-multi-sorteo');
+  const btn = document.getElementById('btn-continuar-multi');
+  if(txt) txt.textContent = n===0 ? 'Elige al menos un sorteo' : (n===1 ? '1 sorteo elegido' : n+' sorteos elegidos');
+  if(btn) btn.disabled = n===0;
+}
+function continuarConMultiSorteo(){
+  if(currentUser.role==='admin' && !document.getElementById('sel-vendedor').value){
+    avisar('Elige primero para quién estás vendiendo, arriba.');
+    return;
+  }
+  if(sorteosSeleccionadosVenta.length===0) return;
+  document.getElementById('sel-sorteo').value = sorteosSeleccionadosVenta[0];
+  onHeaderChange();
+  editandoVentaId = null; editandoVentaSnapshot = null;
+  const nombres = sorteosSeleccionadosVenta.map(id=>{ const s = sorteos.find(x=>x.id===id); return s?s.nombre:''; }).filter(Boolean);
+  document.getElementById('tk-sorteo-nombre').textContent = sorteosSeleccionadosVenta.length===1
+    ? nombres[0]
+    : nombres.length<=3 ? nombres.join(' + ') : nombres.slice(0,2).join(' + ')+' + '+(nombres.length-2)+' más';
+  mostrarPantallaVenta('teclado');
+  desactivarDecena();
+  resetKeypad();
+  actualizarDisponibilidadPale();
 }
 let soloGanadoresHoy = false;
 function toggleSoloGanadoresHoy(){
@@ -2425,7 +2504,11 @@ function abrirTecladoFullscreen(){
   resetKeypad();
 }
 function salirTecladoSinGuardar(){
-  const seguir = ()=>{ editandoVentaId=null; editandoVentaSnapshot=null; mostrarPantallaVenta('historial'); renderHistorialSorteoActual(); };
+  const seguir = ()=>{
+    editandoVentaId=null; editandoVentaSnapshot=null;
+    if(modoMultiSorteo && sorteosSeleccionadosVenta.length>1){ volverASeleccionarSorteo(); }
+    else{ mostrarPantallaVenta('historial'); renderHistorialSorteoActual(); }
+  };
   if(jugadasTicket.length===0){ seguir(); return; }
   const mensaje = editandoVentaId ? 'Tienes cambios sin guardar en este ticket. ¿Salir de todas formas?' : 'Tienes '+jugadasTicket.length+' jugada(s) sin guardar. ¿Salir de todas formas?';
   mostrarConfirmacion(mensaje, { textoAceptar:'Sí, salir' })
@@ -2476,7 +2559,12 @@ function irAVistaPrevia(){
 function renderVistaPrevia(){
   const sorteoId = document.getElementById('sel-sorteo').value;
   const sorteo = sorteos.find(s=>s.id===sorteoId);
-  document.getElementById('vp-sorteo-nombre').textContent = sorteo ? (sorteo.nombre+' · '+sorteo.horaSorteoTexto) : '';
+  if(modoMultiSorteo && sorteosSeleccionadosVenta.length>1 && !editandoVentaId){
+    const nombres = sorteosSeleccionadosVenta.map(id=>{ const s = sorteos.find(x=>x.id===id); return s?s.nombre:''; }).filter(Boolean);
+    document.getElementById('vp-sorteo-nombre').textContent = sorteosSeleccionadosVenta.length+' sorteos: '+nombres.join(', ');
+  }else{
+    document.getElementById('vp-sorteo-nombre').textContent = sorteo ? (sorteo.nombre+' · '+sorteo.horaSorteoTexto) : '';
+  }
   const cont = document.getElementById('vp-lista');
   if(jugadasTicket.length===0){
     cont.innerHTML = '<div class="empty-state">No hay jugadas.</div>';
@@ -2645,15 +2733,9 @@ async function sincronizarPendientes(){
 }
 window.addEventListener('online', ()=>{ if(currentUser) sincronizarPendientes(); });
 
-async function confirmarVenta(){
-  const vendedorId = vendedorIdSeleccionado();
-  const sorteoId = document.getElementById('sel-sorteo').value;
+async function guardarUnaVenta(vendedorId, sorteoId, cliente){
   const sorteo = sorteos.find(s=>s.id===sorteoId);
-  if(!vendedorId || !sorteoId || jugadasTicket.length===0) return;
-  if(currentUser.role==='vendedor' && (!sorteo || !sorteoAbierto(sorteo))){ avisar('Este sorteo ya cerró. No puedes registrar esta venta.'); renderVentaSorteoSelect(); return; }
-
   const total = jugadasTicket.reduce((s,j)=>s+j.monto,0);
-  const cliente = document.getElementById('in-cliente').value.trim();
   const fechaVenta = ahoraServidor().toISOString();
   const codigoSorteo = sorteo ? codigoSorteoParaFecha(sorteo, fechaVenta) : '';
   const datos = { vendedorId, sorteoId, codigoSorteo, cliente, fecha: fechaVenta, jugadas: jugadasTicket, total: +total.toFixed(2) };
@@ -2661,32 +2743,115 @@ async function confirmarVenta(){
   // reintento (aunque se caiga la señal a media confirmación) — así nunca
   // se puede duplicar como venta aparte con otro folio.
   const idVenta = uid();
-
-  const btn = document.getElementById('btn-completar-venta');
-  if(btn){ btn.disabled = true; btn.textContent = 'Guardando...'; }
-
   const resultado = await intentarGuardarVentaOnline(datos, idVenta);
-
-  if(btn){ btn.disabled = false; btn.textContent = 'Completar venta'; }
-
-  let ventaParaComprobante;
   if(resultado.ok){
     ventasList.unshift(resultado.venta);
-    ventaParaComprobante = resultado.venta;
+    return { venta: resultado.venta, pendiente:false };
   }else{
     const pendiente = { id: idVenta, vendedorId:datos.vendedorId, sorteoId:datos.sorteoId, codigoSorteo:datos.codigoSorteo,
       cliente:datos.cliente, fecha:datos.fecha, jugadas:datos.jugadas, total:datos.total, anulada:false, pendienteSync:true };
     agregarPendienteLocal(pendiente);
     ventasList.unshift(pendiente);
-    ventaParaComprobante = pendiente;
-    avisar('Sin conexión: la venta quedó guardada en tu celular (⏳ Pendiente) y se subirá sola cuando regrese la señal.');
+    return { venta: pendiente, pendiente:true };
+  }
+}
+async function confirmarVenta(){
+  const vendedorId = vendedorIdSeleccionado();
+  if(!vendedorId || jugadasTicket.length===0) return;
+
+  if(modoMultiSorteo && sorteosSeleccionadosVenta.length>1){
+    await confirmarVentaMulti(vendedorId);
+    return;
   }
 
-  mostrarComprobante(ventaParaComprobante);
+  const sorteoId = document.getElementById('sel-sorteo').value;
+  const sorteo = sorteos.find(s=>s.id===sorteoId);
+  if(!sorteoId) return;
+  if(currentUser.role==='vendedor' && (!sorteo || !sorteoAbierto(sorteo))){ avisar('Este sorteo ya cerró. No puedes registrar esta venta.'); renderVentaSorteoSelect(); return; }
+
+  const cliente = document.getElementById('in-cliente').value.trim();
+  const btn = document.getElementById('btn-completar-venta');
+  if(btn){ btn.disabled = true; btn.textContent = 'Guardando...'; }
+
+  const { venta, pendiente } = await guardarUnaVenta(vendedorId, sorteoId, cliente);
+
+  if(btn){ btn.disabled = false; btn.textContent = 'Completar venta'; }
+  if(pendiente) avisar('Sin conexión: la venta quedó guardada en tu celular (⏳ Pendiente) y se subirá sola cuando regrese la señal.');
+
+  mostrarComprobante(venta);
   jugadasTicket = [];
   renderJugadas();
   document.getElementById('in-cliente').value='';
   renderVentaSorteoSelect();
+}
+async function confirmarVentaMulti(vendedorId){
+  const cliente = document.getElementById('in-cliente').value.trim();
+  const btn = document.getElementById('btn-completar-venta');
+  if(btn){ btn.disabled = true; btn.textContent = 'Guardando...'; }
+
+  const jugadasOriginal = jugadasTicket;
+  const resultados = []; // { sorteoId, nombre, venta, pendiente }
+  const omitidos = []; // sorteos que cerraron justo antes de guardar
+
+  for(const sorteoId of sorteosSeleccionadosVenta){
+    const sorteo = sorteos.find(s=>s.id===sorteoId);
+    if(!sorteo || (currentUser.role==='vendedor' && !sorteoAbierto(sorteo))){
+      omitidos.push(sorteo ? sorteo.nombre : sorteoId);
+      continue;
+    }
+    // Cada venta se guarda con su propia copia de las jugadas (mismo
+    // contenido, pero cada una es un ticket independiente en Supabase).
+    jugadasTicket = jugadasOriginal.map(j=>({...j}));
+    const { venta, pendiente } = await guardarUnaVenta(vendedorId, sorteoId, cliente);
+    resultados.push({ sorteoId, nombre: sorteo.nombre, venta, pendiente });
+  }
+  jugadasTicket = [];
+
+  if(btn){ btn.disabled = false; btn.textContent = 'Completar venta'; }
+
+  if(omitidos.length){
+    avisar('Estos sorteos ya habían cerrado y no se anotaron: '+omitidos.join(', ')+'. El resto sí se guardó.');
+  }
+  if(resultados.some(r=>r.pendiente)){
+    avisar('Sin conexión: los tickets quedaron guardados en tu celular (⏳ Pendiente) y se subirán solos cuando regrese la señal.');
+  }
+
+  mostrarResumenMultiVenta(resultados);
+  renderJugadas();
+  document.getElementById('in-cliente').value='';
+  renderVentaSorteoSelect();
+  modoMultiSorteo = false;
+  sorteosSeleccionadosVenta = [];
+}
+function mostrarResumenMultiVenta(resultados){
+  if(resultados.length===0) return;
+  if(resultados.length===1){ mostrarComprobante(resultados[0].venta); return; }
+  const total = resultados.reduce((s,r)=>s+(r.venta.total||0),0);
+  const filas = resultados.map(r=>`
+    <div class="jugada-row">
+      <div style="font-weight:700;">${escapeHtml(r.nombre)}${r.pendiente?' <span class="tag-pendiente">⏳</span>':''}</div>
+      <div style="display:flex; align-items:center; gap:8px;"><span class="mono">$${r.venta.total.toFixed(2)}</span>
+        <button class="btn btn-outline btn-sm" onclick="verComprobante('${r.venta.id}')">Ver</button></div>
+    </div>`).join('');
+  const html = `<div class="modal-overlay no-print" id="modal-resumen-multi" style="z-index:90;" onclick="if(event.target===this) cerrarResumenMultiVenta()">
+    <div class="ticket" style="width:340px;">
+      <div class="ticket-body">
+        <h2 style="margin-top:0;">✅ ${resultados.length} tickets registrados</h2>
+        <p class="hint">Mismo cliente, mismos números, en cada uno de estos sorteos:</p>
+        <div class="jugadas-list">${filas}</div>
+        <div class="total-row"><span class="total-label">Total combinado</span><span class="total-amount mono">$${total.toFixed(2)}</span></div>
+        <div class="modal-actions" style="margin-top:16px;">
+          <button type="button" class="btn btn-primary" onclick="cerrarResumenMultiVenta()">Listo</button>
+        </div>
+      </div>
+    </div>
+  </div>`;
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+function cerrarResumenMultiVenta(){
+  const el = document.getElementById('modal-resumen-multi');
+  if(el) el.remove();
+  volverASeleccionarSorteo();
 }
 
 // ---------------- COMPROBANTE ----------------

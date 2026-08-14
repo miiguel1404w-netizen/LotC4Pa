@@ -1267,9 +1267,13 @@ async function intentarLogin(){
 async function guardarSesionActiva(){
   try{
     if(!currentUser){ localStorage.removeItem('lotc4pa_sesion'); return; }
+    // Guardamos también el nombre de usuario (nunca la contraseña) para
+    // poder mostrarlo de una vez en la pantalla de login mientras se
+    // revisa en silencio si la sesión sigue siendo válida — así se ve
+    // claro que no hay que volver a escribir nada, solo está cargando.
     const datos = currentUser.role==='admin'
-      ? { role:'admin' }
-      : { role:'vendedor', vendedorId: currentUser.vendedorId };
+      ? { role:'admin', username: adminAuth.username }
+      : { role:'vendedor', vendedorId: currentUser.vendedorId, username: (vendedores.find(v=>v.id===currentUser.vendedorId)||{}).username || '' };
     localStorage.setItem('lotc4pa_sesion', JSON.stringify(datos));
   }catch(e){}
 }
@@ -4380,6 +4384,23 @@ if('serviceWorker' in navigator){
   // pequeño flotando arriba) en vez de tapar todo con una pantalla vacía
   // mientras se revisa en silencio si ya había una sesión guardada.
   document.getElementById('login-screen').style.display = 'flex';
+
+  // Si había una sesión guardada, mostramos de una vez el usuario (y una
+  // contraseña de mentira, solo para que se vea "cargada") — así se nota
+  // claro que la sesión no se cerró, que solo está entrando de nuevo sola,
+  // en vez de parecer un login vacío pidiendo escribir todo otra vez.
+  const inUser = document.getElementById('login-username');
+  const inPass = document.getElementById('login-password');
+  const btnEntrar = document.getElementById('btn-entrar');
+  let sesionGuardadaPreview = null;
+  try{ sesionGuardadaPreview = JSON.parse(localStorage.getItem('lotc4pa_sesion')||'null'); }catch(e){}
+  if(sesionGuardadaPreview){
+    if(sesionGuardadaPreview.username) inUser.value = sesionGuardadaPreview.username;
+    inPass.value = 'sesionguardada'; // se ve como puntitos: el campo es type="password"
+    inUser.readOnly = true; inPass.readOnly = true;
+    if(btnEntrar){ btnEntrar.disabled = true; btnEntrar.textContent = 'Entrando...'; }
+  }
+
   await cargarDatos();
   // Si había una sesión guardada pero la lista de vendedores no cargó bien
   // (mala señal justo al abrir), reintentamos un par de veces antes de darnos
@@ -4393,8 +4414,19 @@ if('serviceWorker' in navigator){
   }
   const huboSesion = await intentarAutoLogin();
   document.getElementById('spinner-chequeo-sesion').style.display = 'none';
+  if(!huboSesion && sesionGuardadaPreview){
+    // La sesión guardada ya no era válida (ej. el vendedor fue eliminado o
+    // le cambiaron la contraseña) — devolvemos el formulario a su estado
+    // normal, vacío y editable, para que puedan iniciar sesión de nuevo.
+    inUser.value=''; inPass.value=''; inUser.readOnly=false; inPass.readOnly=false;
+    if(btnEntrar){ btnEntrar.disabled=false; btnEntrar.textContent='Entrar'; }
+  }
   if(huboSesion){
     entrarAlApp();
+    // Si la sesión guardada era de antes de este cambio (sin el nombre de
+    // usuario guardado), la actualizamos ahora en silencio — así la
+    // próxima vez que abra la app ya se puede mostrar de una vez.
+    if(!sesionGuardadaPreview || !sesionGuardadaPreview.username) guardarSesionActiva();
   }
 })();
 </script>

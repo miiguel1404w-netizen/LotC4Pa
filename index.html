@@ -312,7 +312,7 @@
   <div class="nav-item active" data-tab="ventas" onclick="irATab('ventas')">🎟️ Vender</div>
   <div class="nav-item admin-only" data-tab="reportes" onclick="irATab('reportes')">📊 Reportes</div>
   <div class="nav-item" data-tab="historial" onclick="irATab('historial')">📖 Historial general</div>
-  <div class="nav-item" data-tab="tabla" onclick="irATab('tabla')">🔢 Tabla de números</div>
+  <div class="nav-item admin-only" data-tab="tabla" onclick="irATab('tabla')">🔢 Tabla de números</div>
   <div class="nav-item" data-tab="ranking" onclick="irATab('ranking')">🏅 Ranking de números</div>
   <div class="nav-item admin-only" data-tab="resultados" onclick="irATab('resultados')">🏆 Resultados</div>
   <div class="nav-item admin-only" data-tab="independientes" onclick="irATab('independientes')">💵 Vendedores Independientes</div>
@@ -4162,6 +4162,25 @@ async function refrescoManual(){
     setTimeout(()=>{ btn.style.transition='none'; btn.style.transform='rotate(0deg)'; btn.disabled=false; }, 650);
   }
 }
+
+// ---------------- RECUPERACIÓN AL VOLVER DE SEGUNDO PLANO ----------------
+// Cuando el celular manda la app a segundo plano por un buen rato (llamada,
+// pantalla apagada, cambiar de app), Android puede congelar la conexión y
+// los temporizadores. Al volver, la pantalla puede quedar pegada (en el APK,
+// la pantalla verde de carga; en el link, la pantalla sin responder) porque
+// el estado interno quedó viejo. Si estuvo escondida más de 2 minutos,
+// recargamos toda la página al volver: así siempre se regresa con todo
+// limpio en vez de quedar trabada y tener que cerrar la app a la fuerza.
+let momentoEnQueSeEscondioApp = null;
+document.addEventListener('visibilitychange', ()=>{
+  if(document.hidden){
+    momentoEnQueSeEscondioApp = Date.now();
+  }else if(momentoEnQueSeEscondioApp && (Date.now() - momentoEnQueSeEscondioApp) > 2*60*1000){
+    location.reload();
+  }else{
+    momentoEnQueSeEscondioApp = null;
+  }
+});
 
 // ---------------- INIT ----------------
 if('serviceWorker' in navigator){

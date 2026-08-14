@@ -3689,7 +3689,12 @@ function renderTablaSorteoSelect(){
   const valorPrevio = sel.value;
   const esAdmin = currentUser && currentUser.role==='admin';
   sel.innerHTML = '<option value="">Todos los sorteos</option>'+opts;
-  if(esAdmin && valorPrevio && [...sel.options].some(o=>o.value===valorPrevio)) sel.value = valorPrevio;
+  // Si ya había un sorteo puntual elegido (por ejemplo, un vendedor que entró
+  // a la tabla de SU sorteo con el botón "📊 Tabla de números" de la pantalla
+  // de venta), lo conservamos aunque el selector esté oculto/deshabilitado
+  // para vendedores — si no, el refresco automático de cada 30s lo reiniciaba
+  // a "Todos los sorteos" y la pantalla cambiaba sola a los pocos segundos.
+  if(valorPrevio && [...sel.options].some(o=>o.value===valorPrevio)) sel.value = valorPrevio;
   else sel.value = '';
   // Los vendedores solo ven la vista combinada de todos los sorteos aquí —
   // la tabla de un sorteo puntual ya la tienen dentro de su propia pantalla
@@ -4168,16 +4173,26 @@ async function refrescoManual(){
 // pantalla apagada, cambiar de app), Android puede congelar la conexión y
 // los temporizadores. Al volver, la pantalla puede quedar pegada (en el APK,
 // la pantalla verde de carga; en el link, la pantalla sin responder) porque
-// el estado interno quedó viejo. Si estuvo escondida más de 2 minutos,
-// recargamos toda la página al volver: así siempre se regresa con todo
-// limpio en vez de quedar trabada y tener que cerrar la app a la fuerza.
+// el estado interno quedó viejo.
+//
+// Pausas cortas (guardar el celular entre venta y venta) son normalísimas y
+// NO deben recargar todo — eso obligaría a bajar los logos y los datos de
+// nuevo cada vez, sintiéndose lento. Para esas, solo refrescamos los datos
+// por dentro (igual que el refresco automático de cada 30s), sin tocar
+// imágenes ya cargadas. Recién si estuvo escondida un buen rato de verdad
+// (15 minutos o más — señal real de que quedó pegada) forzamos una recarga
+// completa de la página, para garantizar que vuelva limpia.
 let momentoEnQueSeEscondioApp = null;
 document.addEventListener('visibilitychange', ()=>{
   if(document.hidden){
     momentoEnQueSeEscondioApp = Date.now();
-  }else if(momentoEnQueSeEscondioApp && (Date.now() - momentoEnQueSeEscondioApp) > 2*60*1000){
-    location.reload();
-  }else{
+  }else if(momentoEnQueSeEscondioApp){
+    const minutosEscondida = (Date.now() - momentoEnQueSeEscondioApp) / 60000;
+    if(minutosEscondida > 15){
+      location.reload();
+    }else if(minutosEscondida > 1 && currentUser){
+      refrescarConfigCompartida();
+    }
     momentoEnQueSeEscondioApp = null;
   }
 });

@@ -24,7 +24,7 @@
   *{box-sizing:border-box;}
   summary::-webkit-details-marker{ display:none; }
   summary{ outline:none; }
-  html,body{margin:0;padding:0; overscroll-behavior-y:contain; background:#000;}
+  html,body{margin:0;padding:0; overscroll-behavior-y:contain; background:#000; overflow-x:hidden;}
   body{ color:var(--ink); font-family:'Inter',sans-serif; -webkit-font-smoothing:antialiased; }
   .mono{font-family:'IBM Plex Mono',monospace;}
   .display{font-family:'Fraunces',serif;}
@@ -1556,7 +1556,7 @@ function aplicarEstadoNav(estado){
   if(estado.tab==='ventas'){
     renderVentaSorteoSelect();
     mostrarPantallaVenta(estado.pantallaVenta || 'sorteo');
-    if(estado.pantallaVenta==='sorteo') renderListaSorteosVenta();
+    if(estado.pantallaVenta==='sorteo'){ renderListaSorteosVenta(); scrollAlUltimoSorteoVisitado(); }
     if(estado.pantallaVenta==='historial') renderHistorialSorteoActual();
   }
 }
@@ -1580,7 +1580,7 @@ function switchTab(tab){
   if(tab==='ranking'){ renderRankingSorteoSelect(); renderRanking(); }
   if(tab==='resultados'){ renderResultadosSorteoSelect(); renderListaResultados(); }
   if(tab==='cobertura'){ renderCoberturaSorteoSelect(); renderCobertura(); }
-  if(tab==='ventas'){ renderVentaSorteoSelect(); mostrarPantallaVenta('sorteo'); renderListaSorteosVenta(); }
+  if(tab==='ventas'){ renderVentaSorteoSelect(); mostrarPantallaVenta('sorteo'); renderListaSorteosVenta(); scrollAlUltimoSorteoVisitado(); }
   if(tab==='independientes'){ cerrarDetalleIndependiente(); }
   if(tab==='deudas'){ cerrarDetalleDeuda(); }
   if(tab==='config') renderOrdenMenuLista();
@@ -2423,7 +2423,7 @@ function renderListaSorteosVenta(){
       ? `<span class="spc-check ${marcada?'marcado':''}">${marcada?'✓':''}</span>`
       : `<span class="dot ${abierto?'abierto':'cerrado'}"></span>`;
     const onclick = modoMultiSorteo ? `toggleSeleccionSorteoMulti('${s.id}')` : `elegirSorteoVenta('${s.id}')`;
-    return `<div class="sorteo-pick-card ${abierto?'':'cerrado'} ${marcada?'seleccionada-multi':''}" onclick="${onclick}">
+    return `<div class="sorteo-pick-card ${abierto?'':'cerrado'} ${marcada?'seleccionada-multi':''}" data-sorteo-id="${s.id}" onclick="${onclick}">
       <div class="spc-fila1"><span class="spc-nombre">${logo}${escapeHtml(s.nombre)} <span class="spc-hora">· ${escapeHtml(s.horaSorteoTexto)}</span></span>${marcaDerecha}</div>
       <div class="spc-detalle">cierra ${s.horaCierre}${abierto?'':' · cerrado (solo consulta)'}</div>
       <div class="spc-codigo mono">${codigo}${numerosPremiados}</div>
@@ -2486,11 +2486,13 @@ function toggleSoloGanadoresHoy(){
   if(btn) btn.style.background = soloGanadoresHoy ? 'var(--gold)' : '#fff';
   renderHistorialSorteoActual();
 }
+let ultimoSorteoVisitadoId = null;
 function elegirSorteoVenta(sorteoId){
   if(currentUser.role==='admin' && !document.getElementById('sel-vendedor').value){
     avisar('Elige primero para quién estás vendiendo, arriba.');
     return;
   }
+  ultimoSorteoVisitadoId = sorteoId;
   document.getElementById('sel-sorteo').value = sorteoId;
   onHeaderChange();
   const buscarCliente = document.getElementById('hs-buscar-cliente');
@@ -2504,6 +2506,17 @@ function elegirSorteoVenta(sorteoId){
 function volverASeleccionarSorteo(){
   mostrarPantallaVenta('sorteo');
   renderListaSorteosVenta();
+  scrollAlUltimoSorteoVisitado();
+}
+function scrollAlUltimoSorteoVisitado(){
+  // Al volver a "Seleccionar sorteo" después de anotar en uno específico,
+  // ubica esa tarjeta en pantalla en vez de dejar al vendedor arriba de
+  // todo, teniendo que deslizar de nuevo hasta donde estaba.
+  if(!ultimoSorteoVisitadoId) return;
+  const cont = document.getElementById('lista-sorteos-venta');
+  if(!cont) return;
+  const tarjeta = cont.querySelector(`[data-sorteo-id="${ultimoSorteoVisitadoId}"]`);
+  if(tarjeta) tarjeta.scrollIntoView({ block:'center' });
 }
 function verTablaDeEsteSorteo(){
   const sorteoId = document.getElementById('sel-sorteo').value;
@@ -3336,7 +3349,10 @@ async function toggleTicketNoPagado(ventaId){
 function botonNoPagadoHtml(venta){
   if(currentUser.role!=='admin' || venta.anulada || venta.pendienteSync || !vendedorEnEquipo(venta.vendedorId)) return '';
   const marcado = estaTicketNoPagado(venta.id);
-  return `<button class="btn btn-sm ${marcado?'btn-danger':'btn-outline'}" onclick="toggleTicketNoPagado('${venta.id}')" title="Marcar si el cliente no pagó este ticket">${marcado?'🎫 No pagado':'🎫 Marcar no pagado'}</button>`;
+  // Botón compacto: solo el ícono cuando no está marcado (para no ensanchar
+  // la fila junto con Ver/Editar/Anular); con el texto completo una vez
+  // marcado, ya que ahí es importante que se note bien.
+  return `<button class="btn btn-sm ${marcado?'btn-danger':'btn-outline'}" onclick="toggleTicketNoPagado('${venta.id}')" title="Marcar si el cliente no pagó este ticket">${marcado?'🎫 No pagado':'🎫'}</button>`;
 }
 async function generarMovimientosAutoParaResultado(sorteoId, fechaKey, codigoSorteoTexto){
   if(!codigoSorteoTexto) return [];

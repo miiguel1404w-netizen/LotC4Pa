@@ -780,7 +780,7 @@
         </div>
         <div class="card" style="padding:0; overflow:hidden;">
           <table>
-            <thead><tr><th>Fecha</th><th>Monto</th><th>Ticket</th><th>Detalle</th></tr></thead>
+            <thead><tr><th>Fecha</th><th>Monto</th><th>Ticket</th><th>Detalle</th><th></th></tr></thead>
             <tbody id="deu-det-tabla"></tbody>
           </table>
           <div class="empty-state" id="deu-det-vacio" style="display:none;">Todavía no hay tickets sin pagar.</div>
@@ -3284,11 +3284,22 @@ function calcularBalanceVendedor(vendedorId, filtroSorteoId){
 }
 // ---------------- TICKETS NO PAGADOS (deuda de vendedores de equipo) ----------------
 function efectoDeuda(d){
-  // Cada ticket marcado "no pagado" (tiene ventaId) SUMA a lo que debe el
-  // vendedor. Un ajuste manual: "vendedor_a_admin" (ya se le descontó de su
-  // pago, o entregó el dinero) RESTA la deuda; "admin_a_vendedor" (corrección
-  // que aumenta la deuda a mano) SUMA.
-  if(d.ventaId) return d.monto;
+  // Cada ticket marcado "no pagado" (tiene ventaId) SUMA el costo del ticket
+  // a lo que debe el vendedor — pero si ese ticket ya ganó, se le resta el
+  // premio automáticamente (si el premio es mayor que el costo, queda a
+  // favor del vendedor en vez de en contra). d.monto siempre guarda el costo
+  // original del ticket sin tocar; el premio se busca en vivo, así que si el
+  // resultado se carga después de marcarlo (o se corrige), esto se
+  // actualiza solo, sin quedar un número congelado.
+  // Un ajuste manual: "vendedor_a_admin" (ya se le descontó de su pago, o
+  // entregó el dinero) RESTA la deuda; "admin_a_vendedor" (corrección que
+  // aumenta la deuda a mano) SUMA.
+  if(d.ventaId){
+    const venta = ventasList.find(v=>v.id===d.ventaId);
+    if(!venta) return d.monto;
+    const premio = premioDeVenta(venta) || 0;
+    return +(d.monto - premio).toFixed(2);
+  }
   return d.direccion==='vendedor_a_admin' ? -d.monto : d.monto;
 }
 function calcularDeudaVendedor(vendedorId){
@@ -3547,9 +3558,18 @@ function renderMisDeudas(){
         <thead><tr><th>Fecha</th><th>Monto</th><th>Ticket</th><th>Detalle</th></tr></thead>
         <tbody>${b.movimientos.length===0 ? '' : b.movimientos.map(d=>{
           const esTicket = !!d.ventaId;
+          const efecto = efectoDeuda(d);
           const ticketTxt = esTicket ? ('#'+escapeHtml(d.folio||'')) : '----';
-          const detalleTxt = esTicket ? ('Ticket no pagado'+(d.codigoSorteo?' · '+escapeHtml(d.codigoSorteo):'')) : (d.direccion==='admin_a_vendedor' ? 'Corrección (sube)'+(d.nota?': '+escapeHtml(d.nota):'') : 'Se descontó'+(d.nota?': '+escapeHtml(d.nota):''));
-          return `<tr><td>${formatearFecha(d.fecha)}</td><td class="mono" style="color:${colorMonto(d.monto)}; font-weight:700;">$${d.monto.toFixed(2)}</td><td class="mono">${ticketTxt}</td><td>${detalleTxt}</td></tr>`;
+          let detalleTxt;
+          if(esTicket){
+            const venta = ventasList.find(v=>v.id===d.ventaId);
+            const premio = venta ? (premioDeVenta(venta)||0) : 0;
+            detalleTxt = 'Ticket no pagado (costó $'+d.monto.toFixed(2)+')'+(d.codigoSorteo?' · '+escapeHtml(d.codigoSorteo):'');
+            if(premio>0) detalleTxt += ' · 🏆 ganó $'+premio.toFixed(2)+', ya descontado';
+          }else{
+            detalleTxt = d.direccion==='admin_a_vendedor' ? 'Corrección (sube)'+(d.nota?': '+escapeHtml(d.nota):'') : 'Se descontó'+(d.nota?': '+escapeHtml(d.nota):'');
+          }
+          return `<tr><td>${formatearFecha(d.fecha)}</td><td class="mono" style="color:${colorMonto(efecto)}; font-weight:700;">$${efecto.toFixed(2)}</td><td class="mono">${ticketTxt}</td><td>${detalleTxt}</td></tr>`;
         }).join('')}</tbody>
       </table>
       ${b.movimientos.length===0 ? '<div class="empty-state">No tienes tickets sin pagar. 🎉</div>' : ''}
@@ -3655,9 +3675,21 @@ function renderDetalleDeuda(){
     vacio.style.display = 'none';
     tbody.innerHTML = b.movimientos.map(d=>{
       const esTicket = !!d.ventaId;
+      const efecto = efectoDeuda(d);
       const ticketTxt = esTicket ? ('#'+escapeHtml(d.folio||'')) : '----';
-      const detalleTxt = esTicket ? ('Ticket no pagado'+(d.codigoSorteo?' · '+escapeHtml(d.codigoSorteo):'')) : (d.direccion==='admin_a_vendedor' ? 'Corrección (sube)'+(d.nota?': '+escapeHtml(d.nota):'') : 'Se descontó'+(d.nota?': '+escapeHtml(d.nota):''));
-      return `<tr><td>${formatearFecha(d.fecha)}</td><td class="mono" style="color:${colorMonto(d.monto)}; font-weight:700;">$${d.monto.toFixed(2)}</td><td class="mono">${ticketTxt}</td><td>${detalleTxt}</td></tr>`;
+      let detalleTxt;
+      if(esTicket){
+        const venta = ventasList.find(v=>v.id===d.ventaId);
+        const premio = venta ? (premioDeVenta(venta)||0) : 0;
+        detalleTxt = 'Ticket no pagado (costó $'+d.monto.toFixed(2)+')'+(d.codigoSorteo?' · '+escapeHtml(d.codigoSorteo):'');
+        if(premio>0) detalleTxt += ' · 🏆 ganó $'+premio.toFixed(2)+', ya descontado';
+      }else{
+        detalleTxt = d.direccion==='admin_a_vendedor' ? 'Corrección (sube)'+(d.nota?': '+escapeHtml(d.nota):'') : 'Se descontó'+(d.nota?': '+escapeHtml(d.nota):'');
+      }
+      const botonBorrar = esTicket
+        ? `<button class="btn-danger-text" onclick="toggleTicketNoPagado('${d.ventaId}')" title="Quita la marca del ticket">🗑</button>`
+        : `<button class="btn-danger-text" onclick="eliminarAjusteDeuda('${d.id}')" title="Borrar este movimiento">🗑</button>`;
+      return `<tr><td>${formatearFecha(d.fecha)}</td><td class="mono" style="color:${colorMonto(efecto)}; font-weight:700;">$${efecto.toFixed(2)}</td><td class="mono">${ticketTxt}</td><td>${detalleTxt}</td><td>${botonBorrar}</td></tr>`;
     }).join('');
   }
 }
@@ -3696,6 +3728,16 @@ async function guardarAjusteDeuda(){
   cerrarModalAjusteDeuda();
   avisar('Movimiento agregado.');
   renderDetalleDeuda();
+}
+async function eliminarAjusteDeuda(id){
+  const ok = await mostrarConfirmacion('¿Borrar este movimiento? No se puede deshacer.', { textoAceptar:'Sí, borrar' });
+  if(!ok) return;
+  try{
+    await db.from('deudas_equipo').delete().eq('id', id);
+  }catch(e){ avisar('No se pudo borrar. Revisa tu conexión.'); return; }
+  deudasEquipo = deudasEquipo.filter(d=>d.id!==id);
+  renderDetalleDeuda();
+  avisar('Movimiento borrado.');
 }
 function renderResultadosSorteoSelect(){
   const opts = sorteosOrdenados().map(s=>`<option value="${s.id}">${escapeHtml(s.nombre+' · '+s.horaSorteoTexto)}</option>`).join('');

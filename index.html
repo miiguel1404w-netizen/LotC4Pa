@@ -3377,6 +3377,13 @@ function textoBalance(balancePendiente, paraAdmin){
   return `<span style="color:var(--ink-dim); font-weight:800;">Al día</span>`;
 }
 function colorMonto(m){ return m>0.004 ? 'var(--green)' : (m<-0.004 ? 'var(--red)' : 'var(--ink-dim)'); }
+// Igual que colorMonto pero al revés: para pantallas donde el vendedor ve
+// SU PROPIO saldo (Mis tickets no pagados, Mi comisión) — ahí un número
+// positivo (debe más) es una mala noticia para él, así que se pinta rojo;
+// uno negativo (el admin le debe) es buena noticia, se pinta verde. Es lo
+// mismo que ya usa textoBalance() para el mensaje de arriba, solo que acá
+// se aplica a cada fila individual también, para que no se contradigan.
+function colorMontoVendedor(m){ return m>0.004 ? 'var(--red)' : (m<-0.004 ? 'var(--green)' : 'var(--ink-dim)'); }
 function renderFiltroSorteoBalance(){
   const sel = document.getElementById('bal-filtro-sorteo');
   if(!sel) return;
@@ -3569,7 +3576,7 @@ function renderMisDeudas(){
           }else{
             detalleTxt = d.direccion==='admin_a_vendedor' ? 'Corrección (sube)'+(d.nota?': '+escapeHtml(d.nota):'') : 'Se descontó'+(d.nota?': '+escapeHtml(d.nota):'');
           }
-          return `<tr><td>${formatearFecha(d.fecha)}</td><td class="mono" style="color:${colorMonto(efecto)}; font-weight:700;">$${efecto.toFixed(2)}</td><td class="mono">${ticketTxt}</td><td>${detalleTxt}</td></tr>`;
+          return `<tr><td>${formatearFecha(d.fecha)}</td><td class="mono" style="color:${colorMontoVendedor(efecto)}; font-weight:700;">$${efecto.toFixed(2)}</td><td class="mono">${ticketTxt}</td><td>${detalleTxt}</td></tr>`;
         }).join('')}</tbody>
       </table>
       ${b.movimientos.length===0 ? '<div class="empty-state">No tienes tickets sin pagar. 🎉</div>' : ''}
@@ -4648,7 +4655,10 @@ async function refrescarConfigCompartida(){
   const tabActivoEl = document.querySelector('.nav-item[data-tab].active');
   const tabActivo = tabActivoEl ? tabActivoEl.dataset.tab : '';
   if(tabActivo==='independientes') renderListaIndependientes();
+  if(tabActivo==='deudas') renderListaDeudas();
+  if(detalleDeudaId) renderDetalleDeuda();
   if(tabActivo==='micomision') renderMiComision();
+  if(tabActivo==='misdeudas') renderMisDeudas();
   if(tabActivo==='cobertura'){ renderCoberturaSorteoSelect(); renderCobertura(); }
   if(tabActivo==='ranking'){ renderRankingSorteoSelect(); renderRanking(); }
 }

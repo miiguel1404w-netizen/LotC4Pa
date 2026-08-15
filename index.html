@@ -91,9 +91,11 @@
   .btn-gold{ background:var(--gold); color:#fff; }
   .btn-gold:hover{ opacity:0.9; }
   .btn-outline{ background:transparent; color:var(--green); border:1.5px solid var(--green); }
+  .btn-pin{ background:transparent; border:none; color:var(--ink-dim); }
   .btn-outline:hover{ background:var(--paper-dim); }
   .btn-danger{ background:transparent; color:var(--red); border:1.5px solid var(--red); }
   .btn-danger-text{ background:transparent; color:var(--red); border:none; font-size:13px; font-weight:600; cursor:pointer; padding:4px 8px;}
+  .btn-danger-text.btn-anular{ border:1.5px solid var(--red); border-radius:6px; }
   .btn-liq-tipo{ flex:1; padding:12px 6px; border-radius:9px; border:1.5px solid var(--line); background:var(--paper-dim); color:var(--ink-dim); font-weight:700; font-size:14px; cursor:pointer; text-align:center; line-height:1.5; }
   .btn-liq-tipo.activo{ background:var(--green); border-color:var(--green); color:#fff; }
   .btn-text{ background:transparent; color:var(--ink-dim); border:none; font-size:13px; font-weight:600; cursor:pointer; padding:4px 8px;}
@@ -2611,7 +2613,7 @@ function renderHistorialSorteoActual(){
       const esGanador = !v.pendienteSync && premio!==null && premio>0;
       const botonAnular = v.pendienteSync
         ? `<button class="btn-danger-text" onclick="quitarVentaPendiente('${v.id}')">Quitar</button>`
-        : (puedeAnular(v) ? `<button class="btn-danger-text" onclick="anularDesdeHistorialSorteo('${v.id}')">Anular</button>` : '');
+        : (puedeAnular(v) ? `<button class="btn-danger-text btn-anular" onclick="anularDesdeHistorialSorteo('${v.id}')">Anular</button>` : '');
       const botonEditar = (!v.pendienteSync && puedeAnular(v)) ? `<button class="btn btn-sm btn-editar-amarillo" onclick="iniciarEdicionTicket('${v.id}')">Editar</button>` : '';
       const botonNoPagado = botonNoPagadoHtml(v);
       const botonReportar = botonReportarNoPagadoHtml(v);
@@ -3382,7 +3384,7 @@ function botonNoPagadoHtml(venta){
     return `<button class="btn btn-sm" style="background:#B8860B; color:#fff; border:none;" onclick="toggleTicketNoPagado('${venta.id}')" title="Un vendedor lo reportó — toca para confirmarlo">🔔 Revisar</button>`;
   }
   const marcado = !!existente;
-  return `<button class="btn btn-sm ${marcado?'btn-danger':'btn-outline'}" onclick="toggleTicketNoPagado('${venta.id}')" title="Marcar si el cliente no pagó este ticket">${marcado?'📌 No pagado':'📌'}</button>`;
+  return `<button class="btn btn-sm ${marcado?'btn-danger':'btn-pin'}" onclick="toggleTicketNoPagado('${venta.id}')" title="Marcar si el cliente no pagó este ticket">${marcado?'📌 No pagado':'📌'}</button>`;
 }
 function botonReportarNoPagadoHtml(venta){
   // Solo para vendedores de equipo, y solo en la pantalla de "hoy" de cada
@@ -3397,7 +3399,7 @@ function botonReportarNoPagadoHtml(venta){
   if(existente && existente.estado==='pendiente'){
     return `<button class="btn btn-sm" style="background:#B8860B; color:#fff; border:none;" onclick="retirarReporteNoPagado('${venta.id}')" title="Ya lo reportaste — esperando que el admin lo revise. Toca para retirarlo.">📌</button>`;
   }
-  return `<button class="btn btn-sm btn-outline" onclick="reportarTicketNoPagado('${venta.id}')" title="Reportar que el cliente no pagó este ticket">📌</button>`;
+  return `<button class="btn btn-sm btn-pin" onclick="reportarTicketNoPagado('${venta.id}')" title="Reportar que el cliente no pagó este ticket">📌</button>`;
 }
 async function reportarTicketNoPagado(ventaId){
   const venta = ventasList.find(v=>v.id===ventaId);
@@ -4119,7 +4121,7 @@ function renderHistorial(){
       }
       const botonAnular = v.pendienteSync
         ? `<button class="btn-danger-text" onclick="quitarVentaPendiente('${v.id}')">Quitar</button>`
-        : (puedeAnular(v) ? `<button class="btn-danger-text" onclick="anularVenta('${v.id}')">Anular</button>` : '');
+        : (puedeAnular(v) ? `<button class="btn-danger-text btn-anular" onclick="anularVenta('${v.id}')">Anular</button>` : '');
       const botonEditar = (!v.pendienteSync && puedeAnular(v)) ? `<button class="btn btn-sm btn-editar-amarillo" onclick="editarDesdeHistorialGeneral('${v.id}')">Editar</button>` : '';
       const botonNoPagado = botonNoPagadoHtml(v);
       const tituloAnulado = v.anulada ? `title="Anulado por ${escapeHtml(v.anuladaPor||'')}${v.motivoAnulacion? ': '+escapeHtml(v.motivoAnulacion):''}"` : '';

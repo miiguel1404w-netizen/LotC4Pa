@@ -755,7 +755,7 @@
     <div id="tab-deudas" style="display:none">
       <div id="deu-pantalla-lista">
         <h1 class="page-title">🎫 Tickets no pagados</h1>
-        <div class="page-sub">Tickets de tu equipo que el cliente no pagó — se van descontando en cada quincena. El saldo positivo es lo que el vendedor todavía te debe.</div>
+        <div class="page-sub">Tickets de tu equipo que el cliente no pagó — se van descontando en cada quincena. En verde: lo que el vendedor todavía te debe. En rojo: lo que vos le debés a él.</div>
         <div class="card" style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
           <button class="btn btn-outline btn-sm" onclick="toggleTotalDeudas()" title="Ver total de todos">Σ Total</button>
           <button class="btn btn-outline btn-sm" onclick="refrescarDeudas()" title="Actualizar">↻</button>
@@ -3576,7 +3576,7 @@ function renderMisDeudas(){
           }else{
             detalleTxt = d.direccion==='admin_a_vendedor' ? 'Corrección (sube)'+(d.nota?': '+escapeHtml(d.nota):'') : 'Se descontó'+(d.nota?': '+escapeHtml(d.nota):'');
           }
-          return `<tr><td>${formatearFecha(d.fecha)}</td><td class="mono" style="color:${colorMontoVendedor(efecto)}; font-weight:700;">$${efecto.toFixed(2)}</td><td class="mono">${ticketTxt}</td><td>${detalleTxt}</td></tr>`;
+          return `<tr><td>${formatearFecha(d.fecha)}</td><td class="mono" style="color:${colorMontoVendedor(efecto)}; font-weight:700;">$${Math.abs(efecto).toFixed(2)}</td><td class="mono">${ticketTxt}</td><td>${detalleTxt}</td></tr>`;
         }).join('')}</tbody>
       </table>
       ${b.movimientos.length===0 ? '<div class="empty-state">No tienes tickets sin pagar. 🎉</div>' : ''}

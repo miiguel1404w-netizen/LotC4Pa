@@ -341,8 +341,10 @@
   <div class="nav-item" data-tab="ranking" onclick="irATab('ranking')">🏅 Ranking de números</div>
   <div class="nav-item admin-only" data-tab="resultados" onclick="irATab('resultados')">🏆 Resultados</div>
   <div class="nav-item admin-only" data-tab="independientes" onclick="irATab('independientes')">💵 Vendedores Independientes</div>
+  <div class="nav-item admin-only" data-tab="deudas" onclick="irATab('deudas')">🎫 Tickets no pagados</div>
   <div class="nav-item" data-tab="cobertura" id="nav-cobertura" style="display:none" onclick="irATab('cobertura')">🛡️ Balance real</div>
   <div class="nav-item" data-tab="micomision" id="nav-micomision" style="display:none" onclick="irATab('micomision')">💵 Mi comisión</div>
+  <div class="nav-item" data-tab="misdeudas" id="nav-misdeudas" style="display:none" onclick="irATab('misdeudas')">🎫 Mis tickets no pagados</div>
   <div class="nav-item admin-only" data-tab="config" onclick="irATab('config')">⚙️ Administración</div>
   <div class="nav-item logout" onclick="cerrarSesion()">⎋ Cerrar sesión</div>
 </div>
@@ -750,10 +752,52 @@
       </div>
     </div>
 
+    <div id="tab-deudas" style="display:none">
+      <div id="deu-pantalla-lista">
+        <h1 class="page-title">🎫 Tickets no pagados</h1>
+        <div class="page-sub">Tickets de tu equipo que el cliente no pagó — se van descontando en cada quincena. El saldo positivo es lo que el vendedor todavía te debe.</div>
+        <div class="card" style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+          <button class="btn btn-outline btn-sm" onclick="toggleTotalDeudas()" title="Ver total de todos">Σ Total</button>
+          <button class="btn btn-outline btn-sm" onclick="refrescarDeudas()" title="Actualizar">↻</button>
+        </div>
+        <div id="deu-total-general" style="display:none;"></div>
+        <div class="card" style="padding:0; overflow:hidden;">
+          <table>
+            <thead><tr><th>Vendedor</th><th style="text-align:right;">Debe</th></tr></thead>
+            <tbody id="lista-deudas"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div id="deu-pantalla-detalle" style="display:none">
+        <div class="shc-card">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <button class="btn-cambiar-sorteo" onclick="cerrarDetalleDeuda()">← Volver</button>
+            <button class="btn-cambiar-sorteo" onclick="abrirModalAjusteDeuda()">＋ Ajuste manual</button>
+          </div>
+          <div class="shc-top"><span id="deu-det-monto">$0.00</span></div>
+          <div class="shc-sub" id="deu-det-nombre">--</div>
+        </div>
+        <div class="card" style="padding:0; overflow:hidden;">
+          <table>
+            <thead><tr><th>Fecha</th><th>Monto</th><th>Ticket</th><th>Detalle</th></tr></thead>
+            <tbody id="deu-det-tabla"></tbody>
+          </table>
+          <div class="empty-state" id="deu-det-vacio" style="display:none;">Todavía no hay tickets sin pagar.</div>
+        </div>
+      </div>
+    </div>
+
     <div id="tab-micomision" style="display:none">
       <h1 class="page-title">Mi comisión</h1>
       <div class="page-sub">Tu balance con el admin, movimiento por movimiento.</div>
       <div id="tab-micomision-contenido"></div>
+    </div>
+
+    <div id="tab-misdeudas" style="display:none">
+      <h1 class="page-title">🎫 Mis tickets no pagados</h1>
+      <div class="page-sub">Tickets que quedaron sin cobrar y lo que llevás a favor o en contra con el admin.</div>
+      <div id="tab-misdeudas-contenido"></div>
     </div>
 
     <div id="tab-cobertura" style="display:none">
@@ -982,6 +1026,25 @@
   </div>
 </div>
 
+<div class="modal-overlay no-print" id="modal-ajuste-deuda" style="display:none">
+  <div class="ticket" style="width:340px;">
+    <div class="ticket-body">
+      <h2 style="margin-top:0;">Ajuste de deuda</h2>
+      <p class="hint" id="deu-vendedor-nombre" style="margin-top:-8px;"></p>
+      <div style="display:flex; gap:8px; margin-bottom:14px;">
+        <button type="button" class="btn-liq-tipo" id="btn-deu-descuenta" onclick="elegirTipoAjusteDeuda('vendedor_a_admin')">➖ Se descontó<br><span style="font-weight:400; font-size:11px;">Baja la deuda</span></button>
+        <button type="button" class="btn-liq-tipo" id="btn-deu-agrega" onclick="elegirTipoAjusteDeuda('admin_a_vendedor')">➕ Corrección<br><span style="font-weight:400; font-size:11px;">Sube la deuda</span></button>
+      </div>
+      <div class="field"><label>Monto</label><input type="number" step="0.01" id="deu-monto" placeholder="0.00"></div>
+      <div class="field"><label>Comentario (opcional)</label><textarea id="deu-nota" rows="2" placeholder="Ej. descontado en la quincena del 15" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"></textarea></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="cerrarModalAjusteDeuda()">Cancelar</button>
+      <button class="btn btn-gold" onclick="guardarAjusteDeuda()">Agregar</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay no-print" id="modal-confirm" style="display:none; z-index:200;">
   <div class="ticket" style="width:320px;">
     <div class="ticket-body">
@@ -1107,6 +1170,8 @@ function ahoraServidor(){
 }
 function filaAVendedor(v){ return { id:v.id, nombre:v.nombre, username:v.username, password:v.password, enEquipo: v.en_equipo !== false, porcentaje: +v.porcentaje || 0 }; }
 function filaALiquidacion(l){ return { id:l.id, vendedorId:l.vendedor_id, vendedorNombre:l.vendedor_nombre||null, fecha:l.fecha, monto:+l.monto, direccion:l.direccion, nota:l.nota||'', sorteoId:l.sorteo_id||null, codigoSorteo:l.codigo_sorteo||null }; }
+let deudasEquipo = [];
+function filaADeuda(d){ return { id:d.id, vendedorId:d.vendedor_id, vendedorNombre:d.vendedor_nombre||null, fecha:d.fecha, monto:+d.monto, direccion:d.direccion, nota:d.nota||'', ventaId:d.venta_id||null, folio:d.folio||null, codigoSorteo:d.codigo_sorteo||null }; }
 function filaACobertura(c){ return { id:c.id, sorteoId:c.sorteo_id||null, codigoSorteo:c.codigo_sorteo||null, fechaKey:c.fecha_key, numero:c.numero, modalidad:c.modalidad, cantidad:+c.cantidad, nota:c.nota||'', creadoEn:c.created_at }; }
 function filaASorteo(s){
   return { id:s.id, nombre:s.nombre, horaSorteoTexto:s.hora_sorteo_texto, horaCierre:s.hora_cierre,
@@ -1203,6 +1268,11 @@ async function cargarDatos(){
   try{
     const data = await fetchTodasFilas('liquidaciones', '*', 'fecha');
     liquidaciones = (data||[]).map(filaALiquidacion);
+  }catch(e){}
+
+  try{
+    const data = await fetchTodasFilas('deudas_equipo', '*', 'fecha');
+    deudasEquipo = (data||[]).map(filaADeuda);
   }catch(e){}
 
   try{
@@ -1369,6 +1439,8 @@ function aplicarRol(){
   const rv = document.getElementById('rep-vendedor'); if(rv) rv.style.display = esVendedor ? 'none' : '';
   const navMiComision = document.getElementById('nav-micomision');
   if(navMiComision) navMiComision.style.display = (esVendedor && esVendedorIndependiente(currentUser.vendedorId)) ? 'flex' : 'none';
+  const navMisDeudas = document.getElementById('nav-misdeudas');
+  if(navMisDeudas) navMisDeudas.style.display = (esVendedor && vendedorEnEquipo(currentUser.vendedorId)) ? 'flex' : 'none';
   const navCobertura = document.getElementById('nav-cobertura');
   if(navCobertura) navCobertura.style.display = puedeVerRiesgoChance() ? 'flex' : 'none';
   aplicarOrdenMenu();
@@ -1490,14 +1562,15 @@ function aplicarEstadoNav(estado){
 }
 function mostrarTabInterno(tab){
   document.querySelectorAll('.nav-item[data-tab]').forEach(el=>el.classList.toggle('active', el.dataset.tab===tab));
-  ['ventas','historial','reportes','tabla','ranking','resultados','config','independientes','micomision','cobertura'].forEach(t=>{
+  ['ventas','historial','reportes','tabla','ranking','resultados','config','independientes','deudas','micomision','misdeudas','cobertura'].forEach(t=>{
     const el = document.getElementById('tab-'+t);
     if(el) el.style.display = (t===tab)?'block':'none';
   });
 }
 function switchTab(tab){
-  if((tab==='config' || tab==='resultados' || tab==='reportes' || tab==='independientes') && currentUser.role!=='admin') return;
+  if((tab==='config' || tab==='resultados' || tab==='reportes' || tab==='independientes' || tab==='deudas') && currentUser.role!=='admin') return;
   if(tab==='micomision' && !(currentUser.role==='vendedor' && esVendedorIndependiente(currentUser.vendedorId))) return;
+  if(tab==='misdeudas' && !(currentUser.role==='vendedor' && vendedorEnEquipo(currentUser.vendedorId))) return;
   if(tab==='cobertura' && !puedeVerRiesgoChance()) return;
   if(tab!=='ventas'){ document.documentElement.classList.remove('sin-scroll'); document.body.classList.remove('sin-scroll'); }
   mostrarTabInterno(tab);
@@ -1509,8 +1582,10 @@ function switchTab(tab){
   if(tab==='cobertura'){ renderCoberturaSorteoSelect(); renderCobertura(); }
   if(tab==='ventas'){ renderVentaSorteoSelect(); mostrarPantallaVenta('sorteo'); renderListaSorteosVenta(); }
   if(tab==='independientes'){ cerrarDetalleIndependiente(); }
+  if(tab==='deudas'){ cerrarDetalleDeuda(); }
   if(tab==='config') renderOrdenMenuLista();
   if(tab==='micomision') renderMiComision();
+  if(tab==='misdeudas') renderMisDeudas();
   registrarNavegacion();
 }
 let ultimoIntentoSalir = 0;
@@ -1519,7 +1594,9 @@ window.addEventListener('popstate', ()=>{
   manejandoPopstate = true;
   const modalAbierto = document.getElementById('modal-comprobante').style.display==='flex';
   const modalLiqAbierto = document.getElementById('modal-liquidacion').style.display==='flex';
+  const modalAjusteDeudaAbierto = document.getElementById('modal-ajuste-deuda') && document.getElementById('modal-ajuste-deuda').style.display==='flex';
   const detalleIndepAbierto = document.getElementById('bal-pantalla-detalle') && document.getElementById('bal-pantalla-detalle').style.display==='block';
+  const detalleDeudaAbierto = document.getElementById('deu-pantalla-detalle') && document.getElementById('deu-pantalla-detalle').style.display==='block';
   const menuAbierto = document.getElementById('menu-drawer').classList.contains('abierto');
 
   if(modalAbierto){
@@ -1534,8 +1611,20 @@ window.addEventListener('popstate', ()=>{
     manejandoPopstate = false;
     return;
   }
+  if(modalAjusteDeudaAbierto){
+    cerrarModalAjusteDeuda();
+    history.pushState(null, '', '');
+    manejandoPopstate = false;
+    return;
+  }
   if(detalleIndepAbierto){
     cerrarDetalleIndependiente();
+    history.pushState(null, '', '');
+    manejandoPopstate = false;
+    return;
+  }
+  if(detalleDeudaAbierto){
+    cerrarDetalleDeuda();
     history.pushState(null, '', '');
     manejandoPopstate = false;
     return;
@@ -2504,14 +2593,15 @@ function renderHistorialSorteoActual(){
         ? `<button class="btn-danger-text" onclick="quitarVentaPendiente('${v.id}')">Quitar</button>`
         : (puedeAnular(v) ? `<button class="btn-danger-text" onclick="anularDesdeHistorialSorteo('${v.id}')">Anular</button>` : '');
       const botonEditar = (!v.pendienteSync && puedeAnular(v)) ? `<button class="btn btn-sm btn-editar-amarillo" onclick="iniciarEdicionTicket('${v.id}')">Editar</button>` : '';
+      const botonNoPagado = botonNoPagadoHtml(v);
       const nombreCliente = v.cliente?escapeHtml(v.cliente):'<span style="color:var(--ink-dim); font-weight:500;">Sin nombre</span>';
       return `<div class="jugada-row ${esGanador?'row-ganadora':''} ${v.pendienteSync?'row-pendiente':''}">
         <div>
-          <div style="font-size:15.5px; font-weight:700; color:${esGanador?'var(--green)':'var(--ink)'};">${v.pendienteSync?'⏳ ':''}${esGanador?'🏆 ':''}${nombreCliente}</div>
+          <div style="font-size:15.5px; font-weight:700; color:${esGanador?'var(--green)':'var(--ink)'};">${v.pendienteSync?'⏳ ':''}${esGanador?'🏆 ':''}${nombreCliente}${estaTicketNoPagado(v.id)?' <span class="tag-anulado" style="background:var(--red);">🎫 No pagado</span>':''}</div>
           <div style="color:var(--ink-dim); font-size:11.5px; margin-top:1px;" class="mono">#${folioTexto(v)} · ${escapeHtml(nombreVendedor(v.vendedorId).slice(0,3))}${v.editadoPor?' · edit: '+escapeHtml(v.editadoPor.slice(0,3)):''}</div>
         </div>
         <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; justify-content:flex-end;"><span class="mono" style="font-weight:600">$${v.total.toFixed(2)}</span>${premioTxt}
-          <button class="btn btn-outline btn-sm" onclick="verComprobante('${v.id}')">Ver</button>${botonEditar}${botonAnular}</div>
+          <button class="btn btn-outline btn-sm" onclick="verComprobante('${v.id}')">Ver</button>${botonEditar}${botonNoPagado}${botonAnular}</div>
       </div>`;
     }).join('');
   }
@@ -3192,6 +3282,51 @@ function calcularBalanceVendedor(vendedorId, filtroSorteoId){
   const balancePendiente = +movs.reduce((s,l)=>s+efectoMovimiento(l),0).toFixed(2);
   return { porcentaje, balancePendiente, movimientos: movs.slice().sort((a,b)=> new Date(b.fecha)-new Date(a.fecha)) };
 }
+// ---------------- TICKETS NO PAGADOS (deuda de vendedores de equipo) ----------------
+function efectoDeuda(d){
+  // Cada ticket marcado "no pagado" (tiene ventaId) SUMA a lo que debe el
+  // vendedor. Un ajuste manual: "vendedor_a_admin" (ya se le descontó de su
+  // pago, o entregó el dinero) RESTA la deuda; "admin_a_vendedor" (corrección
+  // que aumenta la deuda a mano) SUMA.
+  if(d.ventaId) return d.monto;
+  return d.direccion==='vendedor_a_admin' ? -d.monto : d.monto;
+}
+function calcularDeudaVendedor(vendedorId){
+  const movs = deudasEquipo.filter(d=>d.vendedorId===vendedorId);
+  const balancePendiente = +movs.reduce((s,d)=>s+efectoDeuda(d),0).toFixed(2);
+  return { balancePendiente, movimientos: movs.slice().sort((a,b)=> new Date(b.fecha)-new Date(a.fecha)) };
+}
+function estaTicketNoPagado(ventaId){
+  return deudasEquipo.some(d=>d.ventaId===ventaId);
+}
+async function toggleTicketNoPagado(ventaId){
+  const existente = deudasEquipo.find(d=>d.ventaId===ventaId);
+  if(existente){
+    const ok = await mostrarConfirmacion('¿Quitar la marca de "no pagado" a este ticket? Se le va a restar de la deuda que tiene anotada.', { textoAceptar:'Sí, quitar' });
+    if(!ok) return;
+    try{
+      await db.from('deudas_equipo').delete().eq('id', existente.id);
+    }catch(e){ avisar('No se pudo quitar la marca. Revisa tu conexión.'); return; }
+    deudasEquipo = deudasEquipo.filter(d=>d.id!==existente.id);
+  }else{
+    const venta = ventasList.find(v=>v.id===ventaId);
+    if(!venta) return;
+    const v = vendedores.find(x=>x.id===venta.vendedorId);
+    const nueva = { id: uid(), vendedorId: venta.vendedorId, vendedorNombre: v?v.nombre:null, fecha: ahoraServidor().toISOString(),
+      monto: +venta.total.toFixed(2), direccion:null, nota:null, ventaId: venta.id, folio: folioTexto(venta), codigoSorteo: venta.codigoSorteo||null };
+    try{
+      await db.from('deudas_equipo').insert({ id:nueva.id, vendedor_id:nueva.vendedorId, vendedor_nombre:nueva.vendedorNombre, fecha:nueva.fecha, monto:nueva.monto, direccion:null, nota:null, venta_id:nueva.ventaId, folio:nueva.folio, codigo_sorteo:nueva.codigoSorteo });
+    }catch(e){ avisar('No se pudo marcar como no pagado. Revisa tu conexión.'); return; }
+    deudasEquipo.unshift(nueva);
+  }
+  if(pantallaVentaActual==='historial') renderHistorialSorteoActual();
+  renderHistorial();
+}
+function botonNoPagadoHtml(venta){
+  if(currentUser.role!=='admin' || venta.anulada || venta.pendienteSync || !vendedorEnEquipo(venta.vendedorId)) return '';
+  const marcado = estaTicketNoPagado(venta.id);
+  return `<button class="btn btn-sm ${marcado?'btn-danger':'btn-outline'}" onclick="toggleTicketNoPagado('${venta.id}')" title="Marcar si el cliente no pagó este ticket">${marcado?'🎫 No pagado':'🎫 Marcar no pagado'}</button>`;
+}
 async function generarMovimientosAutoParaResultado(sorteoId, fechaKey, codigoSorteoTexto){
   if(!codigoSorteoTexto) return [];
   const independientes = vendedores.filter(v=>v.enEquipo===false);
@@ -3397,6 +3532,29 @@ function renderMiComision(){
       ${b.movimientos.length===0 ? '<div class="empty-state">Aún no hay movimientos.</div>' : ''}
     </div>`;
 }
+function renderMisDeudas(){
+  const cont = document.getElementById('tab-misdeudas-contenido');
+  if(!cont || !currentUser.vendedorId) return;
+  const v = vendedores.find(x=>x.id===currentUser.vendedorId);
+  if(!v) return;
+  const b = calcularDeudaVendedor(v.id);
+  cont.innerHTML = `
+    <div class="card">
+      <div style="margin-top:6px; font-size:18px;">${textoBalance(b.balancePendiente, false)}</div>
+    </div>
+    <div class="card" style="padding:0; overflow:hidden;">
+      <table>
+        <thead><tr><th>Fecha</th><th>Monto</th><th>Ticket</th><th>Detalle</th></tr></thead>
+        <tbody>${b.movimientos.length===0 ? '' : b.movimientos.map(d=>{
+          const esTicket = !!d.ventaId;
+          const ticketTxt = esTicket ? ('#'+escapeHtml(d.folio||'')) : '----';
+          const detalleTxt = esTicket ? ('Ticket no pagado'+(d.codigoSorteo?' · '+escapeHtml(d.codigoSorteo):'')) : (d.direccion==='admin_a_vendedor' ? 'Corrección (sube)'+(d.nota?': '+escapeHtml(d.nota):'') : 'Se descontó'+(d.nota?': '+escapeHtml(d.nota):''));
+          return `<tr><td>${formatearFecha(d.fecha)}</td><td class="mono" style="color:${colorMonto(d.monto)}; font-weight:700;">$${d.monto.toFixed(2)}</td><td class="mono">${ticketTxt}</td><td>${detalleTxt}</td></tr>`;
+        }).join('')}</tbody>
+      </table>
+      ${b.movimientos.length===0 ? '<div class="empty-state">No tienes tickets sin pagar. 🎉</div>' : ''}
+    </div>`;
+}
 let liquidacionVendedorId = null;
 let liquidacionDireccionElegida = 'vendedor_a_admin';
 function elegirTipoLiquidacion(direccion){
@@ -3432,6 +3590,112 @@ async function guardarLiquidacion(){
   cerrarModalLiquidacion();
   avisar('Movimiento agregado.');
   renderDetalleIndependiente();
+}
+// ---------------- PANTALLAS: TICKETS NO PAGADOS ----------------
+function renderListaDeudas(){
+  const cont = document.getElementById('lista-deudas');
+  if(!cont) return;
+  const equipo = vendedores.filter(v=>v.enEquipo!==false);
+  if(equipo.length===0){ cont.innerHTML = '<tr><td colspan="2" class="empty-state">No tienes vendedores de equipo todavía.</td></tr>'; return; }
+  let totalGeneral = 0;
+  cont.innerHTML = equipo.map(v=>{
+    const b = calcularDeudaVendedor(v.id);
+    totalGeneral += b.balancePendiente;
+    return `<tr onclick="abrirDetalleDeuda('${v.id}')" style="cursor:pointer;">
+      <td>${escapeHtml(v.nombre)}</td>
+      <td style="text-align:right; font-weight:700; color:${colorMonto(b.balancePendiente)};" class="mono">$${b.balancePendiente.toFixed(2)}</td>
+    </tr>`;
+  }).join('');
+  const cajaTotal = document.getElementById('deu-total-general');
+  if(cajaTotal && cajaTotal.style.display!=='none'){
+    cajaTotal.innerHTML = `<div class="summary-box" style="border-left-color:${colorMonto(totalGeneral)}"><div class="num mono" style="color:${colorMonto(totalGeneral)};">$${totalGeneral.toFixed(2)}</div><div class="lbl">Total de todo el equipo</div></div>`;
+  }
+}
+function toggleTotalDeudas(){
+  const caja = document.getElementById('deu-total-general');
+  const abierta = caja.style.display!=='none';
+  caja.style.display = abierta ? 'none' : 'block';
+  if(!abierta) renderListaDeudas();
+}
+async function refrescarDeudas(){
+  await cargarDatos();
+  renderListaDeudas();
+  avisar('Actualizado.');
+}
+let detalleDeudaId = null;
+function abrirDetalleDeuda(vendedorId){
+  detalleDeudaId = vendedorId;
+  document.getElementById('deu-pantalla-lista').style.display = 'none';
+  document.getElementById('deu-pantalla-detalle').style.display = 'block';
+  renderDetalleDeuda();
+  if(!manejandoPopstate) history.pushState(null, '', '');
+}
+function cerrarDetalleDeuda(){
+  detalleDeudaId = null;
+  const detalle = document.getElementById('deu-pantalla-detalle');
+  const lista = document.getElementById('deu-pantalla-lista');
+  if(detalle) detalle.style.display = 'none';
+  if(lista) lista.style.display = 'block';
+  renderListaDeudas();
+}
+function renderDetalleDeuda(){
+  if(!detalleDeudaId) return;
+  const v = vendedores.find(x=>x.id===detalleDeudaId);
+  if(!v) return;
+  const b = calcularDeudaVendedor(v.id);
+  document.getElementById('deu-det-monto').textContent = '$'+b.balancePendiente.toFixed(2);
+  document.getElementById('deu-det-monto').style.color = colorMonto(b.balancePendiente);
+  document.getElementById('deu-det-nombre').textContent = v.nombre;
+  const tbody = document.getElementById('deu-det-tabla');
+  const vacio = document.getElementById('deu-det-vacio');
+  if(b.movimientos.length===0){
+    tbody.innerHTML = '';
+    vacio.style.display = 'block';
+  }else{
+    vacio.style.display = 'none';
+    tbody.innerHTML = b.movimientos.map(d=>{
+      const esTicket = !!d.ventaId;
+      const ticketTxt = esTicket ? ('#'+escapeHtml(d.folio||'')) : '----';
+      const detalleTxt = esTicket ? ('Ticket no pagado'+(d.codigoSorteo?' · '+escapeHtml(d.codigoSorteo):'')) : (d.direccion==='admin_a_vendedor' ? 'Corrección (sube)'+(d.nota?': '+escapeHtml(d.nota):'') : 'Se descontó'+(d.nota?': '+escapeHtml(d.nota):''));
+      return `<tr><td>${formatearFecha(d.fecha)}</td><td class="mono" style="color:${colorMonto(d.monto)}; font-weight:700;">$${d.monto.toFixed(2)}</td><td class="mono">${ticketTxt}</td><td>${detalleTxt}</td></tr>`;
+    }).join('');
+  }
+}
+let ajusteDeudaVendedorId = null;
+let ajusteDeudaDireccionElegida = 'vendedor_a_admin';
+function elegirTipoAjusteDeuda(direccion){
+  ajusteDeudaDireccionElegida = direccion;
+  document.getElementById('btn-deu-agrega').classList.toggle('activo', direccion==='admin_a_vendedor');
+  document.getElementById('btn-deu-descuenta').classList.toggle('activo', direccion==='vendedor_a_admin');
+}
+function abrirModalAjusteDeuda(){
+  ajusteDeudaVendedorId = detalleDeudaId;
+  const v = vendedores.find(x=>x.id===ajusteDeudaVendedorId);
+  document.getElementById('deu-vendedor-nombre').textContent = v ? ('Para: '+v.nombre) : '';
+  document.getElementById('deu-monto').value = '';
+  document.getElementById('deu-nota').value = '';
+  elegirTipoAjusteDeuda('vendedor_a_admin');
+  document.getElementById('modal-ajuste-deuda').style.display='flex';
+  if(!manejandoPopstate) history.pushState(null, '', '');
+}
+function cerrarModalAjusteDeuda(){
+  document.getElementById('modal-ajuste-deuda').style.display='none';
+  ajusteDeudaVendedorId = null;
+}
+async function guardarAjusteDeuda(){
+  const monto = +document.getElementById('deu-monto').value;
+  if(!ajusteDeudaVendedorId || !monto || monto<=0){ avisar('Escribe un monto válido, mayor a 0.'); return; }
+  const direccion = ajusteDeudaDireccionElegida;
+  const nota = document.getElementById('deu-nota').value.trim();
+  const v = vendedores.find(x=>x.id===ajusteDeudaVendedorId);
+  const nueva = { id: uid(), vendedorId: ajusteDeudaVendedorId, vendedorNombre: v?v.nombre:null, fecha: ahoraServidor().toISOString(), monto:+monto.toFixed(2), direccion, nota, ventaId:null, folio:null, codigoSorteo:null };
+  try{
+    await db.from('deudas_equipo').insert({ id:nueva.id, vendedor_id:nueva.vendedorId, vendedor_nombre:nueva.vendedorNombre, fecha:nueva.fecha, monto:nueva.monto, direccion:nueva.direccion, nota:nueva.nota, venta_id:null, folio:null, codigo_sorteo:null });
+  }catch(e){ avisar('No se pudo guardar el ajuste. Revisa tu conexión.'); return; }
+  deudasEquipo.unshift(nueva);
+  cerrarModalAjusteDeuda();
+  avisar('Movimiento agregado.');
+  renderDetalleDeuda();
 }
 function renderResultadosSorteoSelect(){
   const opts = sorteosOrdenados().map(s=>`<option value="${s.id}">${escapeHtml(s.nombre+' · '+s.horaSorteoTexto)}</option>`).join('');
@@ -3643,11 +3907,12 @@ function renderHistorial(){
         ? `<button class="btn-danger-text" onclick="quitarVentaPendiente('${v.id}')">Quitar</button>`
         : (puedeAnular(v) ? `<button class="btn-danger-text" onclick="anularVenta('${v.id}')">Anular</button>` : '');
       const botonEditar = (!v.pendienteSync && puedeAnular(v)) ? `<button class="btn btn-sm btn-editar-amarillo" onclick="editarDesdeHistorialGeneral('${v.id}')">Editar</button>` : '';
+      const botonNoPagado = botonNoPagadoHtml(v);
       const tituloAnulado = v.anulada ? `title="Anulado por ${escapeHtml(v.anuladaPor||'')}${v.motivoAnulacion? ': '+escapeHtml(v.motivoAnulacion):''}"` : '';
       const nombreCliente = v.cliente ? escapeHtml(v.cliente) : '<span style="color:var(--ink-dim); font-weight:500;">Sin nombre</span>';
       return `<div class="jugada-row ${v.anulada?'row-anulada':''}" ${tituloAnulado}>
         <div>
-          <div style="font-size:14.5px; font-weight:700;">${v.pendienteSync?'⏳ ':''}${nombreCliente}</div>
+          <div style="font-size:14.5px; font-weight:700;">${v.pendienteSync?'⏳ ':''}${nombreCliente}${estaTicketNoPagado(v.id)?' <span class="tag-anulado" style="background:var(--red);">🎫 No pagado</span>':''}</div>
           <div style="font-size:11px; color:var(--ink-dim); margin-top:1px;" class="mono">#${folioTexto(v)} · ${escapeHtml(nombreVendedor(v.vendedorId).slice(0,3))}${v.editadoPor?' · edit: '+escapeHtml(v.editadoPor.slice(0,3)):''}</div>
           <div style="font-size:11px; color:var(--ink-dim); margin-top:1px;">${nombreSorteoVenta(v)} · ${formatearFecha(v.fecha)}</div>
           ${numerosGanadoresTxt}
@@ -3656,7 +3921,7 @@ function renderHistorial(){
           <span class="mono" style="font-weight:700;">$${v.total.toFixed(2)}</span>
           ${premioCell}
           <div style="display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end;">
-            <button class="btn btn-outline btn-sm" onclick="verComprobante('${v.id}')">Ver</button>${botonEditar}${botonAnular}
+            <button class="btn btn-outline btn-sm" onclick="verComprobante('${v.id}')">Ver</button>${botonEditar}${botonNoPagado}${botonAnular}
           </div>
         </div>
       </div>`;

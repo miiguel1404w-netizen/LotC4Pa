@@ -344,10 +344,10 @@
   <div class="nav-item" data-tab="ranking" onclick="irATab('ranking')">🏅 Ranking de números</div>
   <div class="nav-item admin-only" data-tab="resultados" onclick="irATab('resultados')">🏆 Resultados</div>
   <div class="nav-item admin-only" data-tab="independientes" onclick="irATab('independientes')">💵 Vendedores Independientes</div>
-  <div class="nav-item admin-only" data-tab="deudas" id="nav-deudas" onclick="irATab('deudas')">📌 Tickets no pagados<span id="badge-deudas-pendientes" class="badge-pendientes" style="display:none;"></span></div>
+  <div class="nav-item admin-only" data-tab="deudas" id="nav-deudas" onclick="irATab('deudas')">📌 Cuentas de vendedores<span id="badge-deudas-pendientes" class="badge-pendientes" style="display:none;"></span></div>
   <div class="nav-item" data-tab="cobertura" id="nav-cobertura" style="display:none" onclick="irATab('cobertura')">🛡️ Balance real</div>
   <div class="nav-item" data-tab="micomision" id="nav-micomision" style="display:none" onclick="irATab('micomision')">💵 Mi comisión</div>
-  <div class="nav-item" data-tab="misdeudas" id="nav-misdeudas" style="display:none" onclick="irATab('misdeudas')">📌 Mis tickets no pagados</div>
+  <div class="nav-item" data-tab="misdeudas" id="nav-misdeudas" style="display:none" onclick="irATab('misdeudas')">📌 Mis cuentas</div>
   <div class="nav-item admin-only" data-tab="config" onclick="irATab('config')">⚙️ Administración</div>
   <div class="nav-item logout" onclick="cerrarSesion()">⎋ Cerrar sesión</div>
 </div>
@@ -757,10 +757,13 @@
 
     <div id="tab-deudas" style="display:none">
       <div id="deu-pantalla-lista">
-        <h1 class="page-title">📌 Tickets no pagados</h1>
-        <div class="page-sub">Tickets de tu equipo que el cliente no pagó — se van descontando en cada quincena. En verde: lo que el vendedor todavía te debe. En rojo: lo que vos le debés a él.</div>
+        <h1 class="page-title">📌 Cuentas de vendedores</h1>
+        <div class="page-sub">Tickets que el cliente no pagó y propinas de tu equipo — todo se suma en un solo saldo, y se va descontando en cada quincena. En verde: lo que el vendedor todavía te debe. En rojo: lo que vos le debés a él.</div>
+        <div class="card" style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+          <button class="btn btn-outline btn-sm" onclick="abrirModalPropina()">💰 Reportar propina</button>
+        </div>
         <div id="deu-pendientes-caja" class="card" style="display:none; padding:0; overflow:hidden;">
-          <div style="padding:14px 16px 6px 16px;"><h2 style="margin:0; font-size:15px;">🔔 Reportados por tu equipo, esperando tu revisión</h2>
+          <div style="padding:14px 16px 6px 16px;"><h2 style="margin:0; font-size:15px;">🔔 Reportado por tu equipo, esperando tu revisión</h2>
           <p class="hint" style="margin:2px 0 0 0;">Todavía no cuentan en ningún saldo — solo se anotan cuando los confirmás.</p></div>
           <div id="deu-pendientes-lista"></div>
         </div>
@@ -781,7 +784,10 @@
         <div class="shc-card">
           <div style="display:flex; justify-content:space-between; align-items:center;">
             <button class="btn-cambiar-sorteo" onclick="cerrarDetalleDeuda()">← Volver</button>
-            <button class="btn-cambiar-sorteo" onclick="abrirModalAjusteDeuda()">＋ Ajuste manual</button>
+            <div style="display:flex; gap:6px;">
+              <button class="btn-cambiar-sorteo" onclick="abrirModalPropina()">💰 Propina</button>
+              <button class="btn-cambiar-sorteo" onclick="abrirModalAjusteDeuda()">＋ Ajuste</button>
+            </div>
           </div>
           <div class="shc-top"><span id="deu-det-monto">$0.00</span></div>
           <div class="shc-sub" id="deu-det-nombre">--</div>
@@ -803,8 +809,11 @@
     </div>
 
     <div id="tab-misdeudas" style="display:none">
-      <h1 class="page-title">📌 Mis tickets no pagados</h1>
-      <div class="page-sub">Tickets que quedaron sin cobrar y lo que llevás a favor o en contra con el admin.</div>
+      <h1 class="page-title">📌 Mis cuentas</h1>
+      <div class="page-sub">Tickets sin cobrar y propinas — lo que llevás a favor o en contra con el admin.</div>
+      <div class="card" style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+        <button class="btn btn-outline btn-sm" onclick="abrirModalPropina()">💰 Reportar propina</button>
+      </div>
       <div id="tab-misdeudas-contenido"></div>
     </div>
 
@@ -1053,6 +1062,24 @@
   </div>
 </div>
 
+<div class="modal-overlay no-print" id="modal-propina" style="display:none">
+  <div class="ticket" style="width:340px;">
+    <div class="ticket-body">
+      <h2 style="margin-top:0;">💰 Reportar propina</h2>
+      <div class="field" id="propina-vendedor-field" style="display:none;">
+        <label>Vendedor</label>
+        <select id="propina-vendedor"></select>
+      </div>
+      <div class="field"><label>Monto</label><input type="number" step="0.01" id="propina-monto" placeholder="0.00"></div>
+      <div class="field"><label>Nota (opcional)</label><input type="text" id="propina-nota" placeholder="Propina" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="cerrarModalPropina()">Cancelar</button>
+      <button class="btn btn-gold" onclick="guardarPropina()">Reportar</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay no-print" id="modal-confirm" style="display:none; z-index:200;">
   <div class="ticket" style="width:320px;">
     <div class="ticket-body">
@@ -1194,7 +1221,7 @@ function ahoraServidor(){
 function filaAVendedor(v){ return { id:v.id, nombre:v.nombre, username:v.username, password:v.password, enEquipo: v.en_equipo !== false, porcentaje: +v.porcentaje || 0 }; }
 function filaALiquidacion(l){ return { id:l.id, vendedorId:l.vendedor_id, vendedorNombre:l.vendedor_nombre||null, fecha:l.fecha, monto:+l.monto, direccion:l.direccion, nota:l.nota||'', sorteoId:l.sorteo_id||null, codigoSorteo:l.codigo_sorteo||null }; }
 let deudasEquipo = [];
-function filaADeuda(d){ return { id:d.id, vendedorId:d.vendedor_id, vendedorNombre:d.vendedor_nombre||null, fecha:d.fecha, monto:+d.monto, direccion:d.direccion, nota:d.nota||'', ventaId:d.venta_id||null, folio:d.folio||null, codigoSorteo:d.codigo_sorteo||null, estado:d.estado||'confirmado' }; }
+function filaADeuda(d){ return { id:d.id, vendedorId:d.vendedor_id, vendedorNombre:d.vendedor_nombre||null, fecha:d.fecha, monto:+d.monto, direccion:d.direccion, nota:d.nota||'', ventaId:d.venta_id||null, folio:d.folio||null, codigoSorteo:d.codigo_sorteo||null, estado:d.estado||'confirmado', tipo:d.tipo||(d.venta_id?'ticket':'ajuste') }; }
 function filaACobertura(c){ return { id:c.id, sorteoId:c.sorteo_id||null, codigoSorteo:c.codigo_sorteo||null, fechaKey:c.fecha_key, numero:c.numero, modalidad:c.modalidad, cantidad:+c.cantidad, nota:c.nota||'', creadoEn:c.created_at }; }
 function filaASorteo(s){
   return { id:s.id, nombre:s.nombre, horaSorteoTexto:s.hora_sorteo_texto, horaCierre:s.hora_cierre,
@@ -1621,6 +1648,7 @@ window.addEventListener('popstate', ()=>{
   const modalAbierto = document.getElementById('modal-comprobante').style.display==='flex';
   const modalLiqAbierto = document.getElementById('modal-liquidacion').style.display==='flex';
   const modalAjusteDeudaAbierto = document.getElementById('modal-ajuste-deuda') && document.getElementById('modal-ajuste-deuda').style.display==='flex';
+  const modalPropinaAbierto = document.getElementById('modal-propina') && document.getElementById('modal-propina').style.display==='flex';
   const detalleIndepAbierto = document.getElementById('bal-pantalla-detalle') && document.getElementById('bal-pantalla-detalle').style.display==='block';
   const detalleDeudaAbierto = document.getElementById('deu-pantalla-detalle') && document.getElementById('deu-pantalla-detalle').style.display==='block';
   const menuAbierto = document.getElementById('menu-drawer').classList.contains('abierto');
@@ -1639,6 +1667,12 @@ window.addEventListener('popstate', ()=>{
   }
   if(modalAjusteDeudaAbierto){
     cerrarModalAjusteDeuda();
+    history.pushState(null, '', '');
+    manejandoPopstate = false;
+    return;
+  }
+  if(modalPropinaAbierto){
+    cerrarModalPropina();
     history.pushState(null, '', '');
     manejandoPopstate = false;
     return;
@@ -2270,6 +2304,7 @@ function presionarOK(){
 function resetKeypad(){
   bufferCantidad=''; bufferNumero='';
   ocultarDuplicado();
+  desactivarDecena(); // nunca debe quedar prendida para la jugada siguiente
   seleccionarCampo('cantidad');
   refrescarPantallaKeypad();
   const lblMod = document.getElementById('kp-sum-modalidad');
@@ -3329,6 +3364,8 @@ function efectoDeuda(d){
   // el admin lo confirme) no suma ni resta nada al saldo todavía — solo
   // cuenta una vez confirmado.
   if(d.estado==='pendiente') return 0;
+  // Una propina siempre RESTA (queda a favor del vendedor) una vez confirmada.
+  if(d.tipo==='propina') return -Math.abs(d.monto);
   // Cada ticket marcado "no pagado" (tiene ventaId) SUMA el costo del ticket
   // a lo que debe el vendedor — pero si ese ticket ya ganó, se le resta el
   // premio automáticamente (si el premio es mayor que el costo, queda a
@@ -3687,6 +3724,10 @@ function renderMisDeudas(){
               detalleTxt = 'Ticket no pagado (costó $'+d.monto.toFixed(2)+')'+(d.codigoSorteo?' · '+escapeHtml(d.codigoSorteo):'');
               if(premio>0) detalleTxt += ' · 🏆 ganó $'+premio.toFixed(2)+', ya descontado';
             }
+          }else if(d.tipo==='propina'){
+            detalleTxt = esPendiente
+              ? '🔔 Propina reportada, esperando que el admin la revise'+(d.nota?' — '+escapeHtml(d.nota):'')
+              : '💰 Propina'+(d.nota?': '+escapeHtml(d.nota):'');
           }else{
             detalleTxt = d.direccion==='admin_a_vendedor' ? 'Corrección (sube)'+(d.nota?': '+escapeHtml(d.nota):'') : 'Se descontó'+(d.nota?': '+escapeHtml(d.nota):'');
           }
@@ -3695,7 +3736,7 @@ function renderMisDeudas(){
           return `<tr><td>${formatearFecha(d.fecha)}</td><td class="mono" style="color:${montoColor}; font-weight:700;">$${montoTxt}</td><td class="mono">${ticketTxt}</td><td>${detalleTxt}</td></tr>`;
         }).join('')}</tbody>
       </table>
-      ${b.movimientos.length===0 ? '<div class="empty-state">No tienes tickets sin pagar. 🎉</div>' : ''}
+      ${b.movimientos.length===0 ? '<div class="empty-state">No tenés cuentas pendientes. 🎉</div>' : ''}
     </div>`;
 }
 let liquidacionVendedorId = null;
@@ -3759,16 +3800,17 @@ function renderPendientesDeudas(){
   const caja = document.getElementById('deu-pendientes-caja');
   const lista = document.getElementById('deu-pendientes-lista');
   if(!caja || !lista) return;
-  const pendientes = deudasEquipo.filter(d=>d.ventaId && d.estado==='pendiente').sort((a,b)=> new Date(a.fecha)-new Date(b.fecha));
+  const pendientes = deudasEquipo.filter(d=>(d.ventaId || d.tipo==='propina') && d.estado==='pendiente').sort((a,b)=> new Date(a.fecha)-new Date(b.fecha));
   if(pendientes.length===0){ caja.style.display = 'none'; return; }
   caja.style.display = 'block';
   lista.innerHTML = pendientes.map(d=>{
-    const venta = ventasList.find(v=>v.id===d.ventaId);
+    const esPropina = d.tipo==='propina';
+    const venta = d.ventaId ? ventasList.find(v=>v.id===d.ventaId) : null;
     const premio = venta ? (premioDeVenta(venta)||0) : 0;
     return `<div class="jugada-row">
       <div>
-        <div style="font-weight:700;">${escapeHtml(d.vendedorNombre||nombreVendedor(d.vendedorId))} · #${escapeHtml(d.folio||'')}</div>
-        <div style="color:var(--ink-dim); font-size:11.5px; margin-top:1px;" class="mono">${d.codigoSorteo?escapeHtml(d.codigoSorteo)+' · ':''}${formatearFecha(d.fecha)}</div>
+        <div style="font-weight:700;">${escapeHtml(d.vendedorNombre||nombreVendedor(d.vendedorId))}${esPropina?' · 💰 Propina':' · #'+escapeHtml(d.folio||'')}</div>
+        <div style="color:var(--ink-dim); font-size:11.5px; margin-top:1px;" class="mono">${esPropina?(d.nota?escapeHtml(d.nota)+' · ':''):(d.codigoSorteo?escapeHtml(d.codigoSorteo)+' · ':'')}${formatearFecha(d.fecha)}</div>
         ${premio>0?`<div style="color:var(--gold-dark); font-size:11.5px; margin-top:1px;">🏆 ganó $${premio.toFixed(2)} — quedaría a favor $${Math.abs(d.monto-premio).toFixed(2)}</div>`:''}
       </div>
       <div style="display:flex; flex-direction:column; align-items:flex-end; gap:6px;">
@@ -3806,7 +3848,7 @@ async function rechazarReporteDeuda(id){
 function actualizarBadgeDeudasPendientes(){
   const badge = document.getElementById('badge-deudas-pendientes');
   if(!badge || !currentUser || currentUser.role!=='admin') return;
-  const n = deudasEquipo.filter(d=>d.ventaId && d.estado==='pendiente').length;
+  const n = deudasEquipo.filter(d=>(d.ventaId || d.tipo==='propina') && d.estado==='pendiente').length;
   if(n>0){ badge.textContent = n; badge.style.display = 'inline-flex'; }
   else{ badge.style.display = 'none'; }
 }
@@ -3867,6 +3909,10 @@ function renderDetalleDeuda(){
           detalleTxt = 'Ticket no pagado (costó $'+d.monto.toFixed(2)+')'+(d.codigoSorteo?' · '+escapeHtml(d.codigoSorteo):'');
           if(premio>0) detalleTxt += ' · 🏆 ganó $'+premio.toFixed(2)+', ya descontado';
         }
+      }else if(d.tipo==='propina'){
+        detalleTxt = esPendiente
+          ? '🔔 Propina reportada por '+escapeHtml(d.vendedorNombre||'')+', esperando tu revisión'+(d.nota?' — '+escapeHtml(d.nota):'')
+          : '💰 Propina'+(d.nota?': '+escapeHtml(d.nota):'');
       }else{
         detalleTxt = d.direccion==='admin_a_vendedor' ? 'Corrección (sube)'+(d.nota?': '+escapeHtml(d.nota):'') : 'Se descontó'+(d.nota?': '+escapeHtml(d.nota):'');
       }
@@ -3911,14 +3957,56 @@ async function guardarAjusteDeuda(){
   const direccion = ajusteDeudaDireccionElegida;
   const nota = document.getElementById('deu-nota').value.trim();
   const v = vendedores.find(x=>x.id===ajusteDeudaVendedorId);
-  const nueva = { id: uid(), vendedorId: ajusteDeudaVendedorId, vendedorNombre: v?v.nombre:null, fecha: ahoraServidor().toISOString(), monto:+monto.toFixed(2), direccion, nota, ventaId:null, folio:null, codigoSorteo:null };
+  const nueva = { id: uid(), vendedorId: ajusteDeudaVendedorId, vendedorNombre: v?v.nombre:null, fecha: ahoraServidor().toISOString(), monto:+monto.toFixed(2), direccion, nota, ventaId:null, folio:null, codigoSorteo:null, tipo:'ajuste' };
   try{
-    await db.from('deudas_equipo').insert({ id:nueva.id, vendedor_id:nueva.vendedorId, vendedor_nombre:nueva.vendedorNombre, fecha:nueva.fecha, monto:nueva.monto, direccion:nueva.direccion, nota:nueva.nota, venta_id:null, folio:null, codigo_sorteo:null });
+    await db.from('deudas_equipo').insert({ id:nueva.id, vendedor_id:nueva.vendedorId, vendedor_nombre:nueva.vendedorNombre, fecha:nueva.fecha, monto:nueva.monto, direccion:nueva.direccion, nota:nueva.nota, venta_id:null, folio:null, codigo_sorteo:null, tipo:'ajuste' });
   }catch(e){ avisar('No se pudo guardar el ajuste. Revisa tu conexión.'); return; }
   deudasEquipo.unshift(nueva);
   cerrarModalAjusteDeuda();
   avisar('Movimiento agregado.');
   renderDetalleDeuda();
+}
+function abrirModalPropina(){
+  const esAdmin = currentUser.role==='admin';
+  const campoVendedor = document.getElementById('propina-vendedor-field');
+  campoVendedor.style.display = esAdmin ? 'block' : 'none';
+  if(esAdmin){
+    const equipo = vendedores.filter(v=>v.enEquipo!==false);
+    const preseleccion = detalleDeudaId || (equipo[0] && equipo[0].id) || '';
+    document.getElementById('propina-vendedor').innerHTML = equipo.map(v=>`<option value="${v.id}" ${v.id===preseleccion?'selected':''}>${escapeHtml(v.nombre)}</option>`).join('');
+  }
+  document.getElementById('propina-monto').value = '';
+  document.getElementById('propina-nota').value = '';
+  document.getElementById('modal-propina').style.display = 'flex';
+  if(!manejandoPopstate) history.pushState(null, '', '');
+}
+function cerrarModalPropina(){
+  document.getElementById('modal-propina').style.display = 'none';
+}
+async function guardarPropina(){
+  const monto = +document.getElementById('propina-monto').value;
+  if(!monto || monto<=0){ avisar('Escribe un monto válido, mayor a 0.'); return; }
+  const esAdmin = currentUser.role==='admin';
+  const vendedorId = esAdmin ? document.getElementById('propina-vendedor').value : currentUser.vendedorId;
+  if(!vendedorId){ avisar('Elige un vendedor.'); return; }
+  const v = vendedores.find(x=>x.id===vendedorId);
+  const nota = document.getElementById('propina-nota').value.trim() || 'Propina';
+  const nueva = { id: uid(), vendedorId, vendedorNombre: v?v.nombre:null, fecha: ahoraServidor().toISOString(),
+    monto: +monto.toFixed(2), direccion:null, nota, ventaId:null, folio:null, codigoSorteo:null, tipo:'propina', estado: esAdmin?'confirmado':'pendiente' };
+  try{
+    await db.from('deudas_equipo').insert({ id:nueva.id, vendedor_id:nueva.vendedorId, vendedor_nombre:nueva.vendedorNombre, fecha:nueva.fecha, monto:nueva.monto, direccion:null, nota:nueva.nota, venta_id:null, folio:null, codigo_sorteo:null, tipo:'propina', estado:nueva.estado });
+  }catch(e){ avisar('No se pudo guardar. Revisa tu conexión.'); return; }
+  deudasEquipo.unshift(nueva);
+  cerrarModalPropina();
+  actualizarBadgeDeudasPendientes();
+  if(esAdmin){
+    renderListaDeudas();
+    if(detalleDeudaId) renderDetalleDeuda();
+    avisar('Propina agregada.');
+  }else{
+    renderMisDeudas();
+    avisar('Reportada. El admin la va a revisar.');
+  }
 }
 async function eliminarAjusteDeuda(id){
   const ok = await mostrarConfirmacion('¿Borrar este movimiento? No se puede deshacer.', { textoAceptar:'Sí, borrar' });

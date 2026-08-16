@@ -1104,6 +1104,21 @@ try{
 }catch(e){
   window.__mostrarAvisoCarga('No se pudo iniciar la conexión a la base de datos: '+(e&&e.message?e.message:e));
 }
+// Notificación instantánea de resultados: en vez de esperar hasta 30
+// segundos a que el reloj de refresco normal pase, esto avisa al instante
+// (por segundo o dos) apenas cualquiera guarda o corrige un resultado — a
+// TODOS los celulares conectados en ese momento, no solo al que lo guardó.
+// El refresco de cada 30s sigue existiendo igual, como respaldo por si a
+// alguien se le corta esta conexión en vivo por un rato.
+if(db){
+  try{
+    db.channel('resultados-en-vivo')
+      .on('postgres_changes', { event:'*', schema:'public', table:'resultados' }, ()=>{
+        if(currentUser) refrescarConfigCompartida();
+      })
+      .subscribe();
+  }catch(e){}
+}
 
 // ---------------- ESTADO ----------------
 let vendedores = [];
@@ -1242,13 +1257,15 @@ async function cargarDatos(){
   }catch(e){ avisar('No se pudo conectar a la base de datos.'); }
 
   try{
-    const { data } = await db.from('vendedores').select('*').order('created_at');
+    const { data, error } = await db.from('vendedores').select('*').order('created_at');
+    if(error) throw error;
     vendedores = (data||[]).map(filaAVendedor);
     cargaOk.vendedores = true;
   }catch(e){ cargaOk.vendedores = false; }
 
   try{
-    const { data } = await db.from('sorteos').select('*').order('created_at');
+    const { data, error } = await db.from('sorteos').select('*').order('created_at');
+    if(error) throw error;
     sorteos = (data||[]).map(filaASorteo);
     cargaOk.sorteos = true;
     precargarLogosSorteos();
@@ -3948,10 +3965,13 @@ async function guardarResultado(){
   renderListaResultados();
   mostrarGanadores(sorteoId, fechaKey);
   renderHistorial();
+  if(pantallaVentaActual==='historial') renderHistorialSorteoActual();
   renderListaSorteosVenta();
   await generarMovimientosAutoParaResultado(sorteoId, fechaKey, codigoSorteo);
   renderListaIndependientes();
   renderCobertura();
+  renderListaDeudas();
+  if(detalleDeudaId) renderDetalleDeuda();
   // Deja las casillas vacías (en vez de "00") para el siguiente sorteo a
   // premiar, así no hay que borrar nada antes de escribir los números.
   document.getElementById('res-primero').value = '';
@@ -3980,9 +4000,12 @@ async function guardarResultadoHistorico(){
   if(r){ r.primero=p1; r.segundo=p2; r.tercero=p3; r.primeroCompleto=c1; r.segundoCompleto=c2; r.terceroCompleto=c3; r.fechaKey=fechaKey; r.updatedAt=ahoraIso; }
   else{ r = { id: idAUsar, sorteoId:null, codigoSorteo:codigo, fechaKey, primero:p1, segundo:p2, tercero:p3, primeroCompleto:c1, segundoCompleto:c2, terceroCompleto:c3, updatedAt:ahoraIso }; resultados.unshift(r); }
   renderHistorial();
+  if(pantallaVentaActual==='historial') renderHistorialSorteoActual();
   await generarMovimientosAutoParaResultado(null, fechaKey, codigo);
   renderListaIndependientes();
   renderCobertura();
+  renderListaDeudas();
+  if(detalleDeudaId) renderDetalleDeuda();
   document.getElementById('reshist-primero').value = '';
   document.getElementById('reshist-segundo').value = '';
   document.getElementById('reshist-tercero').value = '';
@@ -4871,7 +4894,11 @@ document.addEventListener('visibilitychange', ()=>{
     const minutosEscondida = (Date.now() - momentoEnQueSeEscondioApp) / 60000;
     if(minutosEscondida > 15){
       location.reload();
-    }else if(minutosEscondida > 1 && currentUser){
+    }else if(currentUser){
+      // Aunque haya estado escondida un segundo, el conteo de 30s que
+      // actualiza premios/resultados se pausa en segundo plano — por eso
+      // siempre refrescamos apenas alguien vuelve a mirar la pantalla, sin
+      // esperar ningún mínimo de tiempo.
       refrescarConfigCompartida();
     }
     momentoEnQueSeEscondioApp = null;

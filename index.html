@@ -359,7 +359,7 @@
 
       <!-- PANTALLA 1: SELECCIONAR SORTEO -->
       <div id="pantalla-sorteo">
-        <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:2px;">
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:2px; position:sticky; top:0; z-index:15; background:var(--paper); padding:8px 0 6px 0;">
           <h1 class="page-title" style="font-size:22px; margin-bottom:0;">Seleccionar sorteo</h1>
           <button type="button" class="btn btn-outline btn-sm" id="btn-toggle-multi" onclick="toggleModoMultiSorteo()" style="white-space:nowrap;">☑️ Varios sorteos</button>
         </div>
@@ -2547,13 +2547,18 @@ function toggleSoloGanadoresHoy(){
   if(btn) btn.style.background = soloGanadoresHoy ? 'var(--gold)' : '#fff';
   renderHistorialSorteoActual();
 }
+// Se guarda también en el celular (no solo en memoria) para que la app
+// recuerde el sorteo aunque la cierres del todo y la vuelvas a abrir más
+// tarde — no solo mientras la tenés abierta.
 let ultimoSorteoVisitadoId = null;
+try{ ultimoSorteoVisitadoId = localStorage.getItem('lotc4pa_ultimo_sorteo') || null; }catch(e){}
 function elegirSorteoVenta(sorteoId){
   if(currentUser.role==='admin' && !document.getElementById('sel-vendedor').value){
     avisar('Elige primero para quién estás vendiendo, arriba.');
     return;
   }
   ultimoSorteoVisitadoId = sorteoId;
+  try{ localStorage.setItem('lotc4pa_ultimo_sorteo', sorteoId); }catch(e){}
   document.getElementById('sel-sorteo').value = sorteoId;
   onHeaderChange();
   const buscarCliente = document.getElementById('hs-buscar-cliente');

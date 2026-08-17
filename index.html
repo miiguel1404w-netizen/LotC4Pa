@@ -84,6 +84,15 @@
   }
   select:focus, input:focus{ outline:2px solid var(--blue); outline-offset:1px; background:#fff; }
   .field{ margin-bottom:14px; }
+  /* Los 3 campos de números ganadores resaltan con fondo dorado y letra
+     grande — para encontrarlos de un vistazo en vez de que se pierdan
+     entre el resto de campos grises normales. */
+  #res-primero, #res-segundo, #res-tercero, #reshist-primero, #reshist-segundo, #reshist-tercero{
+    background:#FFF6DE; border:2px solid var(--gold); font-size:20px; font-weight:700; text-align:center; letter-spacing:1px; padding:12px;
+  }
+  #res-primero:focus, #res-segundo:focus, #res-tercero:focus, #reshist-primero:focus, #reshist-segundo:focus, #reshist-tercero:focus{
+    background:#fff; outline:2px solid var(--gold-dark);
+  }
   .btn{ font-family:'Inter',sans-serif; font-weight:600; font-size:15.5px; padding:13px 20px; border-radius:8px; border:none; cursor:pointer; transition:transform .08s, opacity .15s; }
   .btn:active{ transform:scale(0.97); }
   .btn-primary{ background:var(--green); color:#fff; }
@@ -1635,7 +1644,7 @@ function switchTab(tab){
   if(tab==='reportes') renderReportes();
   if(tab==='tabla'){ renderTablaSorteoSelect(); renderTablaNumeros(); }
   if(tab==='ranking'){ renderRankingSorteoSelect(); renderRanking(); }
-  if(tab==='resultados'){ renderResultadosSorteoSelect(); renderListaResultados(); }
+  if(tab==='resultados'){ renderResultadosSorteoSelect(); renderListaResultados(); window.scrollTo(0,0); }
   if(tab==='cobertura'){ renderCoberturaSorteoSelect(); renderCobertura(); }
   if(tab==='ventas'){ renderVentaSorteoSelect(); mostrarPantallaVenta('sorteo'); renderListaSorteosVenta(); scrollAlUltimoSorteoVisitado(); }
   if(tab==='independientes'){ cerrarDetalleIndependiente(); }

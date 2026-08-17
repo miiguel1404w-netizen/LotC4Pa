@@ -1183,6 +1183,7 @@
         <select id="dia-turno">
           <option value="manana">Mañana · 10:00am – 4:30pm</option>
           <option value="tarde">Tarde · 4:30pm – 10:00pm</option>
+          <option value="completo">Día completo (los 2 turnos)</option>
           <option value="extra">Extra (turno adicional)</option>
         </select>
       </div>
@@ -4217,7 +4218,7 @@ function calcularAsistenciaVendedor(vendedorId){
   return { balancePendiente, movimientos: movs.slice().sort((a,b)=> new Date(b.fecha)-new Date(a.fecha)) };
 }
 function nombreDia(n){ return ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'][n]; }
-function nombreTurno(t){ return t==='manana' ? 'Mañana (10:00am–4:30pm)' : t==='tarde' ? 'Tarde (4:30pm–10:00pm)' : t==='extra' ? 'Extra' : ''; }
+function nombreTurno(t){ return t==='manana' ? 'Mañana (10:00am–4:30pm)' : t==='tarde' ? 'Tarde (4:30pm–10:00pm)' : t==='completo' ? 'Día completo (2 turnos)' : t==='extra' ? 'Extra' : ''; }
 function textoTarifa(v){
   if(!v || !v.tarifaTipo || v.tarifaValor==null) return 'Sin tarifa definida todavía';
   let base;
@@ -4362,7 +4363,7 @@ async function guardarDiaTrabajado(){
     monto = +(horas * v.tarifaValor).toFixed(2);
   }else if(v.tarifaTipo==='turno'){
     turno = document.getElementById('dia-turno').value;
-    monto = v.tarifaValor;
+    monto = turno==='completo' ? +(v.tarifaValor*2).toFixed(2) : v.tarifaValor;
   }else if(v.tarifaTipo==='quincenal'){
     // Quincenal: marcar el día es solo para llevar el registro de
     // asistencia/horario — no suma nada al saldo, porque ya se le paga un

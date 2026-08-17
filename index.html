@@ -932,6 +932,7 @@
       <div class="card">
         <h2>Orden del menú</h2>
         <p class="hint">Acomoda el menú ☰ como prefieras (solo se guarda en este celular).</p>
+        <button type="button" class="btn btn-outline btn-sm" onclick="restablecerOrdenMenu()" style="margin-bottom:10px;">↺ Restablecer orden</button>
         <div id="orden-menu-lista"></div>
       </div>
 
@@ -1652,6 +1653,13 @@ function aplicarOrdenMenu(){
   if(!orden.length) return; // sin orden personalizado todavía: se deja el orden por defecto del HTML
   const items = [...drawer.querySelectorAll('.nav-item[data-tab]')];
   const porTab = {}; items.forEach(el=>{ porTab[el.dataset.tab] = el; });
+  // Si el orden guardado es muy viejo (de antes de que existieran varios de
+  // los módulos actuales), reconciliar puede volverse inconsistente. Como
+  // protección, si menos de la mitad de los módulos de hoy están en esa
+  // lista guardada, mejor descartarla y usar el orden normal del HTML —así
+  // nunca desaparece un módulo nuevo por una lista vieja en el celular.
+  const coincidencias = orden.filter(tab=>porTab[tab]).length;
+  if(coincidencias < items.length/2){ localStorage.removeItem(ORDEN_MENU_KEY); return; }
   const logout = drawer.querySelector('.nav-item.logout');
   const yaColocados = new Set();
   orden.forEach(tab=>{
@@ -1661,6 +1669,10 @@ function aplicarOrdenMenu(){
   // Cualquier módulo que no estuviera guardado (ej. uno agregado después)
   // se acomoda al final, antes de "Cerrar sesión", sin perder los demás.
   items.forEach(el=>{ if(!yaColocados.has(el.dataset.tab)) drawer.insertBefore(el, logout); });
+}
+function restablecerOrdenMenu(){
+  localStorage.removeItem(ORDEN_MENU_KEY);
+  location.reload();
 }
 function renderOrdenMenuLista(){
   const cont = document.getElementById('orden-menu-lista');

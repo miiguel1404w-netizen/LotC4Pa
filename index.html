@@ -358,9 +358,11 @@
   <div class="nav-item admin-only" data-tab="resultados" onclick="irATab('resultados')">🏆 Resultados</div>
   <div class="nav-item admin-only" data-tab="independientes" onclick="irATab('independientes')">💵 Vendedores Independientes</div>
   <div class="nav-item admin-only" data-tab="deudas" id="nav-deudas" onclick="irATab('deudas')">📌 Cuentas de vendedores<span id="badge-deudas-pendientes" class="badge-pendientes" style="display:none;"></span></div>
+  <div class="nav-item admin-only" data-tab="asistencia" onclick="irATab('asistencia')">🗓️ Control de equipo</div>
   <div class="nav-item" data-tab="cobertura" id="nav-cobertura" style="display:none" onclick="irATab('cobertura')">🛡️ Balance real</div>
   <div class="nav-item" data-tab="micomision" id="nav-micomision" style="display:none" onclick="irATab('micomision')">💵 Mi comisión</div>
   <div class="nav-item" data-tab="misdeudas" id="nav-misdeudas" style="display:none" onclick="irATab('misdeudas')">📌 Mis cuentas</div>
+  <div class="nav-item" data-tab="miasistencia" id="nav-miasistencia" style="display:none" onclick="irATab('miasistencia')">🗓️ Mi horario</div>
   <div class="nav-item admin-only" data-tab="config" onclick="irATab('config')">⚙️ Administración</div>
   <div class="nav-item logout" onclick="cerrarSesion()">⎋ Cerrar sesión</div>
 </div>
@@ -815,6 +817,42 @@
       </div>
     </div>
 
+    <div id="tab-asistencia" style="display:none">
+      <div id="asi-pantalla-lista">
+        <h1 class="page-title">🗓️ Control de equipo</h1>
+        <div class="page-sub">Los días que trabaja cada uno y lo que les debés — cada quien puede tener un pago distinto (por día o por hora).</div>
+        <div class="card" style="padding:0; overflow:hidden;">
+          <table>
+            <thead><tr><th>Vendedor</th><th style="text-align:right;">Le debés</th></tr></thead>
+            <tbody id="lista-asistencia"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div id="asi-pantalla-detalle" style="display:none">
+        <div class="shc-card">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <button class="btn-cambiar-sorteo" onclick="cerrarDetalleAsistencia()">← Volver</button>
+            <div style="display:flex; gap:6px;">
+              <button class="btn-cambiar-sorteo" onclick="abrirModalTarifa()">✏️ Tarifa</button>
+              <button class="btn-cambiar-sorteo" onclick="abrirModalDiaTrabajado()">＋ Día</button>
+              <button class="btn-cambiar-sorteo" onclick="abrirModalPagoAsistencia()">＋ Pago</button>
+            </div>
+          </div>
+          <div class="shc-top"><span id="asi-det-monto">$0.00</span></div>
+          <div class="shc-sub" id="asi-det-nombre">--</div>
+          <div class="shc-sub" id="asi-det-tarifa" style="margin-top:2px;">--</div>
+        </div>
+        <div class="card" style="padding:0; overflow:hidden;">
+          <table>
+            <thead><tr><th>Fecha</th><th>Monto</th><th>Detalle</th><th></th></tr></thead>
+            <tbody id="asi-det-tabla"></tbody>
+          </table>
+          <div class="empty-state" id="asi-det-vacio" style="display:none;">Todavía no hay movimientos.</div>
+        </div>
+      </div>
+    </div>
+
     <div id="tab-micomision" style="display:none">
       <h1 class="page-title">Mi comisión</h1>
       <div class="page-sub">Tu balance con el admin, movimiento por movimiento.</div>
@@ -828,6 +866,12 @@
         <button class="btn btn-outline btn-sm" onclick="abrirModalPropina()">💰 Reportar propina</button>
       </div>
       <div id="tab-misdeudas-contenido"></div>
+    </div>
+
+    <div id="tab-miasistencia" style="display:none">
+      <h1 class="page-title">🗓️ Mi horario</h1>
+      <div class="page-sub">Tu tarifa, tu día libre, y los días que el admin te marcó como trabajados.</div>
+      <div id="tab-miasistencia-contenido"></div>
     </div>
 
     <div id="tab-cobertura" style="display:none">
@@ -1093,6 +1137,78 @@
   </div>
 </div>
 
+<div class="modal-overlay no-print" id="modal-tarifa" style="display:none">
+  <div class="ticket" style="width:340px;">
+    <div class="ticket-body">
+      <h2 style="margin-top:0;">✏️ Tarifa</h2>
+      <p class="hint" id="tarifa-vendedor-nombre" style="margin-top:-8px;"></p>
+      <div class="field"><label>Se le paga por</label>
+        <select id="tarifa-tipo" onchange="actualizarCampoValorTarifa()">
+          <option value="dia">Día trabajado</option>
+          <option value="hora">Hora trabajada</option>
+          <option value="turno">Turno (mañana/tarde/extra)</option>
+          <option value="quincenal">Quincenal (monto fijo)</option>
+        </select>
+      </div>
+      <div class="field" id="tarifa-campo-valor"><label>Monto</label><input type="number" step="0.01" id="tarifa-valor" placeholder="0.00"></div>
+      <div class="field"><label>Día libre a la semana</label>
+        <select id="tarifa-dia-libre">
+          <option value="">Sin definir</option>
+          <option value="0">Domingo</option>
+          <option value="1">Lunes</option>
+          <option value="2">Martes</option>
+          <option value="3">Miércoles</option>
+          <option value="4">Jueves</option>
+          <option value="5">Viernes</option>
+          <option value="6">Sábado</option>
+        </select>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="cerrarModalTarifa()">Cancelar</button>
+      <button class="btn btn-gold" onclick="guardarTarifa()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay no-print" id="modal-dia-trabajado" style="display:none">
+  <div class="ticket" style="width:340px;">
+    <div class="ticket-body">
+      <h2 style="margin-top:0;">🗓️ Día trabajado</h2>
+      <p class="hint" id="dia-vendedor-nombre" style="margin-top:-8px;"></p>
+      <div class="field"><label>Fecha</label><input type="date" id="dia-fecha"></div>
+      <div class="field" id="dia-campo-horas" style="display:none;"><label>Horas trabajadas</label><input type="number" step="0.5" id="dia-horas" placeholder="0"></div>
+      <div class="field" id="dia-campo-turno" style="display:none;"><label>Turno</label>
+        <select id="dia-turno">
+          <option value="manana">Mañana · 10:00am – 4:30pm</option>
+          <option value="tarde">Tarde · 4:30pm – 10:00pm</option>
+          <option value="extra">Extra (turno adicional)</option>
+        </select>
+      </div>
+      <div class="field"><label>Nota (opcional)</label><input type="text" id="dia-nota" placeholder="" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="cerrarModalDiaTrabajado()">Cancelar</button>
+      <button class="btn btn-gold" onclick="guardarDiaTrabajado()">Agregar</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay no-print" id="modal-pago-asistencia" style="display:none">
+  <div class="ticket" style="width:340px;">
+    <div class="ticket-body">
+      <h2 style="margin-top:0;">💵 Registrar pago</h2>
+      <p class="hint" id="pago-asi-vendedor-nombre" style="margin-top:-8px;"></p>
+      <div class="field"><label>Monto</label><input type="number" step="0.01" id="pago-asi-monto" placeholder="0.00"></div>
+      <div class="field"><label>Nota (opcional)</label><input type="text" id="pago-asi-nota" placeholder="Ej. pago semanal" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="cerrarModalPagoAsistencia()">Cancelar</button>
+      <button class="btn btn-gold" onclick="guardarPagoAsistencia()">Registrar</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay no-print" id="modal-confirm" style="display:none; z-index:200;">
   <div class="ticket" style="width:320px;">
     <div class="ticket-body">
@@ -1231,10 +1347,12 @@ function ahoraServidor(){
   if(refServidorMs===null) return new Date();
   return new Date(refServidorMs + (performance.now() - refPerfMs));
 }
-function filaAVendedor(v){ return { id:v.id, nombre:v.nombre, username:v.username, password:v.password, enEquipo: v.en_equipo !== false, porcentaje: +v.porcentaje || 0 }; }
+function filaAVendedor(v){ return { id:v.id, nombre:v.nombre, username:v.username, password:v.password, enEquipo: v.en_equipo !== false, porcentaje: +v.porcentaje || 0, tarifaTipo: v.tarifa_tipo || null, tarifaValor: v.tarifa_valor!=null ? +v.tarifa_valor : null, diaLibre: v.dia_libre!=null ? +v.dia_libre : null }; }
 function filaALiquidacion(l){ return { id:l.id, vendedorId:l.vendedor_id, vendedorNombre:l.vendedor_nombre||null, fecha:l.fecha, monto:+l.monto, direccion:l.direccion, nota:l.nota||'', sorteoId:l.sorteo_id||null, codigoSorteo:l.codigo_sorteo||null }; }
 let deudasEquipo = [];
 function filaADeuda(d){ return { id:d.id, vendedorId:d.vendedor_id, vendedorNombre:d.vendedor_nombre||null, fecha:d.fecha, monto:+d.monto, direccion:d.direccion, nota:d.nota||'', ventaId:d.venta_id||null, folio:d.folio||null, codigoSorteo:d.codigo_sorteo||null, estado:d.estado||'confirmado', tipo:d.tipo||(d.venta_id?'ticket':'ajuste') }; }
+let asistenciaEquipo = [];
+function filaAAsistencia(a){ return { id:a.id, vendedorId:a.vendedor_id, vendedorNombre:a.vendedor_nombre||null, fecha:a.fecha, fechaTrabajo:a.fecha_trabajo||null, tipo:a.tipo, horas:a.horas!=null?+a.horas:null, turno:a.turno||null, monto:+a.monto, nota:a.nota||'' }; }
 function filaACobertura(c){ return { id:c.id, sorteoId:c.sorteo_id||null, codigoSorteo:c.codigo_sorteo||null, fechaKey:c.fecha_key, numero:c.numero, modalidad:c.modalidad, cantidad:+c.cantidad, nota:c.nota||'', creadoEn:c.created_at }; }
 function filaASorteo(s){
   return { id:s.id, nombre:s.nombre, horaSorteoTexto:s.hora_sorteo_texto, horaCierre:s.hora_cierre,
@@ -1338,6 +1456,11 @@ async function cargarDatos(){
   try{
     const data = await fetchTodasFilas('deudas_equipo', '*', 'fecha');
     deudasEquipo = (data||[]).map(filaADeuda);
+  }catch(e){}
+
+  try{
+    const data = await fetchTodasFilas('asistencia_equipo', '*', 'fecha');
+    asistenciaEquipo = (data||[]).map(filaAAsistencia);
   }catch(e){}
 
   try{
@@ -1507,6 +1630,8 @@ function aplicarRol(){
   if(navMiComision) navMiComision.style.display = (esVendedor && esVendedorIndependiente(currentUser.vendedorId)) ? 'flex' : 'none';
   const navMisDeudas = document.getElementById('nav-misdeudas');
   if(navMisDeudas) navMisDeudas.style.display = (esVendedor && vendedorEnEquipo(currentUser.vendedorId)) ? 'flex' : 'none';
+  const navMiAsistencia = document.getElementById('nav-miasistencia');
+  if(navMiAsistencia) navMiAsistencia.style.display = (esVendedor && vendedorEnEquipo(currentUser.vendedorId)) ? 'flex' : 'none';
   const navCobertura = document.getElementById('nav-cobertura');
   if(navCobertura) navCobertura.style.display = puedeVerRiesgoChance() ? 'flex' : 'none';
   aplicarOrdenMenu();
@@ -1628,15 +1753,16 @@ function aplicarEstadoNav(estado){
 }
 function mostrarTabInterno(tab){
   document.querySelectorAll('.nav-item[data-tab]').forEach(el=>el.classList.toggle('active', el.dataset.tab===tab));
-  ['ventas','historial','reportes','tabla','ranking','resultados','config','independientes','deudas','micomision','misdeudas','cobertura'].forEach(t=>{
+  ['ventas','historial','reportes','tabla','ranking','resultados','config','independientes','deudas','asistencia','micomision','misdeudas','miasistencia','cobertura'].forEach(t=>{
     const el = document.getElementById('tab-'+t);
     if(el) el.style.display = (t===tab)?'block':'none';
   });
 }
 function switchTab(tab){
-  if((tab==='config' || tab==='resultados' || tab==='reportes' || tab==='independientes' || tab==='deudas') && currentUser.role!=='admin') return;
+  if((tab==='config' || tab==='resultados' || tab==='reportes' || tab==='independientes' || tab==='deudas' || tab==='asistencia') && currentUser.role!=='admin') return;
   if(tab==='micomision' && !(currentUser.role==='vendedor' && esVendedorIndependiente(currentUser.vendedorId))) return;
   if(tab==='misdeudas' && !(currentUser.role==='vendedor' && vendedorEnEquipo(currentUser.vendedorId))) return;
+  if(tab==='miasistencia' && !(currentUser.role==='vendedor' && vendedorEnEquipo(currentUser.vendedorId))) return;
   if(tab==='cobertura' && !puedeVerRiesgoChance()) return;
   if(tab!=='ventas'){ document.documentElement.classList.remove('sin-scroll'); document.body.classList.remove('sin-scroll'); }
   mostrarTabInterno(tab);
@@ -1649,9 +1775,11 @@ function switchTab(tab){
   if(tab==='ventas'){ renderVentaSorteoSelect(); mostrarPantallaVenta('sorteo'); renderListaSorteosVenta(); scrollAlUltimoSorteoVisitado(); }
   if(tab==='independientes'){ cerrarDetalleIndependiente(); }
   if(tab==='deudas'){ cerrarDetalleDeuda(); }
+  if(tab==='asistencia'){ cerrarDetalleAsistencia(); }
   if(tab==='config') renderOrdenMenuLista();
   if(tab==='micomision') renderMiComision();
   if(tab==='misdeudas') renderMisDeudas();
+  if(tab==='miasistencia') renderMiAsistencia();
   registrarNavegacion();
 }
 let ultimoIntentoSalir = 0;
@@ -1662,8 +1790,12 @@ window.addEventListener('popstate', ()=>{
   const modalLiqAbierto = document.getElementById('modal-liquidacion').style.display==='flex';
   const modalAjusteDeudaAbierto = document.getElementById('modal-ajuste-deuda') && document.getElementById('modal-ajuste-deuda').style.display==='flex';
   const modalPropinaAbierto = document.getElementById('modal-propina') && document.getElementById('modal-propina').style.display==='flex';
+  const modalTarifaAbierto = document.getElementById('modal-tarifa') && document.getElementById('modal-tarifa').style.display==='flex';
+  const modalDiaAbierto = document.getElementById('modal-dia-trabajado') && document.getElementById('modal-dia-trabajado').style.display==='flex';
+  const modalPagoAsiAbierto = document.getElementById('modal-pago-asistencia') && document.getElementById('modal-pago-asistencia').style.display==='flex';
   const detalleIndepAbierto = document.getElementById('bal-pantalla-detalle') && document.getElementById('bal-pantalla-detalle').style.display==='block';
   const detalleDeudaAbierto = document.getElementById('deu-pantalla-detalle') && document.getElementById('deu-pantalla-detalle').style.display==='block';
+  const detalleAsistenciaAbierto = document.getElementById('asi-pantalla-detalle') && document.getElementById('asi-pantalla-detalle').style.display==='block';
   const menuAbierto = document.getElementById('menu-drawer').classList.contains('abierto');
 
   if(modalAbierto){
@@ -1690,6 +1822,24 @@ window.addEventListener('popstate', ()=>{
     manejandoPopstate = false;
     return;
   }
+  if(modalTarifaAbierto){
+    cerrarModalTarifa();
+    history.pushState(null, '', '');
+    manejandoPopstate = false;
+    return;
+  }
+  if(modalDiaAbierto){
+    cerrarModalDiaTrabajado();
+    history.pushState(null, '', '');
+    manejandoPopstate = false;
+    return;
+  }
+  if(modalPagoAsiAbierto){
+    cerrarModalPagoAsistencia();
+    history.pushState(null, '', '');
+    manejandoPopstate = false;
+    return;
+  }
   if(detalleIndepAbierto){
     cerrarDetalleIndependiente();
     history.pushState(null, '', '');
@@ -1698,6 +1848,12 @@ window.addEventListener('popstate', ()=>{
   }
   if(detalleDeudaAbierto){
     cerrarDetalleDeuda();
+    history.pushState(null, '', '');
+    manejandoPopstate = false;
+    return;
+  }
+  if(detalleAsistenciaAbierto){
+    cerrarDetalleAsistencia();
     history.pushState(null, '', '');
     manejandoPopstate = false;
     return;
@@ -4036,6 +4192,235 @@ async function eliminarAjusteDeuda(id){
   renderDetalleDeuda();
   avisar('Movimiento borrado.');
 }
+// ---------------- CONTROL DE EQUIPO (días trabajados y pago) ----------------
+function efectoAsistencia(a){
+  // "trabajo" (un día que vino) SUMA a lo que le debés. "pago" (le pagaste)
+  // RESTA. Los ajustes manuales son para corregir errores a mano.
+  if(a.tipo==='pago' || a.tipo==='ajuste_menos') return -a.monto;
+  return a.monto;
+}
+function calcularAsistenciaVendedor(vendedorId){
+  const movs = asistenciaEquipo.filter(a=>a.vendedorId===vendedorId);
+  const balancePendiente = +movs.reduce((s,a)=>s+efectoAsistencia(a),0).toFixed(2);
+  return { balancePendiente, movimientos: movs.slice().sort((a,b)=> new Date(b.fecha)-new Date(a.fecha)) };
+}
+function nombreDia(n){ return ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'][n]; }
+function nombreTurno(t){ return t==='manana' ? 'Mañana (10:00am–4:30pm)' : t==='tarde' ? 'Tarde (4:30pm–10:00pm)' : t==='extra' ? 'Extra' : ''; }
+function textoTarifa(v){
+  if(!v || !v.tarifaTipo || v.tarifaValor==null) return 'Sin tarifa definida todavía';
+  let base;
+  if(v.tarifaTipo==='hora') base = '$'+v.tarifaValor.toFixed(2)+' por hora';
+  else if(v.tarifaTipo==='turno') base = '$'+v.tarifaValor.toFixed(2)+' por turno';
+  else if(v.tarifaTipo==='quincenal') base = '$'+v.tarifaValor.toFixed(2)+' quincenal';
+  else base = '$'+v.tarifaValor.toFixed(2)+' por día';
+  return base + (v.diaLibre!=null ? ' · libre los '+nombreDia(v.diaLibre) : '');
+}
+function renderListaAsistencia(){
+  const cont = document.getElementById('lista-asistencia');
+  if(!cont) return;
+  const equipo = vendedores.filter(v=>v.enEquipo!==false);
+  if(equipo.length===0){ cont.innerHTML = '<tr><td colspan="2" class="empty-state">No tienes vendedores de equipo todavía.</td></tr>'; return; }
+  cont.innerHTML = equipo.map(v=>{
+    const b = calcularAsistenciaVendedor(v.id);
+    return `<tr onclick="abrirDetalleAsistencia('${v.id}')" style="cursor:pointer;">
+      <td>${escapeHtml(v.nombre)}<div class="hint" style="margin:0;">${textoTarifa(v)}</div></td>
+      <td style="text-align:right; font-weight:700; color:${colorMonto(b.balancePendiente)};" class="mono">$${b.balancePendiente.toFixed(2)}</td>
+    </tr>`;
+  }).join('');
+}
+let detalleAsistenciaId = null;
+function abrirDetalleAsistencia(vendedorId){
+  detalleAsistenciaId = vendedorId;
+  document.getElementById('asi-pantalla-lista').style.display = 'none';
+  document.getElementById('asi-pantalla-detalle').style.display = 'block';
+  renderDetalleAsistencia();
+  if(!manejandoPopstate) history.pushState(null, '', '');
+}
+function cerrarDetalleAsistencia(){
+  detalleAsistenciaId = null;
+  const detalle = document.getElementById('asi-pantalla-detalle');
+  const lista = document.getElementById('asi-pantalla-lista');
+  if(detalle) detalle.style.display = 'none';
+  if(lista) lista.style.display = 'block';
+  renderListaAsistencia();
+}
+function detalleTxtAsistencia(a){
+  if(a.tipo==='trabajo'){
+    return '🗓️ Día trabajado'+(a.fechaTrabajo?' — '+a.fechaTrabajo:'')+(a.turno?' · '+nombreTurno(a.turno):'')+(a.horas?' · '+a.horas+'h':'')+(a.nota?' · '+escapeHtml(a.nota):'');
+  }else if(a.tipo==='pago'){
+    return '💵 Pago'+(a.nota?': '+escapeHtml(a.nota):'');
+  }
+  return (a.tipo==='ajuste_mas'?'Corrección (sube)':'Corrección (baja)')+(a.nota?': '+escapeHtml(a.nota):'');
+}
+function renderDetalleAsistencia(){
+  if(!detalleAsistenciaId) return;
+  const v = vendedores.find(x=>x.id===detalleAsistenciaId);
+  if(!v) return;
+  const b = calcularAsistenciaVendedor(v.id);
+  document.getElementById('asi-det-monto').textContent = '$'+b.balancePendiente.toFixed(2);
+  document.getElementById('asi-det-monto').style.color = colorMonto(b.balancePendiente);
+  document.getElementById('asi-det-nombre').textContent = v.nombre;
+  document.getElementById('asi-det-tarifa').textContent = textoTarifa(v);
+  const tbody = document.getElementById('asi-det-tabla');
+  const vacio = document.getElementById('asi-det-vacio');
+  if(b.movimientos.length===0){
+    tbody.innerHTML = '';
+    vacio.style.display = 'block';
+  }else{
+    vacio.style.display = 'none';
+    tbody.innerHTML = b.movimientos.map(a=>{
+      const efecto = efectoAsistencia(a);
+      return `<tr><td>${formatearFecha(a.fecha)}</td><td class="mono" style="color:${colorMonto(efecto)}; font-weight:700;">$${efecto.toFixed(2)}</td><td>${detalleTxtAsistencia(a)}</td><td><button class="btn-danger-text" onclick="eliminarAsistencia('${a.id}')" title="Borrar">🗑</button></td></tr>`;
+    }).join('');
+  }
+}
+async function eliminarAsistencia(id){
+  const ok = await mostrarConfirmacion('¿Borrar este movimiento? No se puede deshacer.', { textoAceptar:'Sí, borrar' });
+  if(!ok) return;
+  try{
+    await db.from('asistencia_equipo').delete().eq('id', id);
+  }catch(e){ avisar('No se pudo borrar. Revisa tu conexión.'); return; }
+  asistenciaEquipo = asistenciaEquipo.filter(a=>a.id!==id);
+  renderDetalleAsistencia();
+  avisar('Movimiento borrado.');
+}
+function actualizarCampoValorTarifa(){
+  const tipo = document.getElementById('tarifa-tipo').value;
+  const lbl = document.querySelector('#tarifa-campo-valor label');
+  if(!lbl) return;
+  lbl.textContent = tipo==='quincenal' ? 'Monto quincenal fijo' : tipo==='turno' ? 'Monto por turno' : tipo==='hora' ? 'Monto por hora' : 'Monto por día';
+}
+function abrirModalTarifa(){
+  const v = vendedores.find(x=>x.id===detalleAsistenciaId);
+  if(!v) return;
+  document.getElementById('tarifa-vendedor-nombre').textContent = 'Para: '+v.nombre;
+  document.getElementById('tarifa-tipo').value = v.tarifaTipo || 'dia';
+  document.getElementById('tarifa-valor').value = v.tarifaValor!=null ? v.tarifaValor : '';
+  document.getElementById('tarifa-dia-libre').value = v.diaLibre!=null ? v.diaLibre : '';
+  actualizarCampoValorTarifa();
+  document.getElementById('modal-tarifa').style.display = 'flex';
+  if(!manejandoPopstate) history.pushState(null, '', '');
+}
+function cerrarModalTarifa(){
+  document.getElementById('modal-tarifa').style.display = 'none';
+}
+async function guardarTarifa(){
+  const v = vendedores.find(x=>x.id===detalleAsistenciaId);
+  if(!v) return;
+  const tipo = document.getElementById('tarifa-tipo').value;
+  const valor = +document.getElementById('tarifa-valor').value;
+  if(!valor || valor<=0){ avisar('Escribe un monto válido, mayor a 0.'); return; }
+  const diaLibreRaw = document.getElementById('tarifa-dia-libre').value;
+  const diaLibre = diaLibreRaw==='' ? null : +diaLibreRaw;
+  try{
+    await db.from('vendedores').update({ tarifa_tipo: tipo, tarifa_valor: valor, dia_libre: diaLibre }).eq('id', v.id);
+  }catch(e){ avisar('No se pudo guardar. Revisa tu conexión.'); return; }
+  v.tarifaTipo = tipo; v.tarifaValor = valor; v.diaLibre = diaLibre;
+  cerrarModalTarifa();
+  renderDetalleAsistencia();
+  avisar('Tarifa guardada.');
+}
+function abrirModalDiaTrabajado(){
+  const v = vendedores.find(x=>x.id===detalleAsistenciaId);
+  if(!v) return;
+  if(!v.tarifaTipo || v.tarifaValor==null){ avisar('Primero define la tarifa de este vendedor (botón "✏️ Tarifa").'); return; }
+  document.getElementById('dia-vendedor-nombre').textContent = 'Para: '+v.nombre+' · '+textoTarifa(v);
+  document.getElementById('dia-campo-horas').style.display = v.tarifaTipo==='hora' ? 'block' : 'none';
+  document.getElementById('dia-campo-turno').style.display = v.tarifaTipo==='turno' ? 'block' : 'none';
+  const hoy = ahoraServidor();
+  document.getElementById('dia-fecha').value = hoy.toISOString().slice(0,10);
+  document.getElementById('dia-horas').value = '';
+  document.getElementById('dia-turno').value = 'manana';
+  document.getElementById('dia-nota').value = '';
+  document.getElementById('modal-dia-trabajado').style.display = 'flex';
+  if(!manejandoPopstate) history.pushState(null, '', '');
+}
+function cerrarModalDiaTrabajado(){
+  document.getElementById('modal-dia-trabajado').style.display = 'none';
+}
+async function guardarDiaTrabajado(){
+  const v = vendedores.find(x=>x.id===detalleAsistenciaId);
+  if(!v) return;
+  const fechaTrabajo = document.getElementById('dia-fecha').value;
+  if(!fechaTrabajo){ avisar('Elige una fecha.'); return; }
+  let horas = null, turno = null, monto;
+  if(v.tarifaTipo==='hora'){
+    horas = +document.getElementById('dia-horas').value;
+    if(!horas || horas<=0){ avisar('Escribe cuántas horas trabajó.'); return; }
+    monto = +(horas * v.tarifaValor).toFixed(2);
+  }else if(v.tarifaTipo==='turno'){
+    turno = document.getElementById('dia-turno').value;
+    monto = v.tarifaValor;
+  }else if(v.tarifaTipo==='quincenal'){
+    // Quincenal: marcar el día es solo para llevar el registro de
+    // asistencia/horario — no suma nada al saldo, porque ya se le paga un
+    // monto fijo cada quincena (eso se anota aparte con "＋ Pago").
+    monto = 0;
+  }else{
+    monto = v.tarifaValor;
+  }
+  const nota = document.getElementById('dia-nota').value.trim();
+  const nueva = { id: uid(), vendedorId: v.id, vendedorNombre: v.nombre, fecha: ahoraServidor().toISOString(), fechaTrabajo, tipo:'trabajo', horas, turno, monto, nota };
+  try{
+    await db.from('asistencia_equipo').insert({ id:nueva.id, vendedor_id:nueva.vendedorId, vendedor_nombre:nueva.vendedorNombre, fecha:nueva.fecha, fecha_trabajo:fechaTrabajo, tipo:'trabajo', horas, turno, monto, nota });
+  }catch(e){ avisar('No se pudo guardar. Revisa tu conexión.'); return; }
+  asistenciaEquipo.unshift(nueva);
+  cerrarModalDiaTrabajado();
+  renderDetalleAsistencia();
+  avisar('Día agregado.');
+}
+function renderMiAsistencia(){
+  const cont = document.getElementById('tab-miasistencia-contenido');
+  if(!cont || !currentUser.vendedorId) return;
+  const v = vendedores.find(x=>x.id===currentUser.vendedorId);
+  if(!v) return;
+  const b = calcularAsistenciaVendedor(v.id);
+  cont.innerHTML = `
+    <div class="card">
+      <div style="font-size:13px; color:var(--ink-dim); text-transform:uppercase; font-weight:600;">Tu tarifa</div>
+      <div style="font-size:16px; margin-top:4px;">${textoTarifa(v)}</div>
+      <div style="margin-top:10px; font-size:18px; font-weight:700; color:${colorMonto(b.balancePendiente)};">$${b.balancePendiente.toFixed(2)}</div>
+    </div>
+    <div class="card" style="padding:0; overflow:hidden;">
+      <table>
+        <thead><tr><th>Fecha</th><th>Monto</th><th>Detalle</th></tr></thead>
+        <tbody>${b.movimientos.length===0 ? '' : b.movimientos.map(a=>{
+          const efecto = efectoAsistencia(a);
+          return `<tr><td>${formatearFecha(a.fecha)}</td><td class="mono" style="color:${colorMonto(efecto)}; font-weight:700;">$${efecto.toFixed(2)}</td><td>${detalleTxtAsistencia(a)}</td></tr>`;
+        }).join('')}</tbody>
+      </table>
+      ${b.movimientos.length===0 ? '<div class="empty-state">Todavía no hay movimientos.</div>' : ''}
+    </div>`;
+}
+let asistenciaPagoTipo = 'pago';
+function abrirModalPagoAsistencia(){
+  const v = vendedores.find(x=>x.id===detalleAsistenciaId);
+  if(!v) return;
+  document.getElementById('pago-asi-vendedor-nombre').textContent = 'Para: '+v.nombre;
+  document.getElementById('pago-asi-monto').value = '';
+  document.getElementById('pago-asi-nota').value = '';
+  asistenciaPagoTipo = 'pago';
+  document.getElementById('modal-pago-asistencia').style.display = 'flex';
+  if(!manejandoPopstate) history.pushState(null, '', '');
+}
+function cerrarModalPagoAsistencia(){
+  document.getElementById('modal-pago-asistencia').style.display = 'none';
+}
+async function guardarPagoAsistencia(){
+  const v = vendedores.find(x=>x.id===detalleAsistenciaId);
+  if(!v) return;
+  const monto = +document.getElementById('pago-asi-monto').value;
+  if(!monto || monto<=0){ avisar('Escribe un monto válido, mayor a 0.'); return; }
+  const nota = document.getElementById('pago-asi-nota').value.trim();
+  const nueva = { id: uid(), vendedorId: v.id, vendedorNombre: v.nombre, fecha: ahoraServidor().toISOString(), fechaTrabajo:null, tipo:'pago', horas:null, monto, nota };
+  try{
+    await db.from('asistencia_equipo').insert({ id:nueva.id, vendedor_id:nueva.vendedorId, vendedor_nombre:nueva.vendedorNombre, fecha:nueva.fecha, fecha_trabajo:null, tipo:'pago', horas:null, monto, nota });
+  }catch(e){ avisar('No se pudo guardar. Revisa tu conexión.'); return; }
+  asistenciaEquipo.unshift(nueva);
+  cerrarModalPagoAsistencia();
+  renderDetalleAsistencia();
+  avisar('Pago registrado.');
+}
 function renderResultadosSorteoSelect(){
   const opts = sorteosOrdenados().map(s=>`<option value="${s.id}">${escapeHtml(s.nombre+' · '+s.horaSorteoTexto)}</option>`).join('');
   const sel = document.getElementById('res-sorteo');
@@ -4953,6 +5338,8 @@ async function refrescarConfigCompartida(){
   if(tabActivo==='independientes') renderListaIndependientes();
   if(tabActivo==='deudas') renderListaDeudas();
   if(detalleDeudaId) renderDetalleDeuda();
+  if(tabActivo==='asistencia') renderListaAsistencia();
+  if(detalleAsistenciaId) renderDetalleAsistencia();
   if(tabActivo==='micomision') renderMiComision();
   if(tabActivo==='misdeudas') renderMisDeudas();
   if(tabActivo==='cobertura'){ renderCoberturaSorteoSelect(); renderCobertura(); }

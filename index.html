@@ -4237,7 +4237,7 @@ function renderListaAsistencia(){
     const b = calcularAsistenciaVendedor(v.id);
     return `<tr onclick="abrirDetalleAsistencia('${v.id}')" style="cursor:pointer;">
       <td>${escapeHtml(v.nombre)}<div class="hint" style="margin:0;">${textoTarifa(v)}</div></td>
-      <td style="text-align:right; font-weight:700; color:${colorMonto(b.balancePendiente)};" class="mono">$${b.balancePendiente.toFixed(2)}</td>
+      <td style="text-align:right; font-weight:700; color:${colorMontoVendedor(b.balancePendiente)};" class="mono">$${b.balancePendiente.toFixed(2)}</td>
     </tr>`;
   }).join('');
 }
@@ -4271,7 +4271,7 @@ function renderDetalleAsistencia(){
   if(!v) return;
   const b = calcularAsistenciaVendedor(v.id);
   document.getElementById('asi-det-monto').textContent = '$'+b.balancePendiente.toFixed(2);
-  document.getElementById('asi-det-monto').style.color = colorMonto(b.balancePendiente);
+  document.getElementById('asi-det-monto').style.color = colorMontoVendedor(b.balancePendiente);
   document.getElementById('asi-det-nombre').textContent = v.nombre;
   document.getElementById('asi-det-tarifa').textContent = textoTarifa(v);
   const tbody = document.getElementById('asi-det-tabla');
@@ -4283,7 +4283,7 @@ function renderDetalleAsistencia(){
     vacio.style.display = 'none';
     tbody.innerHTML = b.movimientos.map(a=>{
       const efecto = efectoAsistencia(a);
-      return `<tr><td>${formatearFecha(a.fecha)}</td><td class="mono" style="color:${colorMonto(efecto)}; font-weight:700;">$${efecto.toFixed(2)}</td><td>${detalleTxtAsistencia(a)}</td><td><button class="btn-danger-text" onclick="eliminarAsistencia('${a.id}')" title="Borrar">🗑</button></td></tr>`;
+      return `<tr><td>${formatearFecha(a.fecha)}</td><td class="mono" style="color:${colorMontoVendedor(efecto)}; font-weight:700;">$${efecto.toFixed(2)}</td><td>${detalleTxtAsistencia(a)}</td><td><button class="btn-danger-text" onclick="eliminarAsistencia('${a.id}')" title="Borrar">🗑</button></td></tr>`;
     }).join('');
   }
 }

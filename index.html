@@ -1152,6 +1152,7 @@
         </select>
       </div>
       <div class="field" id="tarifa-campo-valor"><label>Monto</label><input type="number" step="0.01" id="tarifa-valor" placeholder="0.00"></div>
+      <div class="field" id="tarifa-campo-extra" style="display:none;"><label>Monto por turno extra (fuera de la quincena)</label><input type="number" step="0.01" id="tarifa-extra" placeholder="0.00"></div>
       <div class="field"><label>Día libre a la semana</label>
         <select id="tarifa-dia-libre">
           <option value="">Sin definir</option>
@@ -1187,6 +1188,19 @@
           <option value="extra">Extra (turno adicional)</option>
         </select>
       </div>
+      <div class="field" id="dia-campo-extra-quincenal" style="display:none;">
+        <label style="display:flex; align-items:center; gap:8px; text-transform:none; font-size:14px;">
+          <input type="checkbox" id="dia-es-extra" style="width:auto;" onchange="actualizarCampoExtraQuincenal()">
+          Fue un turno extra (fuera de lo normal)
+        </label>
+        <div id="dia-campo-turno-quincenal" style="display:none; margin-top:10px;">
+          <select id="dia-turno-quincenal">
+            <option value="manana">Mañana · 10:00am – 4:30pm</option>
+            <option value="tarde">Tarde · 4:30pm – 10:00pm</option>
+            <option value="completo">Día completo (los 2 turnos)</option>
+          </select>
+        </div>
+      </div>
       <div class="field"><label>Nota (opcional)</label><input type="text" id="dia-nota" placeholder="" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"></div>
     </div>
     <div class="modal-actions">
@@ -1202,6 +1216,12 @@
       <h2 style="margin-top:0;">💵 Registrar pago</h2>
       <p class="hint" id="pago-asi-vendedor-nombre" style="margin-top:-8px;"></p>
       <div class="field"><label>Monto</label><input type="number" step="0.01" id="pago-asi-monto" placeholder="0.00"></div>
+      <div class="field" id="pago-asi-campo-quincena" style="display:none;">
+        <label style="display:flex; align-items:center; gap:8px; text-transform:none; font-size:14px;">
+          <input type="checkbox" id="pago-asi-es-quincena" style="width:auto;">
+          Es la quincena fija (no descuenta del saldo de extras)
+        </label>
+      </div>
       <div class="field"><label>Nota (opcional)</label><input type="text" id="pago-asi-nota" placeholder="Ej. pago semanal" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"></div>
     </div>
     <div class="modal-actions">
@@ -1349,12 +1369,12 @@ function ahoraServidor(){
   if(refServidorMs===null) return new Date();
   return new Date(refServidorMs + (performance.now() - refPerfMs));
 }
-function filaAVendedor(v){ return { id:v.id, nombre:v.nombre, username:v.username, password:v.password, enEquipo: v.en_equipo !== false, porcentaje: +v.porcentaje || 0, tarifaTipo: v.tarifa_tipo || null, tarifaValor: v.tarifa_valor!=null ? +v.tarifa_valor : null, diaLibre: v.dia_libre!=null ? +v.dia_libre : null }; }
+function filaAVendedor(v){ return { id:v.id, nombre:v.nombre, username:v.username, password:v.password, enEquipo: v.en_equipo !== false, porcentaje: +v.porcentaje || 0, tarifaTipo: v.tarifa_tipo || null, tarifaValor: v.tarifa_valor!=null ? +v.tarifa_valor : null, tarifaExtra: v.tarifa_extra!=null ? +v.tarifa_extra : null, diaLibre: v.dia_libre!=null ? +v.dia_libre : null }; }
 function filaALiquidacion(l){ return { id:l.id, vendedorId:l.vendedor_id, vendedorNombre:l.vendedor_nombre||null, fecha:l.fecha, monto:+l.monto, direccion:l.direccion, nota:l.nota||'', sorteoId:l.sorteo_id||null, codigoSorteo:l.codigo_sorteo||null }; }
 let deudasEquipo = [];
 function filaADeuda(d){ return { id:d.id, vendedorId:d.vendedor_id, vendedorNombre:d.vendedor_nombre||null, fecha:d.fecha, monto:+d.monto, direccion:d.direccion, nota:d.nota||'', ventaId:d.venta_id||null, folio:d.folio||null, codigoSorteo:d.codigo_sorteo||null, estado:d.estado||'confirmado', tipo:d.tipo||(d.venta_id?'ticket':'ajuste') }; }
 let asistenciaEquipo = [];
-function filaAAsistencia(a){ return { id:a.id, vendedorId:a.vendedor_id, vendedorNombre:a.vendedor_nombre||null, fecha:a.fecha, fechaTrabajo:a.fecha_trabajo||null, tipo:a.tipo, horas:a.horas!=null?+a.horas:null, turno:a.turno||null, monto:+a.monto, nota:a.nota||'' }; }
+function filaAAsistencia(a){ return { id:a.id, vendedorId:a.vendedor_id, vendedorNombre:a.vendedor_nombre||null, fecha:a.fecha, fechaTrabajo:a.fecha_trabajo||null, tipo:a.tipo, horas:a.horas!=null?+a.horas:null, turno:a.turno||null, monto:+a.monto, nota:a.nota||'', esQuincenaFija: !!a.es_quincena_fija }; }
 function filaACobertura(c){ return { id:c.id, sorteoId:c.sorteo_id||null, codigoSorteo:c.codigo_sorteo||null, fechaKey:c.fecha_key, numero:c.numero, modalidad:c.modalidad, cantidad:+c.cantidad, nota:c.nota||'', creadoEn:c.created_at }; }
 function filaASorteo(s){
   return { id:s.id, nombre:s.nombre, horaSorteoTexto:s.hora_sorteo_texto, horaCierre:s.hora_cierre,
@@ -4209,10 +4229,15 @@ async function eliminarAjusteDeuda(id){
 function efectoAsistencia(a){
   // "trabajo" (un día que vino) SUMA a lo que le debés. "pago" (le pagaste)
   // RESTA. Los ajustes manuales son para corregir errores a mano.
+  // Excepción: si el pago está marcado como "quincena fija", no resta nada
+  // — es la paga fija que no pasa por este saldo (que acá solo sigue los
+  // turnos extra). Un pago normal sí resta, para saldar esos extras.
+  if(a.tipo==='pago' && a.esQuincenaFija) return 0;
   if(a.tipo==='pago' || a.tipo==='ajuste_menos') return -a.monto;
   return a.monto;
 }
 function calcularAsistenciaVendedor(vendedorId){
+  const v = vendedores.find(x=>x.id===vendedorId);
   const movs = asistenciaEquipo.filter(a=>a.vendedorId===vendedorId);
   const balancePendiente = +movs.reduce((s,a)=>s+efectoAsistencia(a),0).toFixed(2);
   return { balancePendiente, movimientos: movs.slice().sort((a,b)=> new Date(b.fecha)-new Date(a.fecha)) };
@@ -4261,7 +4286,7 @@ function detalleTxtAsistencia(a){
   if(a.tipo==='trabajo'){
     return '🗓️ Día trabajado'+(a.fechaTrabajo?' — '+a.fechaTrabajo:'')+(a.turno?' · '+nombreTurno(a.turno):'')+(a.horas?' · '+a.horas+'h':'')+(a.nota?' · '+escapeHtml(a.nota):'');
   }else if(a.tipo==='pago'){
-    return '💵 Pago'+(a.nota?': '+escapeHtml(a.nota):'');
+    return '💵 Pago de $'+a.monto.toFixed(2)+(a.esQuincenaFija?' (quincena fija — no mueve el saldo)':'')+(a.nota?': '+escapeHtml(a.nota):'');
   }
   return (a.tipo==='ajuste_mas'?'Corrección (sube)':'Corrección (baja)')+(a.nota?': '+escapeHtml(a.nota):'');
 }
@@ -4282,8 +4307,8 @@ function renderDetalleAsistencia(){
   }else{
     vacio.style.display = 'none';
     tbody.innerHTML = b.movimientos.map(a=>{
-      const efecto = efectoAsistencia(a);
-      return `<tr><td>${formatearFecha(a.fecha)}</td><td class="mono" style="color:${colorMontoVendedor(efecto)}; font-weight:700;">$${efecto.toFixed(2)}</td><td>${detalleTxtAsistencia(a)}</td><td><button class="btn-danger-text" onclick="eliminarAsistencia('${a.id}')" title="Borrar">🗑</button></td></tr>`;
+      const efecto = efectoAsistencia(a, v.tarifaTipo);
+      return `<tr><td>${formatearFecha(a.fecha)}</td><td class="mono" style="color:${colorMontoVendedor(efecto)}; font-weight:700;">$${efecto.toFixed(2)}</td><td>${detalleTxtAsistencia(a, v.tarifaTipo)}</td><td><button class="btn-danger-text" onclick="eliminarAsistencia('${a.id}')" title="Borrar">🗑</button></td></tr>`;
     }).join('');
   }
 }
@@ -4300,8 +4325,9 @@ async function eliminarAsistencia(id){
 function actualizarCampoValorTarifa(){
   const tipo = document.getElementById('tarifa-tipo').value;
   const lbl = document.querySelector('#tarifa-campo-valor label');
-  if(!lbl) return;
-  lbl.textContent = tipo==='quincenal' ? 'Monto quincenal fijo' : tipo==='turno' ? 'Monto por turno' : tipo==='hora' ? 'Monto por hora' : 'Monto por día';
+  if(lbl) lbl.textContent = tipo==='quincenal' ? 'Monto quincenal fijo' : tipo==='turno' ? 'Monto por turno' : tipo==='hora' ? 'Monto por hora' : 'Monto por día';
+  const campoExtra = document.getElementById('tarifa-campo-extra');
+  if(campoExtra) campoExtra.style.display = tipo==='quincenal' ? 'block' : 'none';
 }
 function abrirModalTarifa(){
   const v = vendedores.find(x=>x.id===detalleAsistenciaId);
@@ -4309,6 +4335,7 @@ function abrirModalTarifa(){
   document.getElementById('tarifa-vendedor-nombre').textContent = 'Para: '+v.nombre;
   document.getElementById('tarifa-tipo').value = v.tarifaTipo || 'dia';
   document.getElementById('tarifa-valor').value = v.tarifaValor!=null ? v.tarifaValor : '';
+  document.getElementById('tarifa-extra').value = v.tarifaExtra!=null ? v.tarifaExtra : '';
   document.getElementById('tarifa-dia-libre').value = v.diaLibre!=null ? v.diaLibre : '';
   actualizarCampoValorTarifa();
   document.getElementById('modal-tarifa').style.display = 'flex';
@@ -4325,13 +4352,19 @@ async function guardarTarifa(){
   if(!valor || valor<=0){ avisar('Escribe un monto válido, mayor a 0.'); return; }
   const diaLibreRaw = document.getElementById('tarifa-dia-libre').value;
   const diaLibre = diaLibreRaw==='' ? null : +diaLibreRaw;
+  const extraRaw = document.getElementById('tarifa-extra').value;
+  const extra = (tipo==='quincenal' && extraRaw!=='') ? +extraRaw : null;
   try{
-    await db.from('vendedores').update({ tarifa_tipo: tipo, tarifa_valor: valor, dia_libre: diaLibre }).eq('id', v.id);
+    await db.from('vendedores').update({ tarifa_tipo: tipo, tarifa_valor: valor, tarifa_extra: extra, dia_libre: diaLibre }).eq('id', v.id);
   }catch(e){ avisar('No se pudo guardar. Revisa tu conexión.'); return; }
-  v.tarifaTipo = tipo; v.tarifaValor = valor; v.diaLibre = diaLibre;
+  v.tarifaTipo = tipo; v.tarifaValor = valor; v.tarifaExtra = extra; v.diaLibre = diaLibre;
   cerrarModalTarifa();
   renderDetalleAsistencia();
   avisar('Tarifa guardada.');
+}
+function actualizarCampoExtraQuincenal(){
+  const marcado = document.getElementById('dia-es-extra').checked;
+  document.getElementById('dia-campo-turno-quincenal').style.display = marcado ? 'block' : 'none';
 }
 function abrirModalDiaTrabajado(){
   const v = vendedores.find(x=>x.id===detalleAsistenciaId);
@@ -4340,10 +4373,14 @@ function abrirModalDiaTrabajado(){
   document.getElementById('dia-vendedor-nombre').textContent = 'Para: '+v.nombre+' · '+textoTarifa(v);
   document.getElementById('dia-campo-horas').style.display = v.tarifaTipo==='hora' ? 'block' : 'none';
   document.getElementById('dia-campo-turno').style.display = v.tarifaTipo==='turno' ? 'block' : 'none';
+  document.getElementById('dia-campo-extra-quincenal').style.display = v.tarifaTipo==='quincenal' ? 'block' : 'none';
   const hoy = ahoraServidor();
   document.getElementById('dia-fecha').value = hoy.toISOString().slice(0,10);
   document.getElementById('dia-horas').value = '';
   document.getElementById('dia-turno').value = 'manana';
+  document.getElementById('dia-es-extra').checked = false;
+  document.getElementById('dia-turno-quincenal').value = 'manana';
+  actualizarCampoExtraQuincenal();
   document.getElementById('dia-nota').value = '';
   document.getElementById('modal-dia-trabajado').style.display = 'flex';
   if(!manejandoPopstate) history.pushState(null, '', '');
@@ -4365,10 +4402,16 @@ async function guardarDiaTrabajado(){
     turno = document.getElementById('dia-turno').value;
     monto = turno==='completo' ? +(v.tarifaValor*2).toFixed(2) : v.tarifaValor;
   }else if(v.tarifaTipo==='quincenal'){
-    // Quincenal: marcar el día es solo para llevar el registro de
-    // asistencia/horario — no suma nada al saldo, porque ya se le paga un
-    // monto fijo cada quincena (eso se anota aparte con "＋ Pago").
-    monto = 0;
+    const esExtra = document.getElementById('dia-es-extra').checked;
+    if(esExtra){
+      if(v.tarifaExtra==null){ avisar('Primero define el "monto por turno extra" en la tarifa de este vendedor.'); return; }
+      turno = document.getElementById('dia-turno-quincenal').value;
+      monto = turno==='completo' ? +(v.tarifaExtra*2).toFixed(2) : v.tarifaExtra;
+    }else{
+      // Día normal de un quincenal: solo registro de asistencia/horario, no
+      // suma nada — ya se le paga un monto fijo cada quincena.
+      monto = 0;
+    }
   }else{
     monto = v.tarifaValor;
   }
@@ -4398,21 +4441,21 @@ function renderMiAsistencia(){
       <table>
         <thead><tr><th>Fecha</th><th>Monto</th><th>Detalle</th></tr></thead>
         <tbody>${b.movimientos.length===0 ? '' : b.movimientos.map(a=>{
-          const efecto = efectoAsistencia(a);
-          return `<tr><td>${formatearFecha(a.fecha)}</td><td class="mono" style="color:${colorMonto(efecto)}; font-weight:700;">$${efecto.toFixed(2)}</td><td>${detalleTxtAsistencia(a)}</td></tr>`;
+          const efecto = efectoAsistencia(a, v.tarifaTipo);
+          return `<tr><td>${formatearFecha(a.fecha)}</td><td class="mono" style="color:${colorMonto(efecto)}; font-weight:700;">$${efecto.toFixed(2)}</td><td>${detalleTxtAsistencia(a, v.tarifaTipo)}</td></tr>`;
         }).join('')}</tbody>
       </table>
       ${b.movimientos.length===0 ? '<div class="empty-state">Todavía no hay movimientos.</div>' : ''}
     </div>`;
 }
-let asistenciaPagoTipo = 'pago';
 function abrirModalPagoAsistencia(){
   const v = vendedores.find(x=>x.id===detalleAsistenciaId);
   if(!v) return;
   document.getElementById('pago-asi-vendedor-nombre').textContent = 'Para: '+v.nombre;
-  document.getElementById('pago-asi-monto').value = '';
+  document.getElementById('pago-asi-monto').value = v.tarifaTipo==='quincenal' && v.tarifaValor!=null ? v.tarifaValor : '';
   document.getElementById('pago-asi-nota').value = '';
-  asistenciaPagoTipo = 'pago';
+  document.getElementById('pago-asi-campo-quincena').style.display = v.tarifaTipo==='quincenal' ? 'block' : 'none';
+  document.getElementById('pago-asi-es-quincena').checked = v.tarifaTipo==='quincenal';
   document.getElementById('modal-pago-asistencia').style.display = 'flex';
   if(!manejandoPopstate) history.pushState(null, '', '');
 }
@@ -4424,10 +4467,11 @@ async function guardarPagoAsistencia(){
   if(!v) return;
   const monto = +document.getElementById('pago-asi-monto').value;
   if(!monto || monto<=0){ avisar('Escribe un monto válido, mayor a 0.'); return; }
+  const esQuincenaFija = v.tarifaTipo==='quincenal' && document.getElementById('pago-asi-es-quincena').checked;
   const nota = document.getElementById('pago-asi-nota').value.trim();
-  const nueva = { id: uid(), vendedorId: v.id, vendedorNombre: v.nombre, fecha: ahoraServidor().toISOString(), fechaTrabajo:null, tipo:'pago', horas:null, monto, nota };
+  const nueva = { id: uid(), vendedorId: v.id, vendedorNombre: v.nombre, fecha: ahoraServidor().toISOString(), fechaTrabajo:null, tipo:'pago', horas:null, monto, nota, esQuincenaFija };
   try{
-    await db.from('asistencia_equipo').insert({ id:nueva.id, vendedor_id:nueva.vendedorId, vendedor_nombre:nueva.vendedorNombre, fecha:nueva.fecha, fecha_trabajo:null, tipo:'pago', horas:null, monto, nota });
+    await db.from('asistencia_equipo').insert({ id:nueva.id, vendedor_id:nueva.vendedorId, vendedor_nombre:nueva.vendedorNombre, fecha:nueva.fecha, fecha_trabajo:null, tipo:'pago', horas:null, monto, nota, es_quincena_fija: esQuincenaFija });
   }catch(e){ avisar('No se pudo guardar. Revisa tu conexión.'); return; }
   asistenciaEquipo.unshift(nueva);
   cerrarModalPagoAsistencia();

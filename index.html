@@ -192,6 +192,7 @@
   tr.row-anulada td{ opacity:0.55; }
   div.jugada-row.row-anulada{ opacity:0.55; }
   .jugada-row.row-ganadora{ background:#FDF3D9; border-left:4px solid var(--gold); margin:0 -8px; padding-left:12px; padding-right:8px; border-radius:6px; }
+  .jugada-row.row-repetida{ background:#FFE9E5; border-left:4px solid var(--red); margin:0 -8px; padding-left:12px; padding-right:8px; border-radius:6px; }
   .ticket-anulado-banner{ text-align:center; background:var(--red); color:#fff; font-weight:700; font-size:12px; letter-spacing:0.6px; text-transform:uppercase; padding:6px; border-radius:5px; margin-bottom:12px; }
 
   .pill-list{ display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }
@@ -2862,6 +2863,7 @@ function renderHistorialSorteoActual(){
   }else if(activasFiltradas.length===0){
     cont.innerHTML = '<div class="empty-state">Ningún cliente coincide con "'+escapeHtml(textoBusqueda)+'".</div>';
   }else{
+    const repetidos = ticketsRepetidosEnGrupo(activas);
     cont.innerHTML = activasFiltradas.map(v=>{
       const premio = v.pendienteSync ? null : premioDeVenta(v);
       let premioTxt;
@@ -2878,9 +2880,11 @@ function renderHistorialSorteoActual(){
       const botonReportar = botonReportarNoPagadoHtml(v);
       const nombreCliente = v.cliente?escapeHtml(v.cliente):'<span style="color:var(--ink-dim); font-weight:500;">Sin nombre</span>';
       const tagNoPagado = estaTicketNoPagado(v.id) ? ' <span class="tag-anulado" style="background:var(--red);">📌 No pagado</span>' : (estaTicketReportadoPendiente(v.id) ? ' <span class="tag-anulado" style="background:#B8860B;">🔔 Reportado</span>' : '');
-      return `<div class="jugada-row ${esGanador?'row-ganadora':''} ${v.pendienteSync?'row-pendiente':''}">
+      const esRepetido = repetidos.has(v.id);
+      const tagRepetido = esRepetido ? ' <span class="tag-anulado" style="background:var(--red);">⚠️ Posible repetido</span>' : '';
+      return `<div class="jugada-row ${esGanador?'row-ganadora':''} ${v.pendienteSync?'row-pendiente':''} ${(esRepetido && !esGanador)?'row-repetida':''}">
         <div>
-          <div style="font-size:15.5px; font-weight:700; color:${esGanador?'var(--green)':'var(--ink)'};">${v.pendienteSync?'⏳ ':''}${esGanador?'🏆 ':''}${nombreCliente}${tagNoPagado}</div>
+          <div style="font-size:15.5px; font-weight:700; color:${esGanador?'var(--green)':'var(--ink)'};">${v.pendienteSync?'⏳ ':''}${esGanador?'🏆 ':''}${nombreCliente}${tagNoPagado}${tagRepetido}</div>
           <div style="color:var(--ink-dim); font-size:11.5px; margin-top:1px;" class="mono">#${folioTexto(v)} · ${escapeHtml(nombreVendedor(v.vendedorId).slice(0,3))}${v.editadoPor?' · edit: '+escapeHtml(v.editadoPor.slice(0,3)):''}</div>
         </div>
         <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; justify-content:flex-end;"><span class="mono" style="font-weight:600">$${v.total.toFixed(2)}</span>${premioTxt}
@@ -3268,6 +3272,28 @@ function formatearFecha(iso){
   return d.toLocaleDateString('es-DO', {day:'2-digit', month:'2-digit', year:'numeric'}) + ' · ' + d.toLocaleTimeString('es-DO', {hour:'2-digit', minute:'2-digit'});
 }
 function toDateKey(iso){ const d = new Date(iso); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function firmaJugadas(venta){
+  // Une modalidad+número+tiempos de cada jugada (sin importar el orden en
+  // que se anotaron) — dos tickets del mismo sorteo/día con exactamente el
+  // mismo contenido dan la misma firma, sin fijarse en el nombre del
+  // cliente ni en quién lo anotó (eso puede variar aunque sea el mismo
+  // pedido repetido por error).
+  return venta.jugadas.map(j=>j.modalidad+'|'+j.numero+'|'+j.cantidad).sort().join(';');
+}
+function ticketsRepetidosEnGrupo(ventas){
+  // Recibe una lista de ventas (ya filtrada al sorteo/día que corresponda)
+  // y devuelve el set de ids de las que comparten firma con al menos otra
+  // (posibles duplicados por error de anotación).
+  const porFirma = {};
+  ventas.forEach(v=>{
+    if(v.anulada) return;
+    const clave = v.sorteoId+'|'+toDateKey(v.fecha)+'|'+firmaJugadas(v);
+    (porFirma[clave] = porFirma[clave] || []).push(v.id);
+  });
+  const repetidos = new Set();
+  Object.values(porFirma).forEach(ids=>{ if(ids.length>1) ids.forEach(id=>repetidos.add(id)); });
+  return repetidos;
+}
 function folioTexto(venta){
   if(venta.pendienteSync) return 'PENDIENTE';
   const d = new Date(venta.fecha);
@@ -4673,6 +4699,7 @@ function renderHistorial(){
   if(filtradas.length===0){ tbody.innerHTML=''; empty.style.display='block'; }
   else{
     empty.style.display='none';
+    const repetidosGeneral = ticketsRepetidosEnGrupo(filtradas);
     tbody.innerHTML = filtradas.map(v=>{
       let premioCell;
       let numerosGanadoresTxt = '';
@@ -4697,9 +4724,11 @@ function renderHistorial(){
       const botonNoPagado = botonNoPagadoHtml(v);
       const tituloAnulado = v.anulada ? `title="Anulado por ${escapeHtml(v.anuladaPor||'')}${v.motivoAnulacion? ': '+escapeHtml(v.motivoAnulacion):''}"` : '';
       const nombreCliente = v.cliente ? escapeHtml(v.cliente) : '<span style="color:var(--ink-dim); font-weight:500;">Sin nombre</span>';
-      return `<div class="jugada-row ${v.anulada?'row-anulada':''}" ${tituloAnulado}>
+      const esRepetido = !v.anulada && repetidosGeneral.has(v.id);
+      const tagRepetido = esRepetido ? ' <span class="tag-anulado" style="background:var(--red);">⚠️ Posible repetido</span>' : '';
+      return `<div class="jugada-row ${v.anulada?'row-anulada':''} ${esRepetido?'row-repetida':''}" ${tituloAnulado}>
         <div>
-          <div style="font-size:14.5px; font-weight:700;">${v.pendienteSync?'⏳ ':''}${nombreCliente}${estaTicketNoPagado(v.id)?' <span class="tag-anulado" style="background:var(--red);">📌 No pagado</span>':''}</div>
+          <div style="font-size:14.5px; font-weight:700;">${v.pendienteSync?'⏳ ':''}${nombreCliente}${estaTicketNoPagado(v.id)?' <span class="tag-anulado" style="background:var(--red);">📌 No pagado</span>':''}${tagRepetido}</div>
           <div style="font-size:11px; color:var(--ink-dim); margin-top:1px;" class="mono">#${folioTexto(v)} · ${escapeHtml(nombreVendedor(v.vendedorId).slice(0,3))}${v.editadoPor?' · edit: '+escapeHtml(v.editadoPor.slice(0,3)):''}</div>
           <div style="font-size:11px; color:var(--ink-dim); margin-top:1px;">${nombreSorteoVenta(v)} · ${formatearFecha(v.fecha)}</div>
           ${numerosGanadoresTxt}

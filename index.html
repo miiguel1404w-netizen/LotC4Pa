@@ -3275,23 +3275,43 @@ function toDateKey(iso){ const d = new Date(iso); return d.getFullYear()+'-'+Str
 function firmaJugadas(venta){
   // Une modalidad+número+tiempos de cada jugada (sin importar el orden en
   // que se anotaron) — dos tickets del mismo sorteo/día con exactamente el
-  // mismo contenido dan la misma firma, sin fijarse en el nombre del
-  // cliente ni en quién lo anotó (eso puede variar aunque sea el mismo
-  // pedido repetido por error).
+  // mismo contenido dan la misma firma, sin fijarse en quién lo anotó (eso
+  // puede variar aunque sea el mismo pedido repetido por error).
   return venta.jugadas.map(j=>j.modalidad+'|'+j.numero+'|'+j.cantidad).sort().join(';');
+}
+function nombresParecidos(a, b){
+  const na = (a||'').trim().toLowerCase();
+  const nb = (b||'').trim().toLowerCase();
+  if(!na && !nb) return true; // ninguno de los dos tiene nombre puesto
+  if(!na || !nb) return false; // uno tiene y el otro no: no cuenta como parecido
+  return na.includes(nb) || nb.includes(na); // uno contiene al otro (Pedro / Pedrop)
 }
 function ticketsRepetidosEnGrupo(ventas){
   // Recibe una lista de ventas (ya filtrada al sorteo/día que corresponda)
-  // y devuelve el set de ids de las que comparten firma con al menos otra
-  // (posibles duplicados por error de anotación).
+  // y devuelve el set de ids con un posible duplicado real: mismo
+  // contenido exacto, anotados cerca en el tiempo (30 min), Y con nombres
+  // de cliente parecidos o ambos sin nombre. Así dos clientes distintos
+  // que piden lo mismo por casualidad (nombres distintos) no se marcan.
+  const VENTANA_MINUTOS = 30;
   const porFirma = {};
   ventas.forEach(v=>{
     if(v.anulada) return;
     const clave = v.sorteoId+'|'+toDateKey(v.fecha)+'|'+firmaJugadas(v);
-    (porFirma[clave] = porFirma[clave] || []).push(v.id);
+    (porFirma[clave] = porFirma[clave] || []).push(v);
   });
   const repetidos = new Set();
-  Object.values(porFirma).forEach(ids=>{ if(ids.length>1) ids.forEach(id=>repetidos.add(id)); });
+  Object.values(porFirma).forEach(grupo=>{
+    if(grupo.length<2) return;
+    for(let i=0;i<grupo.length;i++){
+      for(let j=i+1;j<grupo.length;j++){
+        const a = grupo[i], b = grupo[j];
+        const minutos = Math.abs(new Date(a.fecha)-new Date(b.fecha))/60000;
+        if(minutos<=VENTANA_MINUTOS && nombresParecidos(a.cliente, b.cliente)){
+          repetidos.add(a.id); repetidos.add(b.id);
+        }
+      }
+    }
+  });
   return repetidos;
 }
 function folioTexto(venta){

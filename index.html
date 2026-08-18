@@ -4282,7 +4282,10 @@ function textoTarifa(v){
 function renderListaAsistencia(){
   const cont = document.getElementById('lista-asistencia');
   if(!cont) return;
-  const equipo = vendedores.filter(v=>v.enEquipo!==false);
+  // Se excluye al vendedor "Miguel" en este módulo puntual: es el propio
+  // admin usando ese usuario para vender, no alguien a quien haya que
+  // pagarle un horario. En Cuentas de vendedores sí sigue apareciendo.
+  const equipo = vendedores.filter(v=>v.enEquipo!==false && v.nombre.trim().toLowerCase()!=='miguel');
   if(equipo.length===0){ cont.innerHTML = '<tr><td colspan="2" class="empty-state">No tienes vendedores de equipo todavía.</td></tr>'; return; }
   cont.innerHTML = equipo.map(v=>{
     const b = calcularAsistenciaVendedor(v.id);

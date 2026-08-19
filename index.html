@@ -1327,6 +1327,13 @@ let premios = { chance20:{1:11,2:3,3:2}, chance25:{1:14,2:3,3:2}, pale:{"12":100
     gordito: { 1:{cuatro:0,tres:0,dos:0}, 2:{cuatro:0,tres:0,dos:0}, 3:{cuatro:0,tres:0,dos:0} }
   } };
 let ventasList = [];
+// Después de la primera carga completa (todo el historial, una sola vez
+// por sesión), los refrescos automáticos de cada 30s solo piden los
+// tickets recientes (últimos 3 días) en vez de la tabla entera otra vez —
+// así no se vuelve a bajar todo el historial completo cada 30 segundos
+// para cada persona conectada, que era lo que más estaba gastando del
+// límite de datos del plan gratis de Supabase.
+let cargaVentasCompleta = false;
 let folioCounter = 1;
 let resultados = [];
 let liquidaciones = [];
@@ -1453,8 +1460,26 @@ async function cargarDatos(){
   }catch(e){ cargaOk.sorteos = false; }
 
   try{
-    const data = await fetchTodasFilas('ventas', '*', 'fecha');
-    ventasList = (data||[]).map(filaAVenta);
+    if(!cargaVentasCompleta){
+      const data = await fetchTodasFilas('ventas', '*', 'fecha');
+      ventasList = (data||[]).map(filaAVenta);
+      cargaVentasCompleta = true;
+    }else{
+      const cortePocosDias = new Date(Date.now() - 3*24*60*60*1000).toISOString();
+      const { data, error } = await db.from('ventas').select('*').gte('fecha', cortePocosDias).order('fecha', { ascending:false });
+      if(error) throw error;
+      const recientes = (data||[]).map(filaAVenta);
+      const idsRecientes = new Set(recientes.map(v=>v.id));
+      // Se sacan del historial en memoria las ventas de estos últimos días
+      // (por si alguna se anuló/editó o ya no debería estar) y se reemplazan
+      // por la versión fresca — todo lo más viejo que ya estaba cargado
+      // queda intacto, sin volver a descargarlo.
+      ventasList = ventasList.filter(v => new Date(v.fecha) < new Date(cortePocosDias) || idsRecientes.has(v.id));
+      recientes.forEach(nueva=>{
+        const i = ventasList.findIndex(v=>v.id===nueva.id);
+        if(i>=0) ventasList[i] = nueva; else ventasList.unshift(nueva);
+      });
+    }
     cargaOk.ventas = true;
   }catch(e){ cargaOk.ventas = false; }
   // Vuelve a poner encima las ventas que aún no se han podido subir por falta

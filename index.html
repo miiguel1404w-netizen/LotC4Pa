@@ -1392,7 +1392,8 @@ function filaASorteo(s){
 function filaAVenta(v){
   return { id:v.id, folio:v.folio, vendedorId:v.vendedor_id, sorteoId:v.sorteo_id, codigoSorteo:v.codigo_sorteo,
     cliente:v.cliente, fecha:v.fecha, jugadas:v.jugadas, total:+v.total,
-    anulada:v.anulada, anuladaPor:v.anulada_por, anuladaEn:v.anulada_en, motivoAnulacion:v.motivo_anulacion, editadoPor:v.editado_por||null };
+    anulada:v.anulada, anuladaPor:v.anulada_por, anuladaEn:v.anulada_en, motivoAnulacion:v.motivo_anulacion, editadoPor:v.editado_por||null,
+    actualizadaEn: v.updated_at || v.fecha };
 }
 function filaAResultado(r){ return { id:r.id, sorteoId:r.sorteo_id, codigoSorteo:r.codigo_sorteo, fechaKey:r.fecha_key, primero:r.primero, segundo:r.segundo, tercero:r.tercero, primeroCompleto:r.primero_completo||r.primero, segundoCompleto:r.segundo_completo||r.segundo, terceroCompleto:r.tercero_completo||r.tercero, updatedAt:r.updated_at||r.created_at }; }
 
@@ -1465,16 +1466,22 @@ async function cargarDatos(){
       ventasList = (data||[]).map(filaAVenta);
       cargaVentasCompleta = true;
     }else{
+      // Importante: se filtra por "actualizada por última vez" (updated_at),
+      // NO por la fecha original de venta — así un ticket viejo que se
+      // edita o se anula HOY también se refresca. Filtrar solo por fecha de
+      // creación se quedaba con la versión vieja en memoria hasta la
+      // próxima recarga completa, y eso era lo que desajustaba los
+      // reportes con rangos de más de unos días.
       const cortePocosDias = new Date(Date.now() - 3*24*60*60*1000).toISOString();
-      const { data, error } = await db.from('ventas').select('*').gte('fecha', cortePocosDias).order('fecha', { ascending:false });
+      const { data, error } = await db.from('ventas').select('*').gte('updated_at', cortePocosDias).order('updated_at', { ascending:false });
       if(error) throw error;
       const recientes = (data||[]).map(filaAVenta);
       const idsRecientes = new Set(recientes.map(v=>v.id));
-      // Se sacan del historial en memoria las ventas de estos últimos días
-      // (por si alguna se anuló/editó o ya no debería estar) y se reemplazan
-      // por la versión fresca — todo lo más viejo que ya estaba cargado
-      // queda intacto, sin volver a descargarlo.
-      ventasList = ventasList.filter(v => new Date(v.fecha) < new Date(cortePocosDias) || idsRecientes.has(v.id));
+      // Se sacan del historial en memoria las ventas tocadas recientemente
+      // (por si alguna se anuló/editó o ya no debería estar) y se
+      // reemplazan por la versión fresca — todo lo que no se tocó en estos
+      // días queda intacto, sin volver a descargarlo.
+      ventasList = ventasList.filter(v => new Date(v.actualizadaEn) < new Date(cortePocosDias) || idsRecientes.has(v.id));
       recientes.forEach(nueva=>{
         const i = ventasList.findIndex(v=>v.id===nueva.id);
         if(i>=0) ventasList[i] = nueva; else ventasList.unshift(nueva);
@@ -3064,7 +3071,7 @@ async function guardarEdicionTicket(){
 
   if(btn) btn.textContent='Guardando...';
   try{
-    await conTiempoLimite(db.from('ventas').update({ jugadas: jugadasTicket, total, cliente, editado_por: currentUser.nombre }).eq('id', venta.id), 15000, 'guardando los cambios');
+    await conTiempoLimite(db.from('ventas').update({ jugadas: jugadasTicket, total, cliente, editado_por: currentUser.nombre, updated_at: ahoraServidor().toISOString() }).eq('id', venta.id), 15000, 'guardando los cambios');
   }catch(e){
     avisar('No se pudo guardar los cambios ('+(e&&e.message?e.message:'sin conexión')+'). Intenta de nuevo.');
     if(btn){ btn.disabled=false; btn.textContent='Guardar cambios'; }
@@ -3074,6 +3081,7 @@ async function guardarEdicionTicket(){
   venta.total = total;
   venta.cliente = cliente;
   venta.editadoPor = currentUser.nombre;
+  venta.actualizadaEn = ahoraServidor().toISOString();
   avisar('Ticket actualizado.');
   mostrarComprobante(venta);
   editandoVentaId = null; editandoVentaSnapshot = null;
@@ -3523,12 +3531,13 @@ async function anularVenta(id){
   if(motivo===null) return;
   const anuladaEn = ahoraServidor().toISOString();
   try{
-    await db.from('ventas').update({ anulada:true, anulada_por: currentUser.nombre, anulada_en: anuladaEn, motivo_anulacion: motivo }).eq('id', id);
+    await db.from('ventas').update({ anulada:true, anulada_por: currentUser.nombre, anulada_en: anuladaEn, motivo_anulacion: motivo, updated_at: anuladaEn }).eq('id', id);
   }catch(e){ avisar('No se pudo anular el ticket. Intenta de nuevo.'); return; }
   venta.anulada = true;
   venta.anuladaPor = currentUser.nombre;
   venta.anuladaEn = anuladaEn;
   venta.motivoAnulacion = motivo;
+  venta.actualizadaEn = anuladaEn;
   renderHistorial();
   avisar('Ticket #'+folioTexto(venta)+' anulado.');
 }

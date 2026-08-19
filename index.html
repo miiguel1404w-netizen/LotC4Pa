@@ -3413,7 +3413,7 @@ async function generarImagenTicket(){
   if(contenedor){ contenedor.style.overflow = 'visible'; contenedor.style.maxHeight = 'none'; }
   let canvas;
   try{
-    canvas = await html2canvas(el, { scale: 2, backgroundColor: '#ffffff', useCORS: true });
+    canvas = await html2canvas(el, { scale: 1, backgroundColor: '#ffffff', useCORS: true, logging: false });
   }finally{
     el.style.overflow = estiloEl.overflow;
     el.style.maxHeight = estiloEl.maxHeight;
@@ -3442,14 +3442,17 @@ async function compartirTicketActual(){
       try{ await navigator.share({ files:[archivo] }); return; }
       catch(e){ if(e && e.name==='AbortError') return; /* si falla, seguimos a los métodos de respaldo */ }
     }
-    // Respaldo: el navegador no permite compartir imágenes, así que la descargamos
-    // para que el vendedor la comparta manualmente desde su galería.
+    // Respaldo: el navegador no permite compartir imágenes directo. Se
+    // descarga la imagen Y se abre WhatsApp con el texto de una, para no
+    // dejar a la persona sin ningún siguiente paso — solo falta que adjunte
+    // la imagen ya descargada desde su galería si la quiere mandar también.
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url; a.download = nombreArchivo;
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
     setTimeout(()=>URL.revokeObjectURL(url), 5000);
-    avisar('Se descargó la imagen del comprobante. Compártela desde tu galería.');
+    avisar('Se descargó la imagen del comprobante. Se abrió WhatsApp con el texto — si querés, adjuntá también la imagen desde tu galería.');
+    window.open('https://wa.me/?text='+encodeURIComponent(texto), '_blank');
     return;
   }
 

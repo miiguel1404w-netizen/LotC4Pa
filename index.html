@@ -3185,7 +3185,6 @@ async function confirmarVenta(){
   if(btn){ btn.disabled = false; btn.textContent = 'Completar venta'; }
   if(pendiente) avisar('Sin conexión: la venta quedó guardada en tu celular (⏳ Pendiente) y se subirá sola cuando regrese la señal.');
 
-  mostrarComprobante(venta);
   jugadasTicket = [];
   renderJugadas();
   document.getElementById('in-cliente').value='';

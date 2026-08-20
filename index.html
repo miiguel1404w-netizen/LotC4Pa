@@ -360,6 +360,7 @@
   <div class="nav-item admin-only" data-tab="independientes" onclick="irATab('independientes')">💵 Vendedores Independientes</div>
   <div class="nav-item admin-only" data-tab="deudas" id="nav-deudas" onclick="irATab('deudas')">📌 Cuentas de vendedores<span id="badge-deudas-pendientes" class="badge-pendientes" style="display:none;"></span></div>
   <div class="nav-item admin-only" data-tab="asistencia" onclick="irATab('asistencia')">🗓️ Control de equipo</div>
+  <div class="nav-item admin-only" data-tab="registro" onclick="irATab('registro')">🧾 Registro de cambios</div>
   <div class="nav-item" data-tab="cobertura" id="nav-cobertura" style="display:none" onclick="irATab('cobertura')">🛡️ Balance real</div>
   <div class="nav-item" data-tab="micomision" id="nav-micomision" style="display:none" onclick="irATab('micomision')">💵 Mi comisión</div>
   <div class="nav-item" data-tab="misdeudas" id="nav-misdeudas" style="display:none" onclick="irATab('misdeudas')">📌 Mis cuentas</div>
@@ -854,6 +855,18 @@
       </div>
     </div>
 
+    <div id="tab-registro" style="display:none">
+      <h1 class="page-title">🧾 Registro de cambios</h1>
+      <div class="page-sub">Quién anuló, editó, o cambió algo sensible — solo para consultar, nadie puede editar ni borrar estas filas.</div>
+      <div class="card" style="padding:0; overflow:hidden;">
+        <table>
+          <thead><tr><th>Fecha</th><th>Quién</th><th>Qué hizo</th></tr></thead>
+          <tbody id="registro-cambios-tabla"></tbody>
+        </table>
+        <div class="empty-state" id="registro-cambios-vacio" style="display:none;">Todavía no hay cambios registrados.</div>
+      </div>
+    </div>
+
     <div id="tab-micomision" style="display:none">
       <h1 class="page-title">Mi comisión</h1>
       <div class="page-sub">Tu balance con el admin, movimiento por movimiento.</div>
@@ -1327,6 +1340,18 @@ let premios = { chance20:{1:11,2:3,3:2}, chance25:{1:14,2:3,3:2}, pale:{"12":100
     gordito: { 1:{cuatro:0,tres:0,dos:0}, 2:{cuatro:0,tres:0,dos:0}, 3:{cuatro:0,tres:0,dos:0} }
   } };
 let ventasList = [];
+let registroCambios = [];
+function filaARegistro(r){ return { id:r.id, fecha:r.fecha, usuario:r.usuario, accion:r.accion, detalle:r.detalle||'' }; }
+async function registrarCambio(accion, detalle){
+  // Guarda un renglón en el registro de cambios (para poder revisar después
+  // quién hizo qué). Nunca debe tumbar la acción principal si esto falla
+  // por conexión — por eso el try/catch silencioso.
+  try{
+    const fila = { id: uid(), fecha: ahoraServidor().toISOString(), usuario: currentUser ? currentUser.nombre : '(desconocido)', accion, detalle: detalle||'' };
+    await db.from('registro_cambios').insert({ id:fila.id, fecha:fila.fecha, usuario:fila.usuario, accion:fila.accion, detalle:fila.detalle });
+    registroCambios.unshift(fila);
+  }catch(e){}
+}
 let folioCounter = 1;
 let resultados = [];
 let liquidaciones = [];
@@ -1485,6 +1510,13 @@ async function cargarDatos(){
   try{
     const data = await fetchTodasFilas('asistencia_equipo', '*', 'fecha');
     asistenciaEquipo = (data||[]).map(filaAAsistencia);
+  }catch(e){}
+
+  try{
+    if(currentUser && currentUser.role==='admin'){
+      const data = await fetchTodasFilas('registro_cambios', '*', 'fecha');
+      registroCambios = (data||[]).map(filaARegistro);
+    }
   }catch(e){}
 
   try{
@@ -1788,13 +1820,13 @@ function aplicarEstadoNav(estado){
 }
 function mostrarTabInterno(tab){
   document.querySelectorAll('.nav-item[data-tab]').forEach(el=>el.classList.toggle('active', el.dataset.tab===tab));
-  ['ventas','historial','reportes','tabla','ranking','resultados','config','independientes','deudas','asistencia','micomision','misdeudas','miasistencia','cobertura'].forEach(t=>{
+  ['ventas','historial','reportes','tabla','ranking','resultados','config','independientes','deudas','asistencia','registro','micomision','misdeudas','miasistencia','cobertura'].forEach(t=>{
     const el = document.getElementById('tab-'+t);
     if(el) el.style.display = (t===tab)?'block':'none';
   });
 }
 function switchTab(tab){
-  if((tab==='config' || tab==='resultados' || tab==='reportes' || tab==='independientes' || tab==='deudas' || tab==='asistencia') && currentUser.role!=='admin') return;
+  if((tab==='config' || tab==='resultados' || tab==='reportes' || tab==='independientes' || tab==='deudas' || tab==='asistencia' || tab==='registro') && currentUser.role!=='admin') return;
   if(tab==='micomision' && !(currentUser.role==='vendedor' && esVendedorIndependiente(currentUser.vendedorId))) return;
   if(tab==='misdeudas' && !(currentUser.role==='vendedor' && vendedorEnEquipo(currentUser.vendedorId))) return;
   if(tab==='miasistencia' && !(currentUser.role==='vendedor' && vendedorEnEquipo(currentUser.vendedorId))) return;
@@ -1811,6 +1843,7 @@ function switchTab(tab){
   if(tab==='independientes'){ cerrarDetalleIndependiente(); }
   if(tab==='deudas'){ cerrarDetalleDeuda(); }
   if(tab==='asistencia'){ cerrarDetalleAsistencia(); }
+  if(tab==='registro'){ renderRegistroCambios(); }
   if(tab==='config') renderOrdenMenuLista();
   if(tab==='micomision') renderMiComision();
   if(tab==='misdeudas') renderMisDeudas();
@@ -2035,11 +2068,13 @@ async function guardarVendedor(){
 }
 async function eliminarVendedor(id){
   if(!(await mostrarConfirmacion('¿Eliminar este vendedor? No podrá volver a iniciar sesión.'))) return;
+  const v = vendedores.find(x=>x.id===id);
   try{
     const { error } = await db.from('vendedores').delete().eq('id', id);
     if(error) throw error;
   }catch(e){ avisar('No se pudo eliminar el vendedor ('+(e&&e.message?e.message:'sin conexión')+').'); return; }
   vendedores = vendedores.filter(v=>v.id!==id);
+  registrarCambio('Eliminó vendedor', v ? v.nombre+' (usuario: '+v.username+')' : id);
   if(editingVendedorId===id) cancelarEdicionVendedor();
   renderVendedorSelects();
   renderConfigLists();
@@ -2365,6 +2400,7 @@ async function cambiarAdminAuth(){
   if(nuevoUser) adminAuth.username = nuevoUser;
   if(nuevaPass) adminAuth.password = await hashTexto(nuevaPass);
   guardarConfig();
+  registrarCambio('Cambió credenciales de admin', (nuevoUser?'usuario nuevo: '+nuevoUser:'')+(nuevoUser&&nuevaPass?' · ':'')+(nuevaPass?'contraseña actualizada':''));
   document.getElementById('sec-actual').value=''; document.getElementById('sec-nuevo-user').value=''; document.getElementById('sec-nueva-pass').value='';
   avisar('Datos de administrador actualizados.');
 }
@@ -3051,6 +3087,7 @@ async function guardarEdicionTicket(){
   venta.cliente = cliente;
   venta.editadoPor = currentUser.nombre;
   venta.actualizadaEn = ahoraServidor().toISOString();
+  registrarCambio('Editó ticket', '#'+folioTexto(venta)+' · '+nombreSorteoVenta(venta)+' · nuevo total $'+total.toFixed(2));
   avisar('Ticket actualizado.');
   mostrarComprobante(venta);
   editandoVentaId = null; editandoVentaSnapshot = null;
@@ -3509,6 +3546,7 @@ async function anularVenta(id){
   venta.anuladaEn = anuladaEn;
   venta.motivoAnulacion = motivo;
   venta.actualizadaEn = anuladaEn;
+  registrarCambio('Anuló ticket', '#'+folioTexto(venta)+' · '+nombreSorteoVenta(venta)+' · $'+venta.total.toFixed(2)+(motivo?' · Motivo: '+motivo:''));
   renderHistorial();
   avisar('Ticket #'+folioTexto(venta)+' anulado.');
 }
@@ -4408,10 +4446,12 @@ async function guardarTarifa(){
   const diaLibre = diaLibreRaw==='' ? null : +diaLibreRaw;
   const extraRaw = document.getElementById('tarifa-extra').value;
   const extra = (tipo==='quincenal' && extraRaw!=='') ? +extraRaw : null;
+  const tarifaAnteriorTxt = textoTarifa(v);
   try{
     await db.from('vendedores').update({ tarifa_tipo: tipo, tarifa_valor: valor, tarifa_extra: extra, dia_libre: diaLibre }).eq('id', v.id);
   }catch(e){ avisar('No se pudo guardar. Revisa tu conexión.'); return; }
   v.tarifaTipo = tipo; v.tarifaValor = valor; v.tarifaExtra = extra; v.diaLibre = diaLibre;
+  registrarCambio('Cambió tarifa', v.nombre+': "'+tarifaAnteriorTxt+'" → "'+textoTarifa(v)+'"');
   cerrarModalTarifa();
   renderDetalleAsistencia();
   avisar('Tarifa guardada.');
@@ -4478,6 +4518,23 @@ async function guardarDiaTrabajado(){
   cerrarModalDiaTrabajado();
   renderDetalleAsistencia();
   avisar('Día agregado.');
+}
+function renderRegistroCambios(){
+  const tbody = document.getElementById('registro-cambios-tabla');
+  const vacio = document.getElementById('registro-cambios-vacio');
+  if(!tbody) return;
+  if(registroCambios.length===0){
+    tbody.innerHTML = '';
+    if(vacio) vacio.style.display = 'block';
+    return;
+  }
+  if(vacio) vacio.style.display = 'none';
+  const ordenado = registroCambios.slice().sort((a,b)=> new Date(b.fecha)-new Date(a.fecha));
+  tbody.innerHTML = ordenado.map(r=>`<tr>
+    <td style="white-space:nowrap;">${formatearFecha(r.fecha)}</td>
+    <td>${escapeHtml(r.usuario)}</td>
+    <td><strong>${escapeHtml(r.accion)}</strong>${r.detalle?'<div class="hint" style="margin:2px 0 0 0;">'+escapeHtml(r.detalle)+'</div>':''}</td>
+  </tr>`).join('');
 }
 function renderMiAsistencia(){
   const cont = document.getElementById('tab-miasistencia-contenido');
@@ -4668,11 +4725,13 @@ function renderListaResultados(){
 }
 async function eliminarResultadoHistorico(id){
   if(!(await mostrarConfirmacion('¿Borrar este resultado histórico? Si algún ticket ya lo estaba usando para calcular su premio, dejaría de calcularlo.'))) return;
+  const r = resultados.find(x=>x.id===id);
   try{
     const { error } = await db.from('resultados').delete().eq('id', id);
     if(error) throw error;
   }catch(e){ avisar('No se pudo borrar ('+(e&&e.message?e.message:'sin conexión')+').'); return; }
   resultados = resultados.filter(r=>r.id!==id);
+  registrarCambio('Eliminó resultado', r ? (r.codigoSorteo||'')+' · '+r.fechaKey+' · '+(r.primeroCompleto||r.primero)+'-'+(r.segundoCompleto||r.segundo)+'-'+(r.terceroCompleto||r.tercero) : id);
   renderListaResultados();
   renderHistorial();
   avisar('Resultado histórico borrado.');

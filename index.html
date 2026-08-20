@@ -923,6 +923,7 @@
       <div class="card">
         <h2 style="font-size:14px;">＋ Agregar cobertura</h2>
         <div id="cob-riesgo-chips" style="margin-bottom:10px;"></div>
+        <div id="cob-recomendacion" style="margin-bottom:10px;"></div>
         <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:8px;">
           <select id="cob-modalidad" style="width:130px;" onchange="actualizarCampoNumeroCobertura()">
             <option value="chance20">Chance $0.20</option>
@@ -5162,7 +5163,108 @@ function calcularRiesgoChance(sorteoId, fechaKey, porNumero20, porNumero25){
   });
   return { riesgoPorNumero, pagoPotencialPorNumero, umbral, totalVendidoSorteo };
 }
+// ---------------- COBERTURA INTELIGENTE (recomendación) ----------------
+// Calcula, para cada número marcado en riesgo, la cantidad MÍNIMA de
+// coberturas de Chance $0.20 necesaria para bajar el riesgo del 1er premio
+// a este límite (o menos). No cubre "porque sí" — si el número ya está por
+// debajo del límite sin ninguna cobertura, recomienda 0. Analiza también
+// 2do y 3er premio para mostrarlos, aunque la cantidad recomendada se basa
+// en 1er premio (el escenario de mayor exposición).
+const LIMITE_PERDIDA_POR_NUMERO = 200;
+function nivelRiesgoCobertura(pago1){
+  if(pago1 >= LIMITE_PERDIDA_POR_NUMERO*3) return { emoji:'🔴', texto:'CRÍTICO' };
+  if(pago1 >= LIMITE_PERDIDA_POR_NUMERO*2) return { emoji:'🟠', texto:'ALTO' };
+  if(pago1 >= LIMITE_PERDIDA_POR_NUMERO) return { emoji:'🟡', texto:'MEDIO' };
+  return { emoji:'🟢', texto:'CONTROLADO' };
+}
+function calcularCoberturaRecomendada(sorteoId, fechaKey){
+  const { porNumero20, porNumero25 } = calcularTablaNumeros(sorteoId, fechaKey);
+  const { riesgoPorNumero, pagoPotencialPorNumero, totalVendidoSorteo } = calcularRiesgoChance(sorteoId, fechaKey, porNumero20, porNumero25);
+  const costoUnit = 0.20;
+  const proteccionNetaUnit = premios.chance20[1] - costoUnit; // $10.80 — la de mayor exposición, la que manda en la cantidad recomendada
+
+  const coberturaActualPorNumero = {};
+  coberturas.filter(c=>c.sorteoId===sorteoId && c.fechaKey===fechaKey && c.modalidad==='chance20').forEach(c=>{
+    coberturaActualPorNumero[c.numero] = (coberturaActualPorNumero[c.numero]||0) + c.cantidad;
+  });
+
+  const numeros = Object.keys(riesgoPorNumero).filter(n=>riesgoPorNumero[n]).map(n=>{
+    const pago1 = (porNumero20[n]||0)*premios.chance20[1] + (porNumero25[n]||0)*premios.chance25[1];
+    const pago2 = (porNumero20[n]||0)*premios.chance20[2] + (porNumero25[n]||0)*premios.chance25[2];
+    const pago3 = (porNumero20[n]||0)*premios.chance20[3] + (porNumero25[n]||0)*premios.chance25[3];
+
+    const proteccionNecesaria = pago1 - LIMITE_PERDIDA_POR_NUMERO;
+    const recomendado = proteccionNecesaria<=0 ? 0 : Math.ceil(proteccionNecesaria/proteccionNetaUnit);
+    const costoRecomendado = +(recomendado*costoUnit).toFixed(2);
+
+    const restante = (pagoBase, posicion) => {
+      const pagoCobertura = recomendado*premios.chance20[posicion];
+      const proteccionNeta = pagoCobertura - costoRecomendado;
+      return +(pagoBase - proteccionNeta).toFixed(2);
+    };
+
+    const actual = coberturaActualPorNumero[n] || 0;
+    return {
+      numero:n, pago1, pago2, pago3,
+      recomendado, costoRecomendado,
+      restante1: restante(pago1,1), restante2: restante(pago2,2), restante3: restante(pago3,3),
+      actual, costoActual: +(actual*costoUnit).toFixed(2),
+      nivel: nivelRiesgoCobertura(pago1)
+    };
+  }).sort((a,b)=> b.pago1-a.pago1); // mayor pérdida potencial primero
+
+  const riesgoMaximo = numeros.length ? Math.max(...numeros.map(x=>x.pago1)) : 0;
+  const riesgoMaximoRestanteRecom = numeros.length ? Math.max(...numeros.map(x=>x.restante1)) : 0;
+  const costoRecomendadoTotal = +numeros.reduce((s,x)=>s+x.costoRecomendado,0).toFixed(2);
+  const coberturasRecomendadasTotal = numeros.reduce((s,x)=>s+x.recomendado,0);
+  const costoActualTotal = +numeros.reduce((s,x)=>s+x.costoActual,0).toFixed(2);
+  const coberturasActualesTotal = numeros.reduce((s,x)=>s+x.actual,0);
+  const porcentajeEliminado = riesgoMaximo>0 ? Math.round((1-(riesgoMaximoRestanteRecom/riesgoMaximo))*100) : 0;
+
+  return {
+    limite: LIMITE_PERDIDA_POR_NUMERO, numeros,
+    resumen: { ventaTotal:totalVendidoSorteo, numerosEnRiesgo:numeros.length, riesgoMaximo,
+      costoRecomendadoTotal, coberturasRecomendadasTotal, riesgoMaximoRestanteRecom, porcentajeEliminado,
+      costoActualTotal, coberturasActualesTotal }
+  };
+}
 // ---------------- COBERTURA / BALANCE REAL ----------------
+function renderCoberturaRecomendada(sorteoId, fechaKey){
+  const cont = document.getElementById('cob-recomendacion');
+  if(!cont) return;
+  if(!sorteoId){ cont.innerHTML = ''; return; }
+  const { limite, numeros, resumen } = calcularCoberturaRecomendada(sorteoId, fechaKey);
+  if(numeros.length===0){ cont.innerHTML = ''; return; }
+  const diferenciaCosto = +(resumen.costoRecomendadoTotal - resumen.costoActualTotal).toFixed(2);
+  const diferenciaTiempos = resumen.coberturasActualesTotal - resumen.coberturasRecomendadasTotal;
+  cont.innerHTML = `
+    <div class="card" style="border-top-color:var(--gold);">
+      <h2 style="margin-top:0; font-size:15px;">🧮 Cobertura recomendada</h2>
+      <p class="hint" style="margin-top:-6px;">Para bajar cada número a máximo $${limite} de riesgo en 1er premio, gastando lo mínimo posible.</p>
+      <div class="summary-strip" style="margin-bottom:10px;">
+        <div class="summary-box"><div class="num mono">$${resumen.costoRecomendadoTotal.toFixed(2)}</div><div class="lbl">Costo recomendado (${resumen.coberturasRecomendadasTotal} tiempos)</div></div>
+        <div class="summary-box" style="border-left-color:var(--red);"><div class="num mono" style="color:var(--red);">$${resumen.riesgoMaximo.toFixed(2)}</div><div class="lbl">Riesgo antes</div></div>
+        <div class="summary-box" style="border-left-color:var(--green);"><div class="num mono" style="color:var(--green);">$${resumen.riesgoMaximoRestanteRecom.toFixed(2)}</div><div class="lbl">Riesgo después (${resumen.porcentajeEliminado}% eliminado)</div></div>
+      </div>
+      <div style="font-size:12.5px; color:var(--ink-dim); margin-bottom:10px;">
+        Lo que ya cargaste: ${resumen.coberturasActualesTotal} tiempos ($${resumen.costoActualTotal.toFixed(2)}) —
+        ${diferenciaTiempos>0 ? 'tenés '+diferenciaTiempos+' tiempos de más sobre la recomendación, equivalentes a $'+Math.abs(diferenciaCosto).toFixed(2) : diferenciaTiempos<0 ? 'te faltan '+Math.abs(diferenciaTiempos)+' tiempos para llegar a la recomendación, equivalentes a $'+Math.abs(diferenciaCosto).toFixed(2) : 'ya estás exacto en lo recomendado'}.
+      </div>
+      <div style="overflow-x:auto;">
+        <table>
+          <thead><tr><th>Número</th><th>Riesgo</th><th>Recomendado</th><th>Ya tenés</th><th>Restante (1°/2°/3°)</th></tr></thead>
+          <tbody>${numeros.map(n=>`<tr>
+            <td class="mono">${n.nivel.emoji} ${escapeHtml(n.numero)}</td>
+            <td class="mono">$${n.pago1.toFixed(2)}</td>
+            <td class="mono">${n.recomendado} · $${n.costoRecomendado.toFixed(2)}</td>
+            <td class="mono">${n.actual}${n.actual!==n.recomendado?' <span style="color:'+(n.actual<n.recomendado?'var(--red)':'var(--gold-dark)')+';">('+(n.actual<n.recomendado?'falta '+(n.recomendado-n.actual):'sobra '+(n.actual-n.recomendado))+')</span>':' ✓'}</td>
+            <td class="mono" style="font-size:11.5px;">$${n.restante1.toFixed(2)} / $${n.restante2.toFixed(2)} / $${n.restante3.toFixed(2)}</td>
+          </tr>`).join('')}</tbody>
+        </table>
+      </div>
+    </div>
+  `;
+}
 // Registro manual de tiempos comprados por fuera (a otra persona/casa) para
 // cubrir números de alto riesgo. Calcula, por cada línea, cuánto costó esa
 // cobertura y cuánto pagaría si ese número gana (misma tabla de premios de
@@ -5392,6 +5494,7 @@ function renderCobertura(){
         grupo('⚠️ Billete vendido 2+ veces — toca para cargar:', enRiesgoBillete, 'billete');
     }
   }
+  renderCoberturaRecomendada(sorteoId, fechaKey);
 
   const lista = document.getElementById('cob-lista');
   const vacio = document.getElementById('cob-vacio');

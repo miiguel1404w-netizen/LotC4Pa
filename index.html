@@ -906,6 +906,14 @@
 
       <div id="cob-desglose"></div>
 
+      <div class="card" style="padding:0; overflow:hidden;">
+        <div style="padding:14px 16px 6px 16px; display:flex; align-items:center; justify-content:space-between;">
+          <h2 style="margin:0; font-size:15px;">Todas las coberturas (del rango elegido arriba)</h2>
+          <button type="button" class="btn btn-outline btn-sm" onclick="toggleListaCoberturas()" id="btn-lista-coberturas">Ver lista</button>
+        </div>
+        <div id="cob-lista-detalle" style="display:none;"></div>
+      </div>
+
       <div class="card" style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
         <select id="cob-sorteo" onchange="renderCobertura()" style="flex:1; min-width:160px;"></select>
         <input type="date" id="cob-fecha" onchange="renderCobertura()">
@@ -5239,6 +5247,47 @@ function verTodoElTiempoCobertura(){
   if(inputHasta) inputHasta.value = '';
   renderCobertura();
 }
+let listaCoberturasAbierta = false;
+function toggleListaCoberturas(){
+  listaCoberturasAbierta = !listaCoberturasAbierta;
+  const cont = document.getElementById('cob-lista-detalle');
+  const btn = document.getElementById('btn-lista-coberturas');
+  if(cont) cont.style.display = listaCoberturasAbierta ? 'block' : 'none';
+  if(btn) btn.textContent = listaCoberturasAbierta ? 'Ocultar lista' : 'Ver lista';
+}
+function renderListaCoberturas(rangoDesde, rangoHasta){
+  const cont = document.getElementById('cob-lista-detalle');
+  if(!cont || !listaCoberturasAbierta) return;
+  const filas = coberturas
+    .filter(c=>fechaEnRango(c.fechaKey, rangoDesde||null, rangoHasta||null))
+    .map(c=>({ c, r: calcularCobertura(c) }))
+    // Las que ganaron primero (para ver rápido cuáles te salvaron), después
+    // las pendientes, y al final las que perdieron.
+    .sort((a,b)=>{
+      if(a.r.pendiente !== b.r.pendiente) return a.r.pendiente ? 1 : -1;
+      return b.r.neto - a.r.neto;
+    });
+  if(filas.length===0){ cont.innerHTML = '<div class="empty-state">No hay coberturas en este rango.</div>'; return; }
+  cont.innerHTML = `<table>
+    <thead><tr><th>Fecha</th><th>Sorteo</th><th>Número</th><th>Modalidad</th><th>Tiempos</th><th>Costo</th><th>Resultado</th></tr></thead>
+    <tbody>${filas.map(({c,r})=>{
+      const sorteo = sorteos.find(s=>s.id===c.sorteoId);
+      const nombreSorteo = sorteo ? sorteo.nombre : (c.codigoSorteo||'--');
+      let resultadoTxt;
+      if(r.pendiente) resultadoTxt = '<span style="color:var(--ink-dim);">⏳ Sin resultado</span>';
+      else resultadoTxt = `<span style="color:${colorMonto(r.neto)}; font-weight:700;">${r.neto>=0?'✅ ':'❌ '}$${r.neto.toFixed(2)}</span> <span class="hint" style="margin:0;">($${r.costo.toFixed(2)} → $${r.pago.toFixed(2)})</span>`;
+      return `<tr>
+        <td style="white-space:nowrap;">${c.fechaKey}</td>
+        <td>${escapeHtml(nombreSorteo)}</td>
+        <td class="mono">${escapeHtml(c.numero)}</td>
+        <td>${etiquetaModalidadCobertura(c.modalidad)}</td>
+        <td class="mono">${c.cantidad}</td>
+        <td class="mono">$${(c.cantidad*(c.modalidad==='chance25'?0.25:(c.modalidad==='pale'||c.modalidad==='billete')?1:0.20)).toFixed(2)}</td>
+        <td>${resultadoTxt}</td>
+      </tr>`;
+    }).join('')}</tbody>
+  </table>`;
+}
 function renderCobertura(){
   if(!dataLoaded || !currentUser || !puedeVerRiesgoChance()) return;
   const sorteoId = document.getElementById('cob-sorteo').value;
@@ -5304,6 +5353,7 @@ function renderCobertura(){
     if(r.pendiente) pendientesRango++; else coberturaRango += r.neto;
   });
   const balanceRango = +(gananciaRango+coberturaRango).toFixed(2);
+  renderListaCoberturas(rangoDesde, rangoHasta);
   const cajaHoy = document.getElementById('cob-total-hoy');
   if(cajaHoy){
     let etiquetaRango;

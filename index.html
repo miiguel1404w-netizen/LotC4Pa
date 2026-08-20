@@ -1043,6 +1043,10 @@
           <div class="field"><label>Acierta 2do y 3ro (cualquier orden)</label><input type="number" step="0.01" id="premio-pale-23"></div>
         </div>
 
+        <h2 style="margin-top:20px;">Cobertura recomendada</h2>
+        <p class="hint">El máximo de riesgo que dejar por número al calcular cuántas coberturas recomendarte (y los colores 🟡🟠🔴 de la Tabla de números). Los niveles se calculan como 1x/2x/3x este número.</p>
+        <div class="field" style="max-width:200px;"><label>Límite por número ($)</label><input type="number" step="1" id="cob-limite-perdida"></div>
+
         <button class="btn btn-primary" style="margin-top:6px" onclick="guardarPremios()">Guardar premiación</button>
       </div>
 
@@ -1471,6 +1475,7 @@ async function cargarDatos(){
       if(!premios.billete.nacional) premios.billete.nacional = { 1:{cuatro:2000,tres:50,dos:3}, 2:{cuatro:600,tres:20,dos:2}, 3:{cuatro:300,tres:10,dos:1} };
       if(!premios.billete.gordito) premios.billete.gordito = { 1:{cuatro:0,tres:0,dos:0}, 2:{cuatro:0,tres:0,dos:0}, 3:{cuatro:0,tres:0,dos:0} };
       defaultVendedorCreado = !!cfg.default_vendedor_creado;
+      if(cfg.limite_perdida_cobertura!=null) LIMITE_PERDIDA_POR_NUMERO = +cfg.limite_perdida_cobertura;
     }
   }catch(e){ avisar('No se pudo conectar a la base de datos.'); }
 
@@ -1549,7 +1554,7 @@ async function cargarDatos(){
   sincronizarPendientes();
 }
 async function guardarConfig(){
-  try{ await db.from('app_config').update({ admin_username: adminAuth.username, admin_password: adminAuth.password, premios }).eq('id',1); }
+  try{ await db.from('app_config').update({ admin_username: adminAuth.username, admin_password: adminAuth.password, premios, limite_perdida_cobertura: LIMITE_PERDIDA_POR_NUMERO }).eq('id',1); }
   catch(e){ avisar('No se pudo guardar. Intenta de nuevo.'); }
 }
 
@@ -2370,11 +2375,14 @@ function renderPremiosForm(){
   document.getElementById('premio-c25-3').value = premios.chance25[3];
   document.getElementById('premio-pale-12').value = premios.pale ? premios.pale['12'] : 1000;
   document.getElementById('premio-pale-23').value = premios.pale ? premios.pale['23'] : 200;
+  document.getElementById('cob-limite-perdida').value = LIMITE_PERDIDA_POR_NUMERO;
 }
 function guardarPremios(){
   premios.chance20 = { 1:+document.getElementById('premio-c20-1').value||0, 2:+document.getElementById('premio-c20-2').value||0, 3:+document.getElementById('premio-c20-3').value||0 };
   premios.chance25 = { 1:+document.getElementById('premio-c25-1').value||0, 2:+document.getElementById('premio-c25-2').value||0, 3:+document.getElementById('premio-c25-3').value||0 };
   premios.pale = { "12":+document.getElementById('premio-pale-12').value||0, "23":+document.getElementById('premio-pale-23').value||0 };
+  const nuevoLimite = +document.getElementById('cob-limite-perdida').value;
+  if(nuevoLimite>0) LIMITE_PERDIDA_POR_NUMERO = nuevoLimite;
   guardarConfig();
   avisar('Premiación actualizada.');
 }
@@ -5182,7 +5190,7 @@ function calcularRiesgoChance(sorteoId, fechaKey, porNumero20, porNumero25){
 // debajo del límite sin ninguna cobertura, recomienda 0. Analiza también
 // 2do y 3er premio para mostrarlos, aunque la cantidad recomendada se basa
 // en 1er premio (el escenario de mayor exposición).
-const LIMITE_PERDIDA_POR_NUMERO = 200;
+let LIMITE_PERDIDA_POR_NUMERO = 200;
 function nivelRiesgoCobertura(pago1){
   if(pago1 >= LIMITE_PERDIDA_POR_NUMERO*3) return { emoji:'🔴', texto:'CRÍTICO' };
   if(pago1 >= LIMITE_PERDIDA_POR_NUMERO*2) return { emoji:'🟠', texto:'ALTO' };

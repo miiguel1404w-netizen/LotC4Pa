@@ -652,10 +652,11 @@
 
       <div class="card">
         <h2>Chances (00-99) <span style="font-weight:400; font-size:12.5px; color:var(--ink-dim)">— suma de Chance $0.20 y $0.25</span></h2>
-        <div style="display:flex; gap:14px; font-size:12px; color:var(--ink-dim); margin-bottom:14px;">
+        <div style="display:flex; gap:14px; font-size:12px; color:var(--ink-dim); margin-bottom:14px; flex-wrap:wrap;">
           <span><span class="nivel-dot" style="background:var(--card); border:1px solid var(--line);"></span> Normal</span>
-          <span><span class="nivel-dot" style="background:#FDEBD0; border:1px solid var(--gold-dark);"></span> 100 o más</span>
-          <span><span class="nivel-dot" style="background:#FBDAD7; border:1px solid var(--red);"></span> 300 o más</span>
+          <span id="tabla-leyenda-amarillo-wrap" style="display:none;"><span class="nivel-dot" style="background:#FFF3CD; border:1px solid #D4A017;"></span> 🟡 Medio</span>
+          <span><span class="nivel-dot" style="background:#FDEBD0; border:1px solid var(--gold-dark);"></span> <span id="tabla-leyenda-naranja">100 o más</span></span>
+          <span><span class="nivel-dot" style="background:#FBDAD7; border:1px solid var(--red);"></span> <span id="tabla-leyenda-rojo">300 o más</span></span>
           <span id="tabla-leyenda-riesgo" style="display:none;">⚠️ Riesgo: pagarías más de $200 (o más del doble de lo vendido, lo que sea mayor) si ese número sale en 1er lugar</span>
         </div>
         <div class="numeros-grid" id="tabla-chance-grid"></div>
@@ -5098,6 +5099,17 @@ function renderTablaFiltroVendedor(){
   if(valorPrevio && [...filtroV.options].some(o=>o.value===valorPrevio)) filtroV.value = valorPrevio;
 }
 function nivelChance(cant){ if(cant>=300) return 'nivel-rojo'; if(cant>=100) return 'nivel-naranja'; return ''; }
+function claseNivelRiesgo(pago1){
+  // Mismo sistema de 4 niveles que "Cobertura recomendada" en Balance real
+  // (🔴🟠🟡🟢, según cuánto pagarías en 1er premio) — para que la Tabla de
+  // números muestre directamente el riesgo en dólares de cada número, en
+  // vez del viejo indicador por cantidad de tiempos vendidos.
+  const nivel = nivelRiesgoCobertura(pago1).texto;
+  if(nivel==='CRÍTICO') return 'nivel-rojo';
+  if(nivel==='ALTO') return 'nivel-naranja';
+  if(nivel==='MEDIO') return 'nivel-amarillo';
+  return '';
+}
 function nivelPale(cant){ if(cant>=4) return 'nivel-rojo'; if(cant>=2) return 'nivel-naranja'; return ''; }
 function nivelBillete(cant){ if(cant>=5) return 'nivel-rojo'; if(cant>=2) return 'nivel-amarillo'; return ''; }
 function calcularTablaNumeros(sorteoId, fechaKey, filtroVendedorId){
@@ -5570,11 +5582,18 @@ function renderTablaNumeros(){
     : { riesgoPorNumero:{}, pagoPotencialPorNumero:{} };
   const leyendaRiesgo = document.getElementById('tabla-leyenda-riesgo');
   if(leyendaRiesgo) leyendaRiesgo.style.display = puedeVerRiesgo ? 'inline' : 'none';
+  const leyendaAmarilloWrap = document.getElementById('tabla-leyenda-amarillo-wrap');
+  const leyendaNaranja = document.getElementById('tabla-leyenda-naranja');
+  const leyendaRojo = document.getElementById('tabla-leyenda-rojo');
+  if(leyendaAmarilloWrap) leyendaAmarilloWrap.style.display = puedeVerRiesgo ? 'inline' : 'none';
+  if(leyendaNaranja) leyendaNaranja.textContent = puedeVerRiesgo ? '🟠 Alto' : '100 o más';
+  if(leyendaRojo) leyendaRojo.textContent = puedeVerRiesgo ? '🔴 Crítico' : '300 o más';
 
   gridChance.innerHTML = numeros.length ? numeros.map(n=>{
     const cant = porNumero[n];
     const claseRiesgo = (puedeVerRiesgo && riesgoPorNumero[n]) ? 'en-riesgo' : '';
-    return `<div class="num-chip ${nivelChance(cant)} ${claseRiesgo}"><span class="num">${n}</span><span class="cant">${cant}</span></div>`;
+    const claseColor = puedeVerRiesgo ? claseNivelRiesgo(pagoPotencialPorNumero[n]) : nivelChance(cant);
+    return `<div class="num-chip ${claseColor} ${claseRiesgo}"><span class="num">${n}</span><span class="cant">${cant}</span></div>`;
   }).join('') : `<div class="empty-state">Sin ventas de chance todavía para ${sorteoId?'este sorteo y':'ningún sorteo,'} esta fecha.</div>`;
 
   const detalleRiesgo = document.getElementById('tabla-riesgo-detalle');
@@ -5598,11 +5617,13 @@ function renderTablaNumeros(){
   const gridChance25 = document.getElementById('tabla-chance25-grid');
   if(gridChance20) gridChance20.innerHTML = numeros20.length ? numeros20.map(n=>{
     const cant = porNumero20[n];
-    return `<div class="num-chip ${nivelChance(cant)}"><span class="num">${n}</span><span class="cant">${cant}</span></div>`;
+    const claseColor = puedeVerRiesgo ? claseNivelRiesgo(pagoPotencialPorNumero[n]) : nivelChance(cant);
+    return `<div class="num-chip ${claseColor}"><span class="num">${n}</span><span class="cant">${cant}</span></div>`;
   }).join('') : '<div class="empty-state">Sin ventas de Chance $0.20 todavía para este sorteo y fecha.</div>';
   if(gridChance25) gridChance25.innerHTML = numeros25.length ? numeros25.map(n=>{
     const cant = porNumero25[n];
-    return `<div class="num-chip ${nivelChance(cant)}"><span class="num">${n}</span><span class="cant">${cant}</span></div>`;
+    const claseColor = puedeVerRiesgo ? claseNivelRiesgo(pagoPotencialPorNumero[n]) : nivelChance(cant);
+    return `<div class="num-chip ${claseColor}"><span class="num">${n}</span><span class="cant">${cant}</span></div>`;
   }).join('') : '<div class="empty-state">Sin ventas de Chance $0.25 todavía para este sorteo y fecha.</div>';
 
   gridPale.innerHTML = combos.length ? combos.map(c=>{

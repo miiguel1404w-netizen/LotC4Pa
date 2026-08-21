@@ -1598,10 +1598,8 @@ async function intentarLogin(){
     // sigue de largo y entra por el sistema viejo de siempre — así se puede
     // ir migrando de a poco sin cortarle el acceso a nadie.
     const correoInterno = u.includes('@') ? u : (u.toLowerCase()+'@lotc4pa.app');
-    let motivoAuthReal = null;
     try{
       const { data: authData, error: authError } = await db.auth.signInWithPassword({ email: correoInterno, password: p });
-      if(authError) motivoAuthReal = authError.message || String(authError);
       if(!authError && authData && authData.user){
         // Entró con cuenta real. Se busca a qué vendedor corresponde para
         // que la app sepa su rol y nombre igual que siempre. Se compara
@@ -1619,10 +1617,9 @@ async function intentarLogin(){
           // acaba de abrirse y se rechaza la entrada, para que una cuenta
           // suelta nunca pueda terminar con vista de administrador.
           try{ await db.auth.signOut(); }catch(e){}
-          motivoAuthReal = 'La cuenta existe pero no está vinculada a ningún vendedor ni al administrador.';
         }
       }
-    }catch(e){ motivoAuthReal = (e && e.message) ? e.message : String(e); }
+    }catch(e){ /* sin cuenta real todavía: sigue con el sistema de siempre */ }
 
     if(!currentUser){
       if(u===adminAuth.username && pCifrada===adminAuth.password){
@@ -1647,7 +1644,7 @@ async function intentarLogin(){
       }
     }
     if(!currentUser){
-      errBox.textContent = 'Usuario o contraseña incorrectos.' + (motivoAuthReal ? ' [Supabase: '+motivoAuthReal+']' : ' [Supabase: sin respuesta]');
+      errBox.textContent = 'Usuario o contraseña incorrectos.';
       errBox.style.display='block';
       return;
     }

@@ -1716,25 +1716,33 @@ function entrarAlApp(){
   document.getElementById('login-screen').style.display='none';
   document.getElementById('app-shell').style.display='block';
 
-  renderDiasCheckboxes();
+  // Lo primero que se arma es justo lo que la persona ve al entrar (la
+  // pantalla de Vender) — antes se armaban 17 pantallas invisibles primero
+  // (Reportes, Resultados, Administración, etc.) y recién al final se
+  // mostraba lo que realmente se estaba mirando. El resto se arma un
+  // instante después, en segundo plano, sin que se note.
   aplicarRol();
   resetKeypad();
   renderVendedorSelects();
   renderSorteoFiltros();
   renderVentaSorteoSelect();
-  renderConfigLists();
-  renderPremiosForm();
-  renderPremiosBilleteForm();
-  renderResultadosSorteoSelect();
-  renderListaResultados();
-  renderListaIndependientes();
-  renderMiComision();
-  actualizarBadgeDeudasPendientes();
-  renderHistorial();
-  renderReportes();
-  renderTablaSorteoSelect();
   onHeaderChange();
   switchTab('ventas');
+
+  setTimeout(()=>{
+    renderDiasCheckboxes();
+    renderConfigLists();
+    renderPremiosForm();
+    renderPremiosBilleteForm();
+    renderResultadosSorteoSelect();
+    renderListaResultados();
+    renderListaIndependientes();
+    renderMiComision();
+    actualizarBadgeDeudasPendientes();
+    renderHistorial();
+    renderReportes();
+    renderTablaSorteoSelect();
+  }, 0);
 }
 async function cerrarSesion(){
   currentUser = null;

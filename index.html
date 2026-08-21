@@ -1593,27 +1593,56 @@ async function intentarLogin(){
     const p = document.getElementById('login-password').value;
     const pCifrada = await hashTexto(p);
 
-    if(u===adminAuth.username && pCifrada===adminAuth.password){
-      currentUser = { role:'admin', nombre:'Administrador' };
-    }else if(u===adminAuth.username && p===adminAuth.password){
-      // Cuenta todavía con la contraseña vieja sin cifrar: entra y la
-      // actualiza en silencio para que quede protegida desde ahora.
-      currentUser = { role:'admin', nombre:'Administrador' };
-      adminAuth.password = pCifrada;
-      try{ await db.from('app_config').update({ admin_password: pCifrada }).eq('id',1); }catch(e){}
-    }else{
-      let v = vendedores.find(x=>x.username===u && x.password===pCifrada);
-      if(!v){
-        const vViejo = vendedores.find(x=>x.username===u && x.password===p);
-        if(vViejo){
-          v = vViejo;
-          v.password = pCifrada;
-          try{ await db.from('vendedores').update({ password: pCifrada }).eq('id', v.id); }catch(e){}
+    // PRIMERO: se intenta con las cuentas reales de Supabase (el sistema
+    // nuevo y seguro). Si esa persona todavía no tiene cuenta real, se
+    // sigue de largo y entra por el sistema viejo de siempre — así se puede
+    // ir migrando de a poco sin cortarle el acceso a nadie.
+    const correoInterno = u.includes('@') ? u : (u.toLowerCase()+'@lotc4pa.app');
+    let motivoAuthReal = null;
+    try{
+      const { data: authData, error: authError } = await db.auth.signInWithPassword({ email: correoInterno, password: p });
+      if(authError) motivoAuthReal = authError.message || String(authError);
+      if(!authError && authData && authData.user){
+        // Entró con cuenta real. Se busca a qué vendedor corresponde para
+        // que la app sepa su rol y nombre igual que siempre.
+        const vAuth = vendedores.find(x=>x.username.toLowerCase()===u.toLowerCase());
+        if(vAuth){
+          currentUser = { role:'vendedor', vendedorId:vAuth.id, nombre:vAuth.nombre, authReal:true };
+        }else if(u.toLowerCase()===adminAuth.username.toLowerCase()){
+          currentUser = { role:'admin', nombre:'Administrador', authReal:true };
+        }else{
+          currentUser = { role:'admin', nombre:'Administrador', authReal:true };
         }
       }
-      if(v){ currentUser = { role:'vendedor', vendedorId:v.id, nombre:v.nombre }; }
+    }catch(e){ motivoAuthReal = (e && e.message) ? e.message : String(e); }
+
+    if(!currentUser){
+      if(u===adminAuth.username && pCifrada===adminAuth.password){
+        currentUser = { role:'admin', nombre:'Administrador' };
+      }else if(u===adminAuth.username && p===adminAuth.password){
+        // Cuenta todavía con la contraseña vieja sin cifrar: entra y la
+        // actualiza en silencio para que quede protegida desde ahora.
+        currentUser = { role:'admin', nombre:'Administrador' };
+        adminAuth.password = pCifrada;
+        try{ await db.from('app_config').update({ admin_password: pCifrada }).eq('id',1); }catch(e){}
+      }else{
+        let v = vendedores.find(x=>x.username===u && x.password===pCifrada);
+        if(!v){
+          const vViejo = vendedores.find(x=>x.username===u && x.password===p);
+          if(vViejo){
+            v = vViejo;
+            v.password = pCifrada;
+            try{ await db.from('vendedores').update({ password: pCifrada }).eq('id', v.id); }catch(e){}
+          }
+        }
+        if(v){ currentUser = { role:'vendedor', vendedorId:v.id, nombre:v.nombre }; }
+      }
     }
-    if(!currentUser){ errBox.textContent = 'Usuario o contraseña incorrectos.'; errBox.style.display='block'; return; }
+    if(!currentUser){
+      errBox.textContent = 'Usuario o contraseña incorrectos.' + (motivoAuthReal ? ' [Supabase: '+motivoAuthReal+']' : ' [Supabase: sin respuesta]');
+      errBox.style.display='block';
+      return;
+    }
 
     document.getElementById('login-password').value='';
     await guardarSesionActiva();
@@ -1680,6 +1709,10 @@ function entrarAlApp(){
 }
 async function cerrarSesion(){
   currentUser = null;
+  // Si había entrado con una cuenta real de Supabase, hay que cerrarla de
+  // verdad — si no, la sesión seguiría abierta por debajo aunque la app
+  // muestre la pantalla de login.
+  try{ await db.auth.signOut(); }catch(e){}
   await guardarSesionActiva();
   document.documentElement.classList.remove('sin-scroll');
   document.body.classList.remove('sin-scroll');

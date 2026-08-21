@@ -361,6 +361,7 @@
   <div class="nav-item admin-only" data-tab="deudas" id="nav-deudas" onclick="irATab('deudas')">📌 Cuentas de vendedores<span id="badge-deudas-pendientes" class="badge-pendientes" style="display:none;"></span></div>
   <div class="nav-item admin-only" data-tab="asistencia" onclick="irATab('asistencia')">🗓️ Control de equipo</div>
   <div class="nav-item admin-only" data-tab="registro" onclick="irATab('registro')">🧾 Registro de cambios</div>
+  <div class="nav-item admin-only" data-tab="usuarios" onclick="irATab('usuarios')">👥 Gestión de usuarios</div>
   <div class="nav-item" data-tab="cobertura" id="nav-cobertura" style="display:none" onclick="irATab('cobertura')">🛡️ Balance real</div>
   <div class="nav-item" data-tab="micomision" id="nav-micomision" style="display:none" onclick="irATab('micomision')">💵 Mi comisión</div>
   <div class="nav-item" data-tab="misdeudas" id="nav-misdeudas" style="display:none" onclick="irATab('misdeudas')">📌 Mis cuentas</div>
@@ -865,6 +866,34 @@
           <tbody id="registro-cambios-tabla"></tbody>
         </table>
         <div class="empty-state" id="registro-cambios-vacio" style="display:none;">Todavía no hay cambios registrados.</div>
+      </div>
+    </div>
+
+    <div id="tab-usuarios" style="display:none">
+      <div id="usu-pantalla-lista">
+        <h1 class="page-title">👥 Gestión de usuarios</h1>
+        <div class="page-sub">Elegí un vendedor para ver o cambiar qué módulos puede usar, más allá de lo que ve por defecto.</div>
+        <div class="card">
+          <h2 style="margin-top:0; font-size:15px;">🏢 Equipo</h2>
+          <div id="usu-lista-equipo"></div>
+        </div>
+        <div class="card">
+          <h2 style="margin-top:0; font-size:15px;">💵 Independientes</h2>
+          <div id="usu-lista-independientes"></div>
+        </div>
+      </div>
+      <div id="usu-pantalla-detalle" style="display:none">
+        <div class="shc-card">
+          <button class="btn-cambiar-sorteo" onclick="cerrarDetalleUsuario()">← Volver</button>
+          <div class="shc-top" id="usu-det-nombre" style="margin-top:10px;">--</div>
+          <div class="shc-sub" id="usu-det-tipo">--</div>
+        </div>
+        <div class="card">
+          <h2 style="margin-top:0; font-size:15px;">Módulos extra que puede usar</h2>
+          <p class="hint">Además de lo que ya ve por defecto (Vender, Historial, y lo suyo según sea equipo o independiente). Administración, Independientes, Control de equipo y Registro de cambios quedan siempre exclusivos tuyos.</p>
+          <div id="usu-det-checks"></div>
+          <button class="btn btn-primary" style="margin-top:12px;" onclick="guardarPermisosUsuario()">Guardar</button>
+        </div>
       </div>
     </div>
 
@@ -1427,7 +1456,24 @@ function ahoraServidor(){
   if(refServidorMs===null) return new Date();
   return new Date(refServidorMs + (performance.now() - refPerfMs));
 }
-function filaAVendedor(v){ return { id:v.id, nombre:v.nombre, username:v.username, password:v.password, enEquipo: v.en_equipo !== false, porcentaje: +v.porcentaje || 0, tarifaTipo: v.tarifa_tipo || null, tarifaValor: v.tarifa_valor!=null ? +v.tarifa_valor : null, tarifaExtra: v.tarifa_extra!=null ? +v.tarifa_extra : null, diaLibre: v.dia_libre!=null ? +v.dia_libre : null }; }
+function filaAVendedor(v){ return { id:v.id, nombre:v.nombre, username:v.username, password:v.password, enEquipo: v.en_equipo !== false, porcentaje: +v.porcentaje || 0, tarifaTipo: v.tarifa_tipo || null, tarifaValor: v.tarifa_valor!=null ? +v.tarifa_valor : null, tarifaExtra: v.tarifa_extra!=null ? +v.tarifa_extra : null, diaLibre: v.dia_libre!=null ? +v.dia_libre : null, permisosExtra: Array.isArray(v.permisos_extra) ? v.permisos_extra : [] }; }
+// Módulos que se le pueden dar de más a un vendedor puntual (equipo o
+// independiente), además de lo que ya ve por defecto. Los que no están acá
+// (Administración, Independientes, Control de equipo, Registro de cambios)
+// se quedan siempre exclusivos del admin — son demasiado sensibles para
+// delegar con un simple check.
+const MODULOS_DELEGABLES = [
+  { tab:'resultados', nombre:'🏆 Resultados y premiación' },
+  { tab:'reportes', nombre:'📊 Reportes' },
+  { tab:'tabla', nombre:'🔢 Tabla de números' },
+  { tab:'cobertura', nombre:'🛡️ Balance real' },
+  { tab:'deudas', nombre:'📌 Cuentas de vendedores' }
+];
+function tienePermisoExtra(tab){
+  if(!currentUser || currentUser.role!=='vendedor') return false;
+  const v = vendedores.find(x=>x.id===currentUser.vendedorId);
+  return !!(v && v.permisosExtra && v.permisosExtra.includes(tab));
+}
 function filaALiquidacion(l){ return { id:l.id, vendedorId:l.vendedor_id, vendedorNombre:l.vendedor_nombre||null, fecha:l.fecha, monto:+l.monto, direccion:l.direccion, nota:l.nota||'', sorteoId:l.sorteo_id||null, codigoSorteo:l.codigo_sorteo||null }; }
 let deudasEquipo = [];
 function filaADeuda(d){ return { id:d.id, vendedorId:d.vendedor_id, vendedorNombre:d.vendedor_nombre||null, fecha:d.fecha, monto:+d.monto, direccion:d.direccion, nota:d.nota||'', ventaId:d.venta_id||null, folio:d.folio||null, codigoSorteo:d.codigo_sorteo||null, estado:d.estado||'confirmado', tipo:d.tipo||(d.venta_id?'ticket':'ajuste') }; }
@@ -1778,6 +1824,15 @@ function aplicarRol(){
   document.getElementById('topbar-sesion-nombre').textContent = currentUser.nombre + ' · ' + (currentUser.role==='admin' ? 'Admin' : 'Vendedor');
   document.getElementById('session-rol').textContent = currentUser.role==='admin' ? 'Administrador' : 'Vendedor';
   document.querySelectorAll('.admin-only').forEach(el=>{ el.style.display = currentUser.role==='admin' ? (el.classList.contains('nav-item')?'flex':'block') : 'none'; });
+  // Los módulos delegables (que un vendedor puntual puede tener aunque no
+  // sea admin) se vuelven a mostrar acá, después del ocultamiento general.
+  if(currentUser.role==='vendedor'){
+    MODULOS_DELEGABLES.forEach(m=>{
+      if(!tienePermisoExtra(m.tab)) return;
+      const el = document.querySelector('.nav-item[data-tab="'+m.tab+'"]');
+      if(el) el.style.display = 'flex';
+    });
+  }
   const sel = document.getElementById('sel-vendedor');
   const locked = document.getElementById('locked-vendedor');
   if(currentUser.role==='vendedor'){ sel.style.display='none'; if(locked){ locked.style.display='none'; } }
@@ -1923,13 +1978,14 @@ function aplicarEstadoNav(estado){
 }
 function mostrarTabInterno(tab){
   document.querySelectorAll('.nav-item[data-tab]').forEach(el=>el.classList.toggle('active', el.dataset.tab===tab));
-  ['ventas','historial','reportes','tabla','ranking','resultados','config','independientes','deudas','asistencia','registro','micomision','misdeudas','miasistencia','cobertura'].forEach(t=>{
+  ['ventas','historial','reportes','tabla','ranking','resultados','config','independientes','deudas','asistencia','registro','usuarios','micomision','misdeudas','miasistencia','cobertura'].forEach(t=>{
     const el = document.getElementById('tab-'+t);
     if(el) el.style.display = (t===tab)?'block':'none';
   });
 }
 function switchTab(tab){
-  if((tab==='config' || tab==='resultados' || tab==='reportes' || tab==='independientes' || tab==='deudas' || tab==='asistencia' || tab==='registro') && currentUser.role!=='admin') return;
+  if((tab==='config' || tab==='independientes' || tab==='asistencia' || tab==='registro' || tab==='usuarios') && currentUser.role!=='admin') return;
+  if((tab==='resultados' || tab==='reportes' || tab==='deudas' || tab==='tabla') && currentUser.role!=='admin' && !tienePermisoExtra(tab)) return;
   if(tab==='micomision' && !(currentUser.role==='vendedor' && esVendedorIndependiente(currentUser.vendedorId))) return;
   if(tab==='misdeudas' && !(currentUser.role==='vendedor' && vendedorEnEquipo(currentUser.vendedorId))) return;
   if(tab==='miasistencia' && !(currentUser.role==='vendedor' && vendedorEnEquipo(currentUser.vendedorId))) return;
@@ -1947,6 +2003,7 @@ function switchTab(tab){
   if(tab==='deudas'){ cerrarDetalleDeuda(); }
   if(tab==='asistencia'){ cerrarDetalleAsistencia(); }
   if(tab==='registro'){ renderRegistroCambios(); }
+  if(tab==='usuarios'){ cerrarDetalleUsuario(); }
   if(tab==='config') renderOrdenMenuLista();
   if(tab==='micomision') renderMiComision();
   if(tab==='misdeudas') renderMisDeudas();
@@ -1968,6 +2025,7 @@ window.addEventListener('popstate', ()=>{
   const detalleIndepAbierto = document.getElementById('bal-pantalla-detalle') && document.getElementById('bal-pantalla-detalle').style.display==='block';
   const detalleDeudaAbierto = document.getElementById('deu-pantalla-detalle') && document.getElementById('deu-pantalla-detalle').style.display==='block';
   const detalleAsistenciaAbierto = document.getElementById('asi-pantalla-detalle') && document.getElementById('asi-pantalla-detalle').style.display==='block';
+  const detalleUsuarioAbierto = document.getElementById('usu-pantalla-detalle') && document.getElementById('usu-pantalla-detalle').style.display==='block';
   const menuAbierto = document.getElementById('menu-drawer').classList.contains('abierto');
 
   if(modalAbierto){
@@ -2032,6 +2090,12 @@ window.addEventListener('popstate', ()=>{
   }
   if(detalleAsistenciaAbierto){
     cerrarDetalleAsistencia();
+    history.pushState(null, '', '');
+    manejandoPopstate = false;
+    return;
+  }
+  if(detalleUsuarioAbierto){
+    cerrarDetalleUsuario();
     history.pushState(null, '', '');
     manejandoPopstate = false;
     return;
@@ -4661,6 +4725,57 @@ async function guardarDiaTrabajado(){
   renderDetalleAsistencia();
   avisar('Día agregado.');
 }
+function renderListaUsuarios(){
+  const contEquipo = document.getElementById('usu-lista-equipo');
+  const contIndep = document.getElementById('usu-lista-independientes');
+  if(!contEquipo || !contIndep) return;
+  const equipo = vendedores.filter(v=>v.enEquipo!==false);
+  const independientes = vendedores.filter(v=>v.enEquipo===false);
+  const filaHtml = v=>{
+    const extra = v.permisosExtra && v.permisosExtra.length ? v.permisosExtra.length+' módulo(s) extra' : 'Sin extras';
+    return `<div class="jugada-row" onclick="abrirDetalleUsuario('${v.id}')" style="cursor:pointer;">
+      <div><div style="font-weight:700;">${escapeHtml(v.nombre)}</div><div class="hint" style="margin:0;">${escapeHtml(extra)}</div></div>
+      <div>›</div>
+    </div>`;
+  };
+  contEquipo.innerHTML = equipo.length ? equipo.map(filaHtml).join('') : '<div class="empty-state">No tenés vendedores de equipo todavía.</div>';
+  contIndep.innerHTML = independientes.length ? independientes.map(filaHtml).join('') : '<div class="empty-state">No tenés vendedores independientes todavía.</div>';
+}
+let detalleUsuarioId = null;
+function abrirDetalleUsuario(vendedorId){
+  detalleUsuarioId = vendedorId;
+  const v = vendedores.find(x=>x.id===vendedorId);
+  if(!v) return;
+  document.getElementById('usu-pantalla-lista').style.display = 'none';
+  document.getElementById('usu-pantalla-detalle').style.display = 'block';
+  document.getElementById('usu-det-nombre').textContent = v.nombre;
+  document.getElementById('usu-det-tipo').textContent = (v.enEquipo!==false ? '🏢 Equipo' : '💵 Independiente') + ' · usuario: ' + v.username;
+  document.getElementById('usu-det-checks').innerHTML = MODULOS_DELEGABLES.map(m=>`
+    <label style="display:flex; align-items:center; gap:10px; padding:10px 0; border-bottom:1px solid var(--line);">
+      <input type="checkbox" class="usu-check-modulo" data-tab="${m.tab}" ${v.permisosExtra && v.permisosExtra.includes(m.tab)?'checked':''} style="width:20px; height:20px;">
+      <span>${m.nombre}</span>
+    </label>`).join('');
+  if(!manejandoPopstate) history.pushState(null, '', '');
+}
+function cerrarDetalleUsuario(){
+  detalleUsuarioId = null;
+  document.getElementById('usu-pantalla-detalle').style.display = 'none';
+  document.getElementById('usu-pantalla-lista').style.display = 'block';
+  renderListaUsuarios();
+}
+async function guardarPermisosUsuario(){
+  const v = vendedores.find(x=>x.id===detalleUsuarioId);
+  if(!v) return;
+  const permisos = [...document.querySelectorAll('.usu-check-modulo')].filter(c=>c.checked).map(c=>c.dataset.tab);
+  try{
+    await db.from('vendedores').update({ permisos_extra: permisos }).eq('id', v.id);
+  }catch(e){ avisar('No se pudo guardar. Revisa tu conexión.'); return; }
+  const permisosAnteriores = (v.permisosExtra||[]).join(', ') || 'ninguno';
+  v.permisosExtra = permisos;
+  registrarCambio('Cambió permisos de usuario', v.nombre+': antes ['+permisosAnteriores+'] → ahora ['+(permisos.join(', ')||'ninguno')+']');
+  avisar('Permisos guardados.');
+  cerrarDetalleUsuario();
+}
 function renderRegistroCambios(){
   const tbody = document.getElementById('registro-cambios-tabla');
   const vacio = document.getElementById('registro-cambios-vacio');
@@ -5280,6 +5395,7 @@ function calcularTablaNumeros(sorteoId, fechaKey, filtroVendedorId){
 function puedeVerRiesgoChance(){
   if(!currentUser) return false;
   if(currentUser.role==='admin') return true;
+  if(tienePermisoExtra('cobertura') || tienePermisoExtra('tabla')) return true;
   const v = vendedores.find(x=>x.id===currentUser.vendedorId);
   return !!v && v.username === 'Miguel';
 }

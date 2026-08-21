@@ -1828,7 +1828,10 @@ function aplicarRol(){
   // sea admin) se vuelven a mostrar acá, después del ocultamiento general.
   if(currentUser.role==='vendedor'){
     MODULOS_DELEGABLES.forEach(m=>{
-      if(!tienePermisoExtra(m.tab)) return;
+      // "tabla" usa puedeVerRiesgoChance() para no perder el caso especial
+      // de siempre (el vendedor "Miguel"), además del permiso extra nuevo.
+      const tienePermiso = m.tab==='tabla' ? puedeVerRiesgoChance() : tienePermisoExtra(m.tab);
+      if(!tienePermiso) return;
       const el = document.querySelector('.nav-item[data-tab="'+m.tab+'"]');
       if(el) el.style.display = 'flex';
     });
@@ -1985,7 +1988,11 @@ function mostrarTabInterno(tab){
 }
 function switchTab(tab){
   if((tab==='config' || tab==='independientes' || tab==='asistencia' || tab==='registro' || tab==='usuarios') && currentUser.role!=='admin') return;
-  if((tab==='resultados' || tab==='reportes' || tab==='deudas' || tab==='tabla') && currentUser.role!=='admin' && !tienePermisoExtra(tab)) return;
+  if((tab==='resultados' || tab==='reportes' || tab==='deudas') && currentUser.role!=='admin' && !tienePermisoExtra(tab)) return;
+  // "tabla" usa puedeVerRiesgoChance() en vez de solo el permiso extra
+  // nuevo, porque ese caso ya cubre el permiso extra Y el caso especial de
+  // siempre (el vendedor "Miguel") — así no se pierde ese acceso.
+  if(tab==='tabla' && currentUser.role!=='admin' && !puedeVerRiesgoChance()) return;
   if(tab==='micomision' && !(currentUser.role==='vendedor' && esVendedorIndependiente(currentUser.vendedorId))) return;
   if(tab==='misdeudas' && !(currentUser.role==='vendedor' && vendedorEnEquipo(currentUser.vendedorId))) return;
   if(tab==='miasistencia' && !(currentUser.role==='vendedor' && vendedorEnEquipo(currentUser.vendedorId))) return;
@@ -5395,9 +5402,7 @@ function calcularTablaNumeros(sorteoId, fechaKey, filtroVendedorId){
 function puedeVerRiesgoChance(){
   if(!currentUser) return false;
   if(currentUser.role==='admin') return true;
-  if(tienePermisoExtra('cobertura') || tienePermisoExtra('tabla')) return true;
-  const v = vendedores.find(x=>x.id===currentUser.vendedorId);
-  return !!v && v.username === 'Miguel';
+  return tienePermisoExtra('cobertura') || tienePermisoExtra('tabla');
 }
 function calcularRiesgoChance(sorteoId, fechaKey, porNumero20, porNumero25){
   const totalVendidoSorteo = ventasList

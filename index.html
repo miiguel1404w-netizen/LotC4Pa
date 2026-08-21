@@ -10,7 +10,7 @@
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icons/icon-192.png">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
-<meta name="theme-color" content="#000000">
+<meta name="theme-color" content="#0A0A0A">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -18,7 +18,7 @@
     --paper:#FAFAFA; --paper-dim:#F1F2F4; --ink:#1F2937; --ink-dim:#6B7280;
     --red:#DC2626; --red-dark:#991B1B; --gold:#D4A017; --gold-dark:#A67C00;
     --blue:#2563EB; --green:#10B981; --green-dark:#059669; --purple:#7B3FA0;
-    --charcoal:#000000; --charcoal-dark:#000000;
+    --charcoal:#0A0A0A; --charcoal-dark:#0A0A0A;
     --card:#FFFFFF; --line:#E5E7EB; --radius:10px;
   }
   *{box-sizing:border-box;}
@@ -1465,7 +1465,6 @@ function filaAVendedor(v){ return { id:v.id, nombre:v.nombre, username:v.usernam
 const MODULOS_DELEGABLES = [
   { tab:'resultados', nombre:'🏆 Resultados y premiación' },
   { tab:'reportes', nombre:'📊 Reportes' },
-  { tab:'tabla', nombre:'🔢 Tabla de números' },
   { tab:'cobertura', nombre:'🛡️ Balance real' },
   { tab:'deudas', nombre:'📌 Cuentas de vendedores' }
 ];
@@ -1828,13 +1827,17 @@ function aplicarRol(){
   // sea admin) se vuelven a mostrar acá, después del ocultamiento general.
   if(currentUser.role==='vendedor'){
     MODULOS_DELEGABLES.forEach(m=>{
-      // "tabla" usa puedeVerRiesgoChance() para no perder el caso especial
-      // de siempre (el vendedor "Miguel"), además del permiso extra nuevo.
-      const tienePermiso = m.tab==='tabla' ? puedeVerRiesgoChance() : tienePermisoExtra(m.tab);
-      if(!tienePermiso) return;
+      if(!tienePermisoExtra(m.tab)) return;
       const el = document.querySelector('.nav-item[data-tab="'+m.tab+'"]');
       if(el) el.style.display = 'flex';
     });
+    // "Tabla de números" en el menú principal solo se muestra con el nivel
+    // "menú" — con solo el nivel "sorteos" sigue pudiendo abrirla desde el
+    // botón de cada sorteo, pero no le aparece en el menú de arriba.
+    if(tienePermisoExtra('tabla_menu')){
+      const elTabla = document.querySelector('.nav-item[data-tab="tabla"]');
+      if(elTabla) elTabla.style.display = 'flex';
+    }
   }
   const sel = document.getElementById('sel-vendedor');
   const locked = document.getElementById('locked-vendedor');
@@ -4757,12 +4760,30 @@ function abrirDetalleUsuario(vendedorId){
   document.getElementById('usu-pantalla-detalle').style.display = 'block';
   document.getElementById('usu-det-nombre').textContent = v.nombre;
   document.getElementById('usu-det-tipo').textContent = (v.enEquipo!==false ? '🏢 Equipo' : '💵 Independiente') + ' · usuario: ' + v.username;
+  const permisos = v.permisosExtra || [];
   document.getElementById('usu-det-checks').innerHTML = MODULOS_DELEGABLES.map(m=>`
     <label style="display:flex; align-items:center; gap:10px; padding:10px 0; border-bottom:1px solid var(--line);">
-      <input type="checkbox" class="usu-check-modulo" data-tab="${m.tab}" ${v.permisosExtra && v.permisosExtra.includes(m.tab)?'checked':''} style="width:20px; height:20px;">
+      <input type="checkbox" class="usu-check-modulo" data-tab="${m.tab}" ${permisos.includes(m.tab)?'checked':''} style="width:20px; height:20px;">
       <span>${m.nombre}</span>
-    </label>`).join('');
+    </label>`).join('') + `
+    <div style="padding:10px 0; border-bottom:1px solid var(--line);">
+      <label style="display:flex; align-items:center; gap:10px;">
+        <input type="checkbox" id="usu-check-tabla-sorteo" ${(permisos.includes('tabla_sorteo')||permisos.includes('tabla_menu'))?'checked':''} onchange="actualizarSubopcionTabla()" style="width:20px; height:20px;">
+        <span>🔢 Tabla de números</span>
+      </label>
+      <div id="usu-tabla-submenu" style="margin:8px 0 0 30px; display:${(permisos.includes('tabla_sorteo')||permisos.includes('tabla_menu'))?'block':'none'};">
+        <label style="display:flex; align-items:center; gap:8px; font-size:13px; color:var(--ink-dim);">
+          <input type="checkbox" id="usu-check-tabla-menu" ${permisos.includes('tabla_menu')?'checked':''} style="width:18px; height:18px;">
+          También en el menú principal (si no, solo la ve entrando a cada sorteo)
+        </label>
+      </div>
+    </div>`;
   if(!manejandoPopstate) history.pushState(null, '', '');
+}
+function actualizarSubopcionTabla(){
+  const marcado = document.getElementById('usu-check-tabla-sorteo').checked;
+  document.getElementById('usu-tabla-submenu').style.display = marcado ? 'block' : 'none';
+  if(!marcado) document.getElementById('usu-check-tabla-menu').checked = false;
 }
 function cerrarDetalleUsuario(){
   detalleUsuarioId = null;
@@ -4774,6 +4795,8 @@ async function guardarPermisosUsuario(){
   const v = vendedores.find(x=>x.id===detalleUsuarioId);
   if(!v) return;
   const permisos = [...document.querySelectorAll('.usu-check-modulo')].filter(c=>c.checked).map(c=>c.dataset.tab);
+  if(document.getElementById('usu-check-tabla-sorteo').checked) permisos.push('tabla_sorteo');
+  if(document.getElementById('usu-check-tabla-menu').checked) permisos.push('tabla_menu');
   try{
     await db.from('vendedores').update({ permisos_extra: permisos }).eq('id', v.id);
   }catch(e){ avisar('No se pudo guardar. Revisa tu conexión.'); return; }
@@ -5402,7 +5425,7 @@ function calcularTablaNumeros(sorteoId, fechaKey, filtroVendedorId){
 function puedeVerRiesgoChance(){
   if(!currentUser) return false;
   if(currentUser.role==='admin') return true;
-  return tienePermisoExtra('cobertura') || tienePermisoExtra('tabla');
+  return tienePermisoExtra('cobertura') || tienePermisoExtra('tabla_sorteo') || tienePermisoExtra('tabla_menu');
 }
 function calcularRiesgoChance(sorteoId, fechaKey, porNumero20, porNumero25){
   const totalVendidoSorteo = ventasList

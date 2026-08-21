@@ -1604,14 +1604,22 @@ async function intentarLogin(){
       if(authError) motivoAuthReal = authError.message || String(authError);
       if(!authError && authData && authData.user){
         // Entró con cuenta real. Se busca a qué vendedor corresponde para
-        // que la app sepa su rol y nombre igual que siempre.
-        const vAuth = vendedores.find(x=>x.username.toLowerCase()===u.toLowerCase());
+        // que la app sepa su rol y nombre igual que siempre. Se compara
+        // contra la parte de antes del @ por si escribió el correo completo
+        // (en la tabla de vendedores figura solo el usuario, sin dominio).
+        const usuarioBase = u.includes('@') ? u.split('@')[0] : u;
+        const vAuth = vendedores.find(x=>x.username.toLowerCase()===usuarioBase.toLowerCase());
         if(vAuth){
           currentUser = { role:'vendedor', vendedorId:vAuth.id, nombre:vAuth.nombre, authReal:true };
-        }else if(u.toLowerCase()===adminAuth.username.toLowerCase()){
+        }else if(usuarioBase.toLowerCase()===adminAuth.username.toLowerCase()){
           currentUser = { role:'admin', nombre:'Administrador', authReal:true };
         }else{
-          currentUser = { role:'admin', nombre:'Administrador', authReal:true };
+          // Cuenta real válida pero que no corresponde a ningún vendedor ni
+          // al admin: NO se asume ningún permiso. Se cierra la sesión que
+          // acaba de abrirse y se rechaza la entrada, para que una cuenta
+          // suelta nunca pueda terminar con vista de administrador.
+          try{ await db.auth.signOut(); }catch(e){}
+          motivoAuthReal = 'La cuenta existe pero no está vinculada a ningún vendedor ni al administrador.';
         }
       }
     }catch(e){ motivoAuthReal = (e && e.message) ? e.message : String(e); }

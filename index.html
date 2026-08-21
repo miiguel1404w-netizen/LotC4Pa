@@ -368,6 +368,7 @@
   <div class="nav-item" data-tab="misdeudas" id="nav-misdeudas" style="display:none" onclick="irATab('misdeudas')">📌 Mis cuentas</div>
   <div class="nav-item" data-tab="miasistencia" id="nav-miasistencia" style="display:none" onclick="irATab('miasistencia')">🗓️ Mi horario</div>
   <div class="nav-item admin-only" data-tab="config" onclick="irATab('config')">⚙️ Administración</div>
+  <div class="nav-item" data-tab="notificaciones" onclick="irATab('notificaciones')">🔔 Notificaciones</div>
   <div class="nav-item logout" onclick="cerrarSesion()">⎋ Cerrar sesión</div>
 </div>
 <div id="app">
@@ -855,6 +856,15 @@
           </table>
           <div class="empty-state" id="asi-det-vacio" style="display:none;">Todavía no hay movimientos.</div>
         </div>
+      </div>
+    </div>
+
+    <div id="tab-notificaciones" style="display:none">
+      <h1 class="page-title">🔔 Notificaciones</h1>
+      <div class="page-sub">Activalo una vez en este celular para recibir un aviso apenas se carga un resultado — aunque tengas la app cerrada.</div>
+      <div class="card">
+        <div id="notif-estado" style="font-weight:700; margin-bottom:10px;">Revisando...</div>
+        <button class="btn btn-primary" id="btn-activar-notif" onclick="activarNotificaciones()">Activar avisos en este celular</button>
       </div>
     </div>
 
@@ -1352,6 +1362,10 @@
 // ---------------- CONEXIÓN A SUPABASE ----------------
 const SUPABASE_URL = 'https://nqtouvsbrcbfdtptdbro.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_svq0DOUmChbojAdSZeKj8Q_dxe-PMmz';
+// Llave pública de notificaciones — es normal que esta sí quede visible en
+// el código (a diferencia de la privada, que solo vive en la función del
+// servidor y nunca se sube acá).
+const VAPID_PUBLIC_KEY = 'BB_dfHYKNYLPXMAxZ49QDMjNH6TYiQFmtNg1f1D5blqD7Vp9wW1h1O-zM2r_2rfQdCZ7vqZf1na-tsq7Bdqe40w';
 let db = null;
 try{
   db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -1989,7 +2003,7 @@ function aplicarEstadoNav(estado){
 }
 function mostrarTabInterno(tab){
   document.querySelectorAll('.nav-item[data-tab]').forEach(el=>el.classList.toggle('active', el.dataset.tab===tab));
-  ['ventas','historial','reportes','tabla','ranking','resultados','config','independientes','deudas','asistencia','registro','usuarios','micomision','misdeudas','miasistencia','cobertura'].forEach(t=>{
+  ['ventas','historial','reportes','tabla','ranking','resultados','config','independientes','deudas','asistencia','registro','usuarios','notificaciones','micomision','misdeudas','miasistencia','cobertura'].forEach(t=>{
     const el = document.getElementById('tab-'+t);
     if(el) el.style.display = (t===tab)?'block':'none';
   });
@@ -2021,6 +2035,7 @@ function switchTab(tab){
   if(tab==='deudas'){ cerrarDetalleDeuda(); }
   if(tab==='asistencia'){ cerrarDetalleAsistencia(); }
   if(tab==='registro'){ renderRegistroCambios(); }
+  if(tab==='notificaciones'){ actualizarEstadoNotificaciones(); }
   if(tab==='usuarios'){ cerrarDetalleUsuario(); }
   if(tab==='config') renderOrdenMenuLista();
   if(tab==='micomision') renderMiComision();
@@ -4820,6 +4835,80 @@ async function guardarPermisosUsuario(){
   registrarCambio('Cambió permisos de usuario', v.nombre+': antes ['+permisosAnteriores+'] → ahora ['+(permisos.join(', ')||'ninguno')+']');
   avisar('Permisos guardados.');
   cerrarDetalleUsuario();
+}
+function urlBase64ToUint8Array(base64String){
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const rawData = atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for(let i=0; i<rawData.length; i++) outputArray[i] = rawData.charCodeAt(i);
+  return outputArray;
+}
+async function actualizarEstadoNotificaciones(){
+  const estado = document.getElementById('notif-estado');
+  const btn = document.getElementById('btn-activar-notif');
+  if(!estado || !btn) return;
+  if(!('serviceWorker' in navigator) || !('PushManager' in window)){
+    estado.textContent = '❌ Este navegador/celular no soporta notificaciones.';
+    btn.style.display = 'none';
+    return;
+  }
+  if(Notification.permission === 'denied'){
+    estado.textContent = '❌ Bloqueadas — hay que habilitarlas desde los ajustes del celular/navegador para este sitio.';
+    btn.textContent = 'Activar avisos en este celular';
+    return;
+  }
+  try{
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.getSubscription();
+    if(sub){
+      estado.textContent = '✅ Activadas en este celular.';
+      btn.textContent = 'Ya están activadas';
+      btn.disabled = true;
+    }else{
+      estado.textContent = 'Todavía no activadas en este celular.';
+      btn.textContent = 'Activar avisos en este celular';
+      btn.disabled = false;
+    }
+  }catch(e){
+    estado.textContent = 'Todavía no activadas en este celular.';
+  }
+}
+async function activarNotificaciones(){
+  const btn = document.getElementById('btn-activar-notif');
+  const estado = document.getElementById('notif-estado');
+  if(btn){ btn.disabled = true; btn.textContent = 'Activando...'; }
+  try{
+    if(!('serviceWorker' in navigator) || !('PushManager' in window)){
+      avisar('Este navegador/celular no soporta notificaciones.');
+      return;
+    }
+    const permiso = await Notification.requestPermission();
+    if(permiso !== 'granted'){
+      avisar('No se activó — hay que aceptar el permiso de notificaciones cuando lo pida el celular.');
+      actualizarEstadoNotificaciones();
+      return;
+    }
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+    });
+    const subJson = sub.toJSON();
+    await db.from('push_subscriptions').upsert({
+      id: uid(),
+      vendedor_id: currentUser.role==='vendedor' ? currentUser.vendedorId : null,
+      vendedor_nombre: currentUser.nombre,
+      endpoint: subJson.endpoint,
+      p256dh: subJson.keys.p256dh,
+      auth: subJson.keys.auth
+    }, { onConflict: 'endpoint' });
+    avisar('¡Listo! Vas a recibir un aviso en este celular cuando se cargue un resultado.');
+  }catch(e){
+    avisar('No se pudo activar. Revisa tu conexión e intenta de nuevo. ('+(e&&e.message?e.message:e)+')');
+  }finally{
+    actualizarEstadoNotificaciones();
+  }
 }
 function renderRegistroCambios(){
   const tbody = document.getElementById('registro-cambios-tabla');

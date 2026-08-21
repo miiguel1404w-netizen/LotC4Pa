@@ -1,5 +1,5 @@
-// Service worker mínimo: solo existe para que la app cumpla el requisito técnico
-// de "instalable" (PWA/APK). No guarda nada en caché a propósito, y además
+// Service worker: cumple el requisito técnico de "instalable" (PWA/APK) y
+// además recibe los avisos push. No guarda nada en caché a propósito, y
 // fuerza a que cada petición (incluida la página principal) vaya siempre
 // directo a la red, sin usar la caché del navegador/WebView del APK.
 self.addEventListener('install', (event) => {
@@ -24,3 +24,27 @@ self.addEventListener('fetch', (event) => {
   );
 });
 
+// ---- Avisos push (resultados cargados) ----
+self.addEventListener('push', (event) => {
+  let datos = {};
+  try{ datos = event.data ? event.data.json() : {}; }
+  catch(e){ datos = { title:'LotC4Pa', body: event.data ? event.data.text() : '' }; }
+  const titulo = datos.title || 'LotC4Pa';
+  const opciones = {
+    body: datos.body || '',
+    icon: 'icons/icon-192.png',
+    badge: 'icons/icon-192.png',
+    data: { url: datos.url || '/' }
+  };
+  event.waitUntil(self.registration.showNotification(titulo, opciones));
+});
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const url = (event.notification.data && event.notification.data.url) || '/';
+  event.waitUntil(
+    clients.matchAll({ type:'window', includeUncontrolled:true }).then((lista) => {
+      for(const c of lista){ if('focus' in c) return c.focus(); }
+      if(clients.openWindow) return clients.openWindow(url);
+    })
+  );
+});

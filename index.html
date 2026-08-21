@@ -1853,7 +1853,11 @@ function aplicarRol(){
   const navMiAsistencia = document.getElementById('nav-miasistencia');
   if(navMiAsistencia) navMiAsistencia.style.display = (esVendedor && vendedorEnEquipo(currentUser.vendedorId)) ? 'flex' : 'none';
   const navCobertura = document.getElementById('nav-cobertura');
-  if(navCobertura) navCobertura.style.display = puedeVerRiesgoChance() ? 'flex' : 'none';
+  // El menú "Balance real" se controla SOLO con su propio permiso — antes
+  // usaba puedeVerRiesgoChance(), que también se activa con el permiso de
+  // Tabla de números, y por eso quitarle Balance real a alguien no
+  // funcionaba si esa persona también tenía Tabla de números.
+  if(navCobertura) navCobertura.style.display = (currentUser.role==='admin' || tienePermisoExtra('cobertura')) ? 'flex' : 'none';
   aplicarOrdenMenu();
 }
 
@@ -1999,7 +2003,7 @@ function switchTab(tab){
   if(tab==='micomision' && !(currentUser.role==='vendedor' && esVendedorIndependiente(currentUser.vendedorId))) return;
   if(tab==='misdeudas' && !(currentUser.role==='vendedor' && vendedorEnEquipo(currentUser.vendedorId))) return;
   if(tab==='miasistencia' && !(currentUser.role==='vendedor' && vendedorEnEquipo(currentUser.vendedorId))) return;
-  if(tab==='cobertura' && !puedeVerRiesgoChance()) return;
+  if(tab==='cobertura' && currentUser.role!=='admin' && !tienePermisoExtra('cobertura')) return;
   if(tab!=='ventas'){ document.documentElement.classList.remove('sin-scroll'); document.body.classList.remove('sin-scroll'); }
   mostrarTabInterno(tab);
   if(tab==='historial'){ aplicarFiltrosHistorialPorDefecto(); renderHistorial(); }
@@ -5696,7 +5700,8 @@ function renderListaCoberturas(rangoDesde, rangoHasta){
   </table>`;
 }
 function renderCobertura(){
-  if(!dataLoaded || !currentUser || !puedeVerRiesgoChance()) return;
+  if(!dataLoaded || !currentUser) return;
+  if(currentUser.role!=='admin' && !tienePermisoExtra('cobertura')) return;
   const sorteoId = document.getElementById('cob-sorteo').value;
   const fechaKey = document.getElementById('cob-fecha').value || toDateKey(ahoraServidor().toISOString());
   const hoyKey = toDateKey(ahoraServidor().toISOString());

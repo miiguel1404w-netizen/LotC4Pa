@@ -5260,7 +5260,9 @@ function nivelRiesgoCobertura(pago1, limite){
 function calcularCoberturaRecomendada(sorteoId, fechaKey){
   const limite = limiteParaSorteo(sorteoId);
   const { porNumero20, porNumero25 } = calcularTablaNumeros(sorteoId, fechaKey);
-  const { riesgoPorNumero, pagoPotencialPorNumero, totalVendidoSorteo } = calcularRiesgoChance(sorteoId, fechaKey, porNumero20, porNumero25);
+  const totalVendidoSorteo = ventasList
+    .filter(v=>v.sorteoId===sorteoId && toDateKey(v.fecha)===fechaKey && !v.anulada)
+    .reduce((s,v)=>s+v.total, 0);
   const costoUnit = 0.20;
   const proteccionNetaUnit = premios.chance20[1] - costoUnit; // $10.80 — la de mayor exposición, la que manda en la cantidad recomendada
 
@@ -5269,7 +5271,13 @@ function calcularCoberturaRecomendada(sorteoId, fechaKey){
     coberturaActualPorNumero[c.numero] = (coberturaActualPorNumero[c.numero]||0) + c.cantidad;
   });
 
-  const numeros = Object.keys(riesgoPorNumero).filter(n=>riesgoPorNumero[n]).map(n=>{
+  // Importante: se decide qué números entran en esta lista con el MISMO
+  // criterio que pinta los colores en la Tabla de números (pago1 >= límite
+  // del sorteo) — antes esta lista usaba un umbral distinto (el que se
+  // ajusta según cuánto se vendió ese día), y por eso un número podía verse
+  // en rojo/naranja en la tabla y aun así quedar afuera de la recomendación.
+  const todosLosNumeros = new Set([...Object.keys(porNumero20), ...Object.keys(porNumero25)]);
+  const numeros = [...todosLosNumeros].map(n=>{
     const pago1 = (porNumero20[n]||0)*premios.chance20[1] + (porNumero25[n]||0)*premios.chance25[1];
     const pago2 = (porNumero20[n]||0)*premios.chance20[2] + (porNumero25[n]||0)*premios.chance25[2];
     const pago3 = (porNumero20[n]||0)*premios.chance20[3] + (porNumero25[n]||0)*premios.chance25[3];
@@ -5292,7 +5300,7 @@ function calcularCoberturaRecomendada(sorteoId, fechaKey){
       actual, costoActual: +(actual*costoUnit).toFixed(2),
       nivel: nivelRiesgoCobertura(pago1, limite)
     };
-  }).sort((a,b)=> b.pago1-a.pago1); // mayor pérdida potencial primero
+  }).filter(x=>x.pago1 >= limite).sort((a,b)=> b.pago1-a.pago1); // solo los que cruzan el límite, mayor pérdida potencial primero
 
   const riesgoMaximo = numeros.length ? Math.max(...numeros.map(x=>x.pago1)) : 0;
   const riesgoMaximoRestanteRecom = numeros.length ? Math.max(...numeros.map(x=>x.restante1)) : 0;

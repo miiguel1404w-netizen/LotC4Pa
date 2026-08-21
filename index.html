@@ -1496,66 +1496,85 @@ async function cargarDatos(){
     }
   }catch(e){ avisar('No se pudo conectar a la base de datos.'); }
 
-  try{
-    const { data, error } = await db.from('vendedores').select('*').order('created_at');
-    if(error) throw error;
-    vendedores = (data||[]).map(filaAVendedor);
-    cargaOk.vendedores = true;
-  }catch(e){ cargaOk.vendedores = false; }
-
-  try{
-    const { data, error } = await db.from('sorteos').select('*').order('created_at');
-    if(error) throw error;
-    sorteos = (data||[]).map(filaASorteo);
-    cargaOk.sorteos = true;
-    precargarLogosSorteos();
-  }catch(e){ cargaOk.sorteos = false; }
-
-  try{
-    const data = await fetchTodasFilas('ventas', '*', 'fecha');
-    ventasList = (data||[]).map(filaAVenta);
-    cargaOk.ventas = true;
-  }catch(e){ cargaOk.ventas = false; }
-  // Vuelve a poner encima las ventas que aún no se han podido subir por falta
-  // de señal, para que no desaparezcan de la pantalla mientras se reintenta.
-  cargarPendientesLocal().forEach(p=>{ if(!ventasList.some(v=>v.id===p.id)) ventasList.unshift(p); });
-
-  try{
-    const { data } = await db.from('folio_counter').select('*').eq('id',1).maybeSingle();
-    folioCounter = data ? data.siguiente : 1;
-  }catch(e){}
-
-  try{
-    const data = await fetchTodasFilas('resultados', '*', 'fecha_key');
-    resultados = (data||[]).map(filaAResultado);
-  }catch(e){}
-
-  try{
-    const data = await fetchTodasFilas('liquidaciones', '*', 'fecha');
-    liquidaciones = (data||[]).map(filaALiquidacion);
-  }catch(e){}
-
-  try{
-    const data = await fetchTodasFilas('deudas_equipo', '*', 'fecha');
-    deudasEquipo = (data||[]).map(filaADeuda);
-  }catch(e){}
-
-  try{
-    const data = await fetchTodasFilas('asistencia_equipo', '*', 'fecha');
-    asistenciaEquipo = (data||[]).map(filaAAsistencia);
-  }catch(e){}
-
-  try{
-    if(currentUser && currentUser.role==='admin'){
-      const data = await fetchTodasFilas('registro_cambios', '*', 'fecha');
-      registroCambios = (data||[]).map(filaARegistro);
-    }
-  }catch(e){}
-
-  try{
-    const data = await fetchTodasFilas('coberturas', '*', 'fecha_key');
-    coberturas = (data||[]).map(filaACobertura);
-  }catch(e){}
+  // Antes, cada tabla se pedía una atrás de la otra (10 viajes de ida y
+  // vuelta al servidor, en fila) — eso era la mayor parte del tiempo de
+  // espera al entrar. Ahora se piden todas juntas, al mismo tiempo, y se
+  // espera lo que tarde la más lenta, no la suma de todas.
+  await Promise.all([
+    (async()=>{
+      try{
+        const { data, error } = await db.from('vendedores').select('*').order('created_at');
+        if(error) throw error;
+        vendedores = (data||[]).map(filaAVendedor);
+        cargaOk.vendedores = true;
+      }catch(e){ cargaOk.vendedores = false; }
+    })(),
+    (async()=>{
+      try{
+        const { data, error } = await db.from('sorteos').select('*').order('created_at');
+        if(error) throw error;
+        sorteos = (data||[]).map(filaASorteo);
+        cargaOk.sorteos = true;
+        precargarLogosSorteos();
+      }catch(e){ cargaOk.sorteos = false; }
+    })(),
+    (async()=>{
+      try{
+        const data = await fetchTodasFilas('ventas', '*', 'fecha');
+        ventasList = (data||[]).map(filaAVenta);
+        cargaOk.ventas = true;
+      }catch(e){ cargaOk.ventas = false; }
+      // Vuelve a poner encima las ventas que aún no se han podido subir por
+      // falta de señal, para que no desaparezcan de la pantalla mientras se
+      // reintenta.
+      cargarPendientesLocal().forEach(p=>{ if(!ventasList.some(v=>v.id===p.id)) ventasList.unshift(p); });
+    })(),
+    (async()=>{
+      try{
+        const { data } = await db.from('folio_counter').select('*').eq('id',1).maybeSingle();
+        folioCounter = data ? data.siguiente : 1;
+      }catch(e){}
+    })(),
+    (async()=>{
+      try{
+        const data = await fetchTodasFilas('resultados', '*', 'fecha_key');
+        resultados = (data||[]).map(filaAResultado);
+      }catch(e){}
+    })(),
+    (async()=>{
+      try{
+        const data = await fetchTodasFilas('liquidaciones', '*', 'fecha');
+        liquidaciones = (data||[]).map(filaALiquidacion);
+      }catch(e){}
+    })(),
+    (async()=>{
+      try{
+        const data = await fetchTodasFilas('deudas_equipo', '*', 'fecha');
+        deudasEquipo = (data||[]).map(filaADeuda);
+      }catch(e){}
+    })(),
+    (async()=>{
+      try{
+        const data = await fetchTodasFilas('asistencia_equipo', '*', 'fecha');
+        asistenciaEquipo = (data||[]).map(filaAAsistencia);
+      }catch(e){}
+    })(),
+    (async()=>{
+      try{
+        if(currentUser && currentUser.role==='admin'){
+          const data = await fetchTodasFilas('registro_cambios', '*', 'fecha');
+          registroCambios = (data||[]).map(filaARegistro);
+        }
+      }catch(e){}
+    })(),
+    (async()=>{
+      try{
+        const data = await fetchTodasFilas('coberturas', '*', 'fecha_key');
+        coberturas = (data||[]).map(filaACobertura);
+      }catch(e){}
+    })(),
+    actualizarHoraServidor()
+  ]);
 
   if(!defaultVendedorCreado){
     const nuevoVendedor = { id: uid(), nombre:'Vendedor Demo', username:'vendedor1', password:'1234' };
@@ -1566,7 +1585,6 @@ async function cargarDatos(){
       defaultVendedorCreado = true;
     }catch(e){}
   }
-  await actualizarHoraServidor();
   dataLoaded = true;
   sincronizarPendientes();
 }

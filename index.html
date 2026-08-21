@@ -1045,7 +1045,10 @@
 
         <h2 style="margin-top:20px;">Cobertura recomendada</h2>
         <p class="hint">El máximo de riesgo que dejar por número al calcular cuántas coberturas recomendarte (y los colores 🟡🟠🔴 de la Tabla de números). Los niveles se calculan como 1x/2x/3x este número.</p>
-        <div class="field" style="max-width:200px;"><label>Límite por número ($)</label><input type="number" step="1" id="cob-limite-perdida"></div>
+        <div style="display:flex; align-items:flex-end; gap:10px; flex-wrap:wrap;">
+          <div class="field" style="max-width:200px; margin-bottom:0;"><label>Límite por número ($)</label><input type="number" step="1" id="cob-limite-perdida"></div>
+          <button type="button" class="btn btn-outline btn-sm" onclick="abrirModalLimitePorSorteo()" style="margin-bottom:14px;">Límite por sorteo</button>
+        </div>
 
         <button class="btn btn-primary" style="margin-top:6px" onclick="guardarPremios()">Guardar premiación</button>
       </div>
@@ -1163,6 +1166,20 @@
     <div class="modal-actions">
       <button class="btn btn-outline" onclick="cerrarModalPropina()">Cancelar</button>
       <button class="btn btn-gold" onclick="guardarPropina()">Reportar</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay no-print" id="modal-limite-sorteo" style="display:none">
+  <div class="ticket" style="width:360px; max-height:80vh; overflow-y:auto;">
+    <div class="ticket-body">
+      <h2 style="margin-top:0;">Límite de cobertura por sorteo</h2>
+      <p class="hint" style="margin-top:-8px;">Dejalo vacío para usar el límite general ($<span id="limite-sorteo-general-txt">200</span>). Solo aplica a Chance.</p>
+      <div id="limite-sorteo-lista"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="cerrarModalLimitePorSorteo()">Cancelar</button>
+      <button class="btn btn-gold" onclick="guardarLimitePorSorteo()">Guardar</button>
     </div>
   </div>
 </div>
@@ -1420,7 +1437,7 @@ function filaACobertura(c){ return { id:c.id, sorteoId:c.sorteo_id||null, codigo
 function filaASorteo(s){
   return { id:s.id, nombre:s.nombre, horaSorteoTexto:s.hora_sorteo_texto, horaCierre:s.hora_cierre,
     dias:s.dias||[], notas:s.notas||'', excepcionFecha:s.excepcion_fecha, pausaFecha:s.pausa_fecha, paleHabilitado: s.pale_habilitado!==false,
-    tipoBillete: s.tipo_billete || 'ninguno', iconoUrl: s.icono_url || '' };
+    tipoBillete: s.tipo_billete || 'ninguno', iconoUrl: s.icono_url || '', limitePerdidaCobertura: s.limite_perdida_cobertura!=null ? +s.limite_perdida_cobertura : null };
 }
 function filaAVenta(v){
   return { id:v.id, folio:v.folio, vendedorId:v.vendedor_id, sorteoId:v.sorteo_id, codigoSorteo:v.codigo_sorteo,
@@ -1874,6 +1891,7 @@ window.addEventListener('popstate', ()=>{
   const modalLiqAbierto = document.getElementById('modal-liquidacion').style.display==='flex';
   const modalAjusteDeudaAbierto = document.getElementById('modal-ajuste-deuda') && document.getElementById('modal-ajuste-deuda').style.display==='flex';
   const modalPropinaAbierto = document.getElementById('modal-propina') && document.getElementById('modal-propina').style.display==='flex';
+  const modalLimiteSorteoAbierto = document.getElementById('modal-limite-sorteo') && document.getElementById('modal-limite-sorteo').style.display==='flex';
   const modalTarifaAbierto = document.getElementById('modal-tarifa') && document.getElementById('modal-tarifa').style.display==='flex';
   const modalDiaAbierto = document.getElementById('modal-dia-trabajado') && document.getElementById('modal-dia-trabajado').style.display==='flex';
   const modalPagoAsiAbierto = document.getElementById('modal-pago-asistencia') && document.getElementById('modal-pago-asistencia').style.display==='flex';
@@ -1902,6 +1920,12 @@ window.addEventListener('popstate', ()=>{
   }
   if(modalPropinaAbierto){
     cerrarModalPropina();
+    history.pushState(null, '', '');
+    manejandoPopstate = false;
+    return;
+  }
+  if(modalLimiteSorteoAbierto){
+    cerrarModalLimitePorSorteo();
     history.pushState(null, '', '');
     manejandoPopstate = false;
     return;
@@ -4298,6 +4322,35 @@ function abrirModalPropina(){
 function cerrarModalPropina(){
   document.getElementById('modal-propina').style.display = 'none';
 }
+function abrirModalLimitePorSorteo(){
+  document.getElementById('limite-sorteo-general-txt').textContent = LIMITE_PERDIDA_POR_NUMERO;
+  const cont = document.getElementById('limite-sorteo-lista');
+  cont.innerHTML = sorteos.map(s=>`<div class="field">
+    <label>${escapeHtml(s.nombre)}</label>
+    <input type="number" step="1" placeholder="Usa el general ($${LIMITE_PERDIDA_POR_NUMERO})" data-sorteo-id="${s.id}" class="limite-sorteo-input" value="${s.limitePerdidaCobertura!=null ? s.limitePerdidaCobertura : ''}">
+  </div>`).join('');
+  document.getElementById('modal-limite-sorteo').style.display = 'flex';
+  if(!manejandoPopstate) history.pushState(null, '', '');
+}
+function cerrarModalLimitePorSorteo(){
+  document.getElementById('modal-limite-sorteo').style.display = 'none';
+}
+async function guardarLimitePorSorteo(){
+  const inputs = [...document.querySelectorAll('.limite-sorteo-input')];
+  try{
+    for(const inp of inputs){
+      const sorteoId = inp.dataset.sorteoId;
+      const valor = inp.value.trim()==='' ? null : +inp.value;
+      const s = sorteos.find(x=>x.id===sorteoId);
+      if(!s || s.limitePerdidaCobertura===valor) continue;
+      await db.from('sorteos').update({ limite_perdida_cobertura: valor }).eq('id', sorteoId);
+      s.limitePerdidaCobertura = valor;
+    }
+  }catch(e){ avisar('No se pudo guardar. Revisa tu conexión.'); return; }
+  cerrarModalLimitePorSorteo();
+  renderTablaNumeros();
+  avisar('Límites por sorteo guardados.');
+}
 async function guardarPropina(){
   const monto = +document.getElementById('propina-monto').value;
   if(!monto || monto<=0){ avisar('Escribe un monto válido, mayor a 0.'); return; }
@@ -5107,12 +5160,12 @@ function renderTablaFiltroVendedor(){
   if(valorPrevio && [...filtroV.options].some(o=>o.value===valorPrevio)) filtroV.value = valorPrevio;
 }
 function nivelChance(cant){ if(cant>=300) return 'nivel-rojo'; if(cant>=100) return 'nivel-naranja'; return ''; }
-function claseNivelRiesgo(pago1){
+function claseNivelRiesgo(pago1, limite){
   // Mismo sistema de 4 niveles que "Cobertura recomendada" en Balance real
   // (🔴🟠🟡🟢, según cuánto pagarías en 1er premio) — para que la Tabla de
   // números muestre directamente el riesgo en dólares de cada número, en
   // vez del viejo indicador por cantidad de tiempos vendidos.
-  const nivel = nivelRiesgoCobertura(pago1).texto;
+  const nivel = nivelRiesgoCobertura(pago1, limite).texto;
   if(nivel==='CRÍTICO') return 'nivel-rojo';
   if(nivel==='ALTO') return 'nivel-naranja';
   if(nivel==='MEDIO') return 'nivel-amarillo';
@@ -5191,13 +5244,21 @@ function calcularRiesgoChance(sorteoId, fechaKey, porNumero20, porNumero25){
 // 2do y 3er premio para mostrarlos, aunque la cantidad recomendada se basa
 // en 1er premio (el escenario de mayor exposición).
 let LIMITE_PERDIDA_POR_NUMERO = 200;
-function nivelRiesgoCobertura(pago1){
-  if(pago1 >= LIMITE_PERDIDA_POR_NUMERO*3) return { emoji:'🔴', texto:'CRÍTICO' };
-  if(pago1 >= LIMITE_PERDIDA_POR_NUMERO*2) return { emoji:'🟠', texto:'ALTO' };
-  if(pago1 >= LIMITE_PERDIDA_POR_NUMERO) return { emoji:'🟡', texto:'MEDIO' };
+function limiteParaSorteo(sorteoId){
+  // Cada sorteo puede tener su propio límite (algunos venden mucho más que
+  // otros); si no le pusieron uno propio, usa el general de Administración.
+  const sorteo = sorteoId ? sorteos.find(s=>s.id===sorteoId) : null;
+  return (sorteo && sorteo.limitePerdidaCobertura!=null) ? sorteo.limitePerdidaCobertura : LIMITE_PERDIDA_POR_NUMERO;
+}
+function nivelRiesgoCobertura(pago1, limite){
+  limite = limite!=null ? limite : LIMITE_PERDIDA_POR_NUMERO;
+  if(pago1 >= limite*3) return { emoji:'🔴', texto:'CRÍTICO' };
+  if(pago1 >= limite*2) return { emoji:'🟠', texto:'ALTO' };
+  if(pago1 >= limite) return { emoji:'🟡', texto:'MEDIO' };
   return { emoji:'🟢', texto:'CONTROLADO' };
 }
 function calcularCoberturaRecomendada(sorteoId, fechaKey){
+  const limite = limiteParaSorteo(sorteoId);
   const { porNumero20, porNumero25 } = calcularTablaNumeros(sorteoId, fechaKey);
   const { riesgoPorNumero, pagoPotencialPorNumero, totalVendidoSorteo } = calcularRiesgoChance(sorteoId, fechaKey, porNumero20, porNumero25);
   const costoUnit = 0.20;
@@ -5213,7 +5274,7 @@ function calcularCoberturaRecomendada(sorteoId, fechaKey){
     const pago2 = (porNumero20[n]||0)*premios.chance20[2] + (porNumero25[n]||0)*premios.chance25[2];
     const pago3 = (porNumero20[n]||0)*premios.chance20[3] + (porNumero25[n]||0)*premios.chance25[3];
 
-    const proteccionNecesaria = pago1 - LIMITE_PERDIDA_POR_NUMERO;
+    const proteccionNecesaria = pago1 - limite;
     const recomendado = proteccionNecesaria<=0 ? 0 : Math.ceil(proteccionNecesaria/proteccionNetaUnit);
     const costoRecomendado = +(recomendado*costoUnit).toFixed(2);
 
@@ -5229,7 +5290,7 @@ function calcularCoberturaRecomendada(sorteoId, fechaKey){
       recomendado, costoRecomendado,
       restante1: restante(pago1,1), restante2: restante(pago2,2), restante3: restante(pago3,3),
       actual, costoActual: +(actual*costoUnit).toFixed(2),
-      nivel: nivelRiesgoCobertura(pago1)
+      nivel: nivelRiesgoCobertura(pago1, limite)
     };
   }).sort((a,b)=> b.pago1-a.pago1); // mayor pérdida potencial primero
 
@@ -5600,7 +5661,7 @@ function renderTablaNumeros(){
   gridChance.innerHTML = numeros.length ? numeros.map(n=>{
     const cant = porNumero[n];
     const claseRiesgo = (puedeVerRiesgo && riesgoPorNumero[n]) ? 'en-riesgo' : '';
-    const claseColor = puedeVerRiesgo ? claseNivelRiesgo(pagoPotencialPorNumero[n]) : nivelChance(cant);
+    const claseColor = puedeVerRiesgo ? claseNivelRiesgo(pagoPotencialPorNumero[n], limiteParaSorteo(sorteoId)) : nivelChance(cant);
     return `<div class="num-chip ${claseColor} ${claseRiesgo}"><span class="num">${n}</span><span class="cant">${cant}</span></div>`;
   }).join('') : `<div class="empty-state">Sin ventas de chance todavía para ${sorteoId?'este sorteo y':'ningún sorteo,'} esta fecha.</div>`;
 
@@ -5625,12 +5686,12 @@ function renderTablaNumeros(){
   const gridChance25 = document.getElementById('tabla-chance25-grid');
   if(gridChance20) gridChance20.innerHTML = numeros20.length ? numeros20.map(n=>{
     const cant = porNumero20[n];
-    const claseColor = puedeVerRiesgo ? claseNivelRiesgo(pagoPotencialPorNumero[n]) : nivelChance(cant);
+    const claseColor = puedeVerRiesgo ? claseNivelRiesgo(pagoPotencialPorNumero[n], limiteParaSorteo(sorteoId)) : nivelChance(cant);
     return `<div class="num-chip ${claseColor}"><span class="num">${n}</span><span class="cant">${cant}</span></div>`;
   }).join('') : '<div class="empty-state">Sin ventas de Chance $0.20 todavía para este sorteo y fecha.</div>';
   if(gridChance25) gridChance25.innerHTML = numeros25.length ? numeros25.map(n=>{
     const cant = porNumero25[n];
-    const claseColor = puedeVerRiesgo ? claseNivelRiesgo(pagoPotencialPorNumero[n]) : nivelChance(cant);
+    const claseColor = puedeVerRiesgo ? claseNivelRiesgo(pagoPotencialPorNumero[n], limiteParaSorteo(sorteoId)) : nivelChance(cant);
     return `<div class="num-chip ${claseColor}"><span class="num">${n}</span><span class="cant">${cant}</span></div>`;
   }).join('') : '<div class="empty-state">Sin ventas de Chance $0.25 todavía para este sorteo y fecha.</div>';
 

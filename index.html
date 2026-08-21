@@ -952,8 +952,8 @@
 
       <div class="card">
         <h2 style="font-size:14px;">＋ Agregar cobertura</h2>
-        <div id="cob-riesgo-chips" style="margin-bottom:10px;"></div>
         <div id="cob-recomendacion" style="margin-bottom:10px;"></div>
+        <div id="cob-riesgo-chips" style="margin-bottom:10px;"></div>
         <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:8px;">
           <select id="cob-modalidad" style="width:130px;" onchange="actualizarCampoNumeroCobertura()">
             <option value="chance20">Chance $0.20</option>
@@ -961,8 +961,8 @@
             <option value="pale">Palé $1.00</option>
             <option value="billete">Billete $1.00</option>
           </select>
-          <input type="number" id="cob-cantidad" placeholder="Tiempos" min="1" step="1" style="width:100px;">
-          <input type="text" id="cob-numero" placeholder="Número (00-99)" maxlength="2" inputmode="numeric" style="width:110px;">
+          <input type="text" id="cob-numero" placeholder="Número (00-99)" maxlength="2" inputmode="numeric" pattern="[0-9]*" style="width:110px;">
+          <input type="text" id="cob-cantidad" placeholder="Tiempos" inputmode="numeric" pattern="[0-9]*" style="width:100px;">
         </div>
         <input type="text" id="cob-nota" placeholder="Nota (opcional, ej. a quién se lo compraste)" style="width:100%; margin-bottom:8px;">
         <button class="btn btn-primary btn-sm" onclick="agregarCobertura()">＋ Agregar cobertura</button>

@@ -38,6 +38,7 @@
   .login-brand .name{ font-family:'Fraunces',serif; font-weight:700; font-size:24px; color:var(--gold); }
   .login-brand .sub{ font-size:12px; color:var(--ink-dim); text-transform:uppercase; letter-spacing:1px; margin-top:4px; }
   .logo-badge{ width:46px; height:46px; border-radius:50%; overflow:hidden; border:3px solid var(--gold); display:flex; align-items:center; justify-content:center; flex-shrink:0; margin:0 auto 10px auto; box-shadow:0 3px 8px rgba(0,0,0,0.15); }
+  .ticket-header .logo-badge{ box-shadow:none; }
   .logo-badge img{ width:100%; height:100%; object-fit:cover; display:block; }
   .logo-badge-sm{ width:36px; height:36px; border:2px solid var(--gold); font-size:13px; margin:0; flex-shrink:0; }
   .brand-row{ display:flex; align-items:center; gap:10px; }
@@ -3643,7 +3644,7 @@ async function generarImagenTicket(){
   if(contenedor){ contenedor.style.overflow = 'visible'; contenedor.style.maxHeight = 'none'; }
   let canvas;
   try{
-    canvas = await html2canvas(el, { scale: 1, backgroundColor: '#ffffff', useCORS: true, logging: false });
+    canvas = await html2canvas(el, { scale: 2, backgroundColor: '#ffffff', logging: false });
   }finally{
     el.style.overflow = estiloEl.overflow;
     el.style.maxHeight = estiloEl.maxHeight;

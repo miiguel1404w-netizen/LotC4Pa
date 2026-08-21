@@ -1999,7 +1999,10 @@ function switchTab(tab){
   // "tabla" usa puedeVerRiesgoChance() en vez de solo el permiso extra
   // nuevo, porque ese caso ya cubre el permiso extra Y el caso especial de
   // siempre (el vendedor "Miguel") — así no se pierde ese acceso.
-  if(tab==='tabla' && !puedeAbrirTablaNumeros()) return;
+  // "tabla" siempre se puede abrir (como el botón de cada sorteo funcionó
+  // siempre) — lo que sí depende del permiso es si se ve algún color/riesgo
+  // adentro, o si aparece como ítem propio en el menú (eso se controla en
+  // aplicarRol, no acá).
   if(tab==='micomision' && !(currentUser.role==='vendedor' && esVendedorIndependiente(currentUser.vendedorId))) return;
   if(tab==='misdeudas' && !(currentUser.role==='vendedor' && vendedorEnEquipo(currentUser.vendedorId))) return;
   if(tab==='miasistencia' && !(currentUser.role==='vendedor' && vendedorEnEquipo(currentUser.vendedorId))) return;
@@ -5442,11 +5445,6 @@ function puedeVerVolumenChance(){
   if(!currentUser) return false;
   if(currentUser.role==='admin') return false; // el admin ya ve el riesgo en $, no hace falta el indicador viejo también
   return tienePermisoExtra('tabla_volumen');
-}
-function puedeAbrirTablaNumeros(){
-  if(!currentUser) return false;
-  if(currentUser.role==='admin') return true;
-  return tienePermisoExtra('tabla_riesgo') || tienePermisoExtra('tabla_volumen');
 }
 function calcularRiesgoChance(sorteoId, fechaKey, porNumero20, porNumero25){
   const totalVendidoSorteo = ventasList

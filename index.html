@@ -1606,11 +1606,17 @@ async function intentarLogin(){
         // contra la parte de antes del @ por si escribió el correo completo
         // (en la tabla de vendedores figura solo el usuario, sin dominio).
         const usuarioBase = u.includes('@') ? u.split('@')[0] : u;
+        // El admin se revisa PRIMERO: "admin" es la cuenta de administrador
+        // y nunca debe confundirse con un vendedor que se llame parecido.
+        // Así, la cuenta de vendedor (ej. miguel@) y la de admin (admin@)
+        // quedan separadas de verdad, cada una con su propia contraseña.
+        const esCuentaAdmin = usuarioBase.toLowerCase()==='admin'
+          || usuarioBase.toLowerCase()===adminAuth.username.toLowerCase();
         const vAuth = vendedores.find(x=>x.username.toLowerCase()===usuarioBase.toLowerCase());
-        if(vAuth){
-          currentUser = { role:'vendedor', vendedorId:vAuth.id, nombre:vAuth.nombre, authReal:true };
-        }else if(usuarioBase.toLowerCase()===adminAuth.username.toLowerCase()){
+        if(esCuentaAdmin){
           currentUser = { role:'admin', nombre:'Administrador', authReal:true };
+        }else if(vAuth){
+          currentUser = { role:'vendedor', vendedorId:vAuth.id, nombre:vAuth.nombre, authReal:true };
         }else{
           // Cuenta real válida pero que no corresponde a ningún vendedor ni
           // al admin: NO se asume ningún permiso. Se cierra la sesión que

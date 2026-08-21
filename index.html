@@ -5300,7 +5300,7 @@ function calcularCoberturaRecomendada(sorteoId, fechaKey){
       actual, costoActual: +(actual*costoUnit).toFixed(2),
       nivel: nivelRiesgoCobertura(pago1, limite)
     };
-  }).filter(x=>x.pago1 >= limite).sort((a,b)=> b.pago1-a.pago1); // solo los que cruzan el límite, mayor pérdida potencial primero
+  }).filter(x=>x.pago1 >= limite*2).sort((a,b)=> b.pago1-a.pago1); // solo Alto y Crítico (2x el límite o más) — Medio se queda afuera de esta lista para no hacerla tan larga
 
   const riesgoMaximo = numeros.length ? Math.max(...numeros.map(x=>x.pago1)) : 0;
   const riesgoMaximoRestanteRecom = numeros.length ? Math.max(...numeros.map(x=>x.restante1)) : 0;
@@ -5329,7 +5329,7 @@ function renderCoberturaRecomendada(sorteoId, fechaKey){
   cont.innerHTML = `
     <div class="card" style="border-top-color:var(--gold);">
       <h2 style="margin-top:0; font-size:15px;">🧮 Cobertura recomendada</h2>
-      <p class="hint" style="margin-top:-6px;">Para bajar cada número a máximo $${limite} de riesgo en 1er premio, gastando lo mínimo posible.</p>
+      <p class="hint" style="margin-top:-6px;">Solo números en 🟠 Alto o 🔴 Crítico — para bajar cada uno a máximo $${limite} de riesgo en 1er premio, gastando lo mínimo posible.</p>
       <div class="summary-strip" style="margin-bottom:10px;">
         <div class="summary-box"><div class="num mono">$${resumen.costoRecomendadoTotal.toFixed(2)}</div><div class="lbl">Costo recomendado (${resumen.coberturasRecomendadasTotal} tiempos)</div></div>
         <div class="summary-box" style="border-left-color:var(--red);"><div class="num mono" style="color:var(--red);">$${resumen.riesgoMaximo.toFixed(2)}</div><div class="lbl">Riesgo antes</div></div>

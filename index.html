@@ -5028,6 +5028,16 @@ async function guardarResultado(){
   document.getElementById('res-segundo').value = '';
   document.getElementById('res-tercero').value = '';
   avisar('Resultado guardado.');
+  // Avisar por notificación push a quienes tengan las notificaciones activadas.
+  try{
+    await db.functions.invoke('notificar-resultado', {
+      body: {
+        title: sorteo ? `${sorteo.nombre} — Resultado` : 'Resultado de sorteo',
+        body: `Números ganadores: ${c1} - ${c2} - ${c3}`,
+        url: '/'
+      }
+    });
+  }catch(e){ console.error('No se pudo enviar la notificación push:', e); }
 }
 async function guardarResultadoHistorico(){
   const codigo = document.getElementById('reshist-codigo').value.trim().toUpperCase();

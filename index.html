@@ -346,6 +346,11 @@
   </div>
   <button id="btn-refrescar-manual" onclick="refrescoManual()" title="Actualizar" style="margin-left:auto; background:none; border:1px solid rgba(245,241,230,0.35); color:var(--paper); border-radius:8px; width:34px; height:34px; font-size:16px; cursor:pointer;">↻</button>
 </div>
+<div id="aviso-cuenta-vieja" class="no-print" style="display:none; background:#fff3cd; color:#5b4708; border-bottom:1px solid #e2cf7a; padding:10px 14px; font-size:13px; line-height:1.45;">
+  <strong>Entraste con el sistema viejo.</strong>
+  Puedes ver todo y vender normalmente, pero la base de datos ya no acepta cambios en vendedores, sorteos, resultados ni premiación desde el login viejo. Para guardar cambios, cierra sesión y entra con tu cuenta nueva.
+  <button type="button" onclick="document.getElementById('aviso-cuenta-vieja').style.display='none'" style="margin-left:8px; background:none; border:1px solid #b79a3a; color:#5b4708; border-radius:6px; padding:2px 8px; cursor:pointer;">Entendido</button>
+</div>
 <div id="menu-overlay" class="no-print" onclick="cerrarMenu()"></div>
 <div id="menu-drawer" class="no-print">
   <div class="session-box">
@@ -1133,6 +1138,13 @@
           <div class="field"><label>Nueva contraseña</label><input type="password" id="sec-nueva-pass"></div>
         </div>
         <button class="btn btn-outline" onclick="cambiarAdminAuth()">Guardar cambios</button>
+
+        <h2 style="margin-top:22px">Permisos de la base de datos</h2>
+        <p class="hint">Desde la etapa 3 del plan de seguridad, solo quien entra con la <strong>cuenta nueva</strong> (la que se creó en Supabase) puede guardar cambios en vendedores, sorteos, resultados y premiación. Acá puedes ver con cuál cuenta entraste y comprobar tus permisos tabla por tabla.</p>
+        <div id="sec-estado-cuenta" class="hint" style="margin-bottom:10px;"></div>
+        <button class="btn btn-outline btn-sm" onclick="probarPermisosBD()">Probar permisos</button>
+        <p class="hint" style="margin-top:6px; margin-bottom:0;">La prueba de escritura vuelve a guardar en un sorteo el mismo valor que ya tenía: no cambia nada, solo comprueba si te dejan escribir.</p>
+        <div id="sec-resultado-permisos" style="display:none; margin-top:10px; font-size:13px;"></div>
       </div>
     </div>
 
@@ -1639,9 +1651,9 @@ async function cargarDatos(){
   if(!defaultVendedorCreado){
     const nuevoVendedor = { id: uid(), nombre:'Vendedor Demo', username:'vendedor1', password:'1234' };
     try{
-      await db.from('vendedores').insert({ id:nuevoVendedor.id, nombre:nuevoVendedor.nombre, username:nuevoVendedor.username, password:nuevoVendedor.password });
+      await guardarEnBD(db.from('vendedores').insert({ id:nuevoVendedor.id, nombre:nuevoVendedor.nombre, username:nuevoVendedor.username, password:nuevoVendedor.password }), 'crear el vendedor de ejemplo');
       vendedores.push(nuevoVendedor);
-      await db.from('app_config').update({ default_vendedor_creado:true }).eq('id',1);
+      await guardarEnBD(db.from('app_config').update({ default_vendedor_creado:true }).eq('id',1), 'guardar la configuración');
       defaultVendedorCreado = true;
     }catch(e){}
   }
@@ -1649,8 +1661,139 @@ async function cargarDatos(){
   sincronizarPendientes();
 }
 async function guardarConfig(){
-  try{ await db.from('app_config').update({ admin_username: adminAuth.username, admin_password: adminAuth.password, premios, limite_perdida_cobertura: LIMITE_PERDIDA_POR_NUMERO }).eq('id',1); }
-  catch(e){ avisar('No se pudo guardar. Intenta de nuevo.'); }
+  // Devuelve true/false para que quien la llama sepa si de verdad se
+  // guardó (antes fallaba en silencio y la pantalla se quedaba mostrando
+  // valores que la base de datos nunca aceptó).
+  try{
+    await guardarEnBD(
+      db.from('app_config').update({ admin_username: adminAuth.username, admin_password: adminAuth.password, premios, limite_perdida_cobertura: LIMITE_PERDIDA_POR_NUMERO }).eq('id',1),
+      'guardar la configuración'
+    );
+    return true;
+  }catch(e){
+    avisar(textoErrorGuardado(e, 'No se pudo guardar. Intenta de nuevo.'));
+    return false;
+  }
+}
+
+// ---------------- PERMISOS DE LA BASE DE DATOS (Camino 1 — etapa 3) ----------------
+// Desde la etapa 3, las tablas `vendedores`, `sorteos`, `resultados` y
+// `app_config` solo aceptan cambios de quien entró con una CUENTA REAL de
+// Supabase (las creadas en la etapa 1). Quien entra por el login viejo
+// sigue viendo y vendiendo igual, pero si intenta guardar en esas tablas,
+// la base de datos lo rechaza.
+//
+// OJO con cómo avisa Supabase de ese rechazo, porque es la trampa más
+// fácil de esta etapa:
+//   - Al INSERTAR devuelve un error de verdad.
+//   - Al ACTUALIZAR o BORRAR normalmente NO devuelve error: simplemente no
+//     toca ninguna fila, y todo "parece" que salió bien.
+// Por eso todo guardado pasa por `guardarEnBD`, que le pide a Supabase que
+// devuelva las filas afectadas: si no vino ninguna, es que no hubo permiso.
+let sesionAuthReal = false;
+let correoAuthReal = '';
+
+async function revisarSesionAuth(){
+  try{
+    const { data } = await db.auth.getSession();
+    const s = data && data.session;
+    sesionAuthReal = !!(s && s.user);
+    correoAuthReal = sesionAuthReal ? (s.user.email || '') : '';
+    // El canal en vivo de resultados se abre al cargar la página, cuando
+    // todavía no hay sesión iniciada. Al confirmar la cuenta real hay que
+    // pasarle el permiso nuevo para que siga recibiendo avisos cuando se
+    // cierren también los permisos de lectura (etapa 4).
+    if(sesionAuthReal && s.access_token){ try{ db.realtime.setAuth(s.access_token); }catch(e){} }
+  }catch(e){ sesionAuthReal = false; correoAuthReal = ''; }
+  return sesionAuthReal;
+}
+
+const MSG_SIN_PERMISO = 'Tu cuenta no tiene permiso: entraste con el login viejo. Entra con tu cuenta nueva.';
+
+function esErrorDePermiso(e){
+  if(!e) return false;
+  const codigo = String(e.code || e.status || '');
+  const texto = String(e.message || e.details || e.hint || '').toLowerCase();
+  return codigo==='42501' || codigo==='401' || codigo==='403'
+    || texto.includes('row-level security') || texto.includes('row level security')
+    || texto.includes('permission denied');
+}
+
+// Ejecuta un guardado y confirma que de verdad se guardó. Lanza un error
+// con un mensaje entendible si no. Nunca deja pasar un guardado en falso.
+async function guardarEnBD(consulta, queSeIntentaba){
+  let res;
+  try{
+    res = await consulta.select('id');
+  }catch(e){
+    throw new Error('No se pudo '+queSeIntentaba+' ('+((e&&e.message)?e.message:'sin conexión')+').');
+  }
+  if(res && res.error){
+    if(esErrorDePermiso(res.error)) throw new Error('No se pudo '+queSeIntentaba+'. '+MSG_SIN_PERMISO);
+    throw new Error('No se pudo '+queSeIntentaba+' ('+(res.error.message||'sin conexión')+').');
+  }
+  if(!res || !res.data || res.data.length===0){
+    // Ninguna fila cambió: o la política de permisos lo bloqueó (el caso
+    // normal si entró por el login viejo), o eso que se quería cambiar ya
+    // no existe porque lo borraron desde otro celular.
+    throw new Error('No se pudo '+queSeIntentaba+': no se guardó nada. Si entraste con el login viejo, entra con tu cuenta nueva; si no, refresca con ↻ y vuelve a intentar.');
+  }
+  return res.data;
+}
+
+// Para los `catch`: usa el mensaje claro que arma `guardarEnBD` y, si el
+// error vino de otro lado (sin conexión), el texto de siempre.
+function textoErrorGuardado(e, respaldo){
+  return (e && e.message) ? e.message : respaldo;
+}
+
+function actualizarAvisoCuentaVieja(){
+  const box = document.getElementById('aviso-cuenta-vieja');
+  if(!box) return;
+  // Solo se le muestra a quien de verdad necesita escribir en las tablas
+  // cerradas: el admin y los vendedores con el módulo de Resultados
+  // delegado. A un vendedor normal no le cambia nada, así que no se le
+  // pone un letrero que no puede resolver.
+  const necesitaEscribir = !!currentUser && (currentUser.role==='admin' || tienePermisoExtra('resultados'));
+  box.style.display = (necesitaEscribir && !currentUser.authReal) ? 'block' : 'none';
+}
+
+function renderEstadoCuenta(){
+  const box = document.getElementById('sec-estado-cuenta');
+  if(!box) return;
+  box.innerHTML = (currentUser && currentUser.authReal)
+    ? '✅ Entraste con la <strong>cuenta nueva</strong>'+(correoAuthReal ? ' ('+correoAuthReal+')' : '')+'. Puedes guardar cambios.'
+    : '⚠️ Entraste con el <strong>login viejo</strong>. Puedes ver todo, pero los cambios en vendedores, sorteos, resultados y premiación van a ser rechazados.';
+}
+
+// Probador de permisos. Sirve para ir comprobando tabla por tabla mientras
+// se corren los bloques de `sql/etapa-3-rls.sql`, sin tener que adivinar.
+async function probarPermisosBD(){
+  const cont = document.getElementById('sec-resultado-permisos');
+  if(!cont) return;
+  cont.style.display = 'block';
+  cont.innerHTML = 'Probando…';
+  const lineas = [];
+  for(const tabla of ['vendedores','sorteos','resultados','app_config']){
+    let r;
+    try{ r = await db.from(tabla).select('id').limit(1); }catch(e){ r = { error:e }; }
+    lineas.push((r && r.error)
+      ? '❌ Leer <strong>'+tabla+'</strong>: '+(r.error.message||'error')
+      : '✅ Leer <strong>'+tabla+'</strong>: bien');
+  }
+  const s = sorteos[0];
+  if(!s){
+    lineas.push('— Escribir <strong>sorteos</strong>: no hay ningún sorteo con qué probar.');
+  }else{
+    try{
+      await guardarEnBD(db.from('sorteos').update({ pale_habilitado: s.paleHabilitado!==false }).eq('id', s.id), 'escribir');
+      lineas.push('✅ Escribir <strong>sorteos</strong>: bien');
+    }catch(e){
+      lineas.push('❌ Escribir <strong>sorteos</strong>: '+textoErrorGuardado(e,'error'));
+    }
+  }
+  cont.innerHTML = lineas.map(l=>'<div style="margin-bottom:4px;">'+l+'</div>').join('');
+  renderEstadoCuenta();
 }
 
 // ---------------- LOGIN ----------------
@@ -1679,6 +1822,9 @@ async function intentarLogin(){
     try{
       const { data: authData, error: authError } = await db.auth.signInWithPassword({ email: correoInterno, password: p });
       if(!authError && authData && authData.user){
+        sesionAuthReal = true;
+        correoAuthReal = authData.user.email || correoInterno;
+        try{ if(authData.session && authData.session.access_token) db.realtime.setAuth(authData.session.access_token); }catch(e){}
         // Entró con cuenta real. Se busca a qué vendedor corresponde para
         // que la app sepa su rol y nombre igual que siempre. Se compara
         // contra la parte de antes del @ por si escribió el correo completo
@@ -1701,6 +1847,7 @@ async function intentarLogin(){
           // acaba de abrirse y se rechaza la entrada, para que una cuenta
           // suelta nunca pueda terminar con vista de administrador.
           try{ await db.auth.signOut(); }catch(e){}
+          sesionAuthReal = false; correoAuthReal = '';
         }
       }
     }catch(e){ /* sin cuenta real todavía: sigue con el sistema de siempre */ }
@@ -1713,7 +1860,7 @@ async function intentarLogin(){
         // actualiza en silencio para que quede protegida desde ahora.
         currentUser = { role:'admin', nombre:'Administrador' };
         adminAuth.password = pCifrada;
-        try{ await db.from('app_config').update({ admin_password: pCifrada }).eq('id',1); }catch(e){}
+        await migrarPasswordVieja(u, p, pCifrada);
       }else{
         let v = vendedores.find(x=>x.username===u && x.password===pCifrada);
         if(!v){
@@ -1721,7 +1868,7 @@ async function intentarLogin(){
           if(vViejo){
             v = vViejo;
             v.password = pCifrada;
-            try{ await db.from('vendedores').update({ password: pCifrada }).eq('id', v.id); }catch(e){}
+            await migrarPasswordVieja(u, p, pCifrada);
           }
         }
         if(v){ currentUser = { role:'vendedor', vendedorId:v.id, nombre:v.nombre }; }
@@ -1743,6 +1890,43 @@ async function intentarLogin(){
     if(btnEntrar){ btnEntrar.disabled = false; btnEntrar.textContent = 'Entrar'; }
   }
 }
+// Guarda cifrada una contraseña que todavía estaba en texto plano (la
+// migración del camino 2). Ahora que `vendedores` y `app_config` ya no
+// aceptan escrituras desde el login viejo, el cambio lo hace la función
+// `migrar_password_legacy` de la base de datos, que solo lo aplica si
+// quien llama ya demostró saber la contraseña vieja. Si esa función
+// todavía no existe (el SQL de la etapa 3 no se ha corrido), se intenta
+// por el camino de siempre. Nunca debe tumbar el inicio de sesión: si no
+// se puede migrar, la persona entra igual.
+async function migrarPasswordVieja(usuario, passwordPlana, passwordCifrada){
+  try{
+    const { data, error } = await db.rpc('migrar_password_legacy', {
+      p_usuario: usuario, p_password_plano: passwordPlana, p_password_hash: passwordCifrada
+    });
+    if(!error) return data === true;
+  }catch(e){}
+  try{
+    if(usuario === adminAuth.username){
+      await db.from('app_config').update({ admin_password: passwordCifrada }).eq('id',1);
+    }else{
+      const v = vendedores.find(x=>x.username===usuario);
+      if(v) await db.from('vendedores').update({ password: passwordCifrada }).eq('id', v.id);
+    }
+  }catch(e){}
+  return false;
+}
+
+// ¿La cuenta real que está abierta por debajo es de ESTA persona? Se
+// compara contra la parte de antes del @ (así se crearon las cuentas en la
+// etapa 1: usuario@lotc4pa.app). Evita que una sesión real olvidada de
+// otra persona haga creer que esta entró con permisos que no tiene.
+function esCuentaRealDe(username, esAdmin){
+  if(!sesionAuthReal || !correoAuthReal) return false;
+  const base = String(correoAuthReal).split('@')[0].toLowerCase();
+  if(esAdmin) return base==='admin' || base===String(adminAuth.username||'').toLowerCase();
+  return base===String(username||'').toLowerCase();
+}
+
 async function guardarSesionActiva(){
   try{
     if(!currentUser){ localStorage.removeItem('lotc4pa_sesion'); return; }
@@ -1751,8 +1935,8 @@ async function guardarSesionActiva(){
     // revisa en silencio si la sesión sigue siendo válida — así se ve
     // claro que no hay que volver a escribir nada, solo está cargando.
     const datos = currentUser.role==='admin'
-      ? { role:'admin', username: adminAuth.username }
-      : { role:'vendedor', vendedorId: currentUser.vendedorId, username: (vendedores.find(v=>v.id===currentUser.vendedorId)||{}).username || '' };
+      ? { role:'admin', username: adminAuth.username, authReal: !!currentUser.authReal }
+      : { role:'vendedor', vendedorId: currentUser.vendedorId, username: (vendedores.find(v=>v.id===currentUser.vendedorId)||{}).username || '', authReal: !!currentUser.authReal };
     localStorage.setItem('lotc4pa_sesion', JSON.stringify(datos));
   }catch(e){}
 }
@@ -1761,13 +1945,21 @@ async function intentarAutoLogin(){
     const raw = localStorage.getItem('lotc4pa_sesion');
     if(!raw) return false;
     const sesion = JSON.parse(raw);
-    if(sesion.role==='admin'){
-      currentUser = { role:'admin', nombre:'Administrador' };
+    const esAdmin = sesion.role==='admin';
+    const cuentaReal = esCuentaRealDe(sesion.username, esAdmin);
+    // Si la última vez entró con la cuenta nueva, se exige que esa sesión
+    // siga viva. Si venció o se cerró desde otro lado, NO se entra en
+    // silencio con los permisos viejos: eso dejaría al admin adentro pero
+    // sin poder guardar nada y sin entender por qué. Se pide la
+    // contraseña de nuevo, que es un segundo de molestia y ninguna duda.
+    if(sesion.authReal && !cuentaReal) return false;
+    if(esAdmin){
+      currentUser = { role:'admin', nombre:'Administrador', authReal: cuentaReal };
       return true;
     }
     if(sesion.role==='vendedor'){
       const v = vendedores.find(x=>x.id===sesion.vendedorId);
-      if(v){ currentUser = { role:'vendedor', vendedorId:v.id, nombre:v.nombre }; return true; }
+      if(v){ currentUser = { role:'vendedor', vendedorId:v.id, nombre:v.nombre, authReal: cuentaReal }; return true; }
     }
   }catch(e){}
   return false;
@@ -1782,6 +1974,8 @@ function entrarAlApp(){
   // mostraba lo que realmente se estaba mirando. El resto se arma un
   // instante después, en segundo plano, sin que se note.
   aplicarRol();
+  actualizarAvisoCuentaVieja();
+  renderEstadoCuenta();
   resetKeypad();
   renderVendedorSelects();
   renderSorteoFiltros();
@@ -1810,6 +2004,10 @@ async function cerrarSesion(){
   // verdad — si no, la sesión seguiría abierta por debajo aunque la app
   // muestre la pantalla de login.
   try{ await db.auth.signOut(); }catch(e){}
+  sesionAuthReal = false;
+  correoAuthReal = '';
+  const avisoCuentaVieja = document.getElementById('aviso-cuenta-vieja');
+  if(avisoCuentaVieja) avisoCuentaVieja.style.display = 'none';
   await guardarSesionActiva();
   document.documentElement.classList.remove('sin-scroll');
   document.body.classList.remove('sin-scroll');
@@ -2168,7 +2366,8 @@ function avisar(mensaje){
   t.textContent = mensaje;
   t.style.display='block';
   clearTimeout(window._toastTimer);
-  window._toastTimer = setTimeout(()=>{ t.style.display='none'; }, 3500);
+  const duracion = Math.max(3500, Math.min(9000, String(mensaje).length * 70));
+  window._toastTimer = setTimeout(()=>{ t.style.display='none'; }, duracion);
 }
 let _confirmResolve = null;
 function mostrarConfirmacion(mensaje, opciones){
@@ -2259,15 +2458,15 @@ async function guardarVendedor(){
       const v = vendedores.find(x=>x.id===editingVendedorId);
       const payload = { nombre, username, en_equipo: enEquipo, porcentaje };
       if(passwordEscrita){ payload.password = await hashTexto(passwordEscrita); v.password = payload.password; }
-      await db.from('vendedores').update(payload).eq('id', editingVendedorId);
+      await guardarEnBD(db.from('vendedores').update(payload).eq('id', editingVendedorId), 'guardar el vendedor');
       v.nombre=nombre; v.username=username; v.enEquipo=enEquipo; v.porcentaje=porcentaje;
     }else{
       const passwordCifrada = await hashTexto(passwordEscrita);
       const nuevo = { id: uid(), nombre, username, password: passwordCifrada, enEquipo, porcentaje };
-      await db.from('vendedores').insert({ id:nuevo.id, nombre:nuevo.nombre, username:nuevo.username, password:nuevo.password, en_equipo:enEquipo, porcentaje });
+      await guardarEnBD(db.from('vendedores').insert({ id:nuevo.id, nombre:nuevo.nombre, username:nuevo.username, password:nuevo.password, en_equipo:enEquipo, porcentaje }), 'guardar el vendedor');
       vendedores.push(nuevo);
     }
-  }catch(e){ avisar('No se pudo guardar el vendedor.'); return; }
+  }catch(e){ avisar(textoErrorGuardado(e, 'No se pudo guardar el vendedor.')); return; }
   cancelarEdicionVendedor();
   renderVendedorSelects();
   renderConfigLists();
@@ -2277,9 +2476,8 @@ async function eliminarVendedor(id){
   if(!(await mostrarConfirmacion('¿Eliminar este vendedor? No podrá volver a iniciar sesión.'))) return;
   const v = vendedores.find(x=>x.id===id);
   try{
-    const { error } = await db.from('vendedores').delete().eq('id', id);
-    if(error) throw error;
-  }catch(e){ avisar('No se pudo eliminar el vendedor ('+(e&&e.message?e.message:'sin conexión')+').'); return; }
+    await guardarEnBD(db.from('vendedores').delete().eq('id', id), 'eliminar el vendedor');
+  }catch(e){ avisar(textoErrorGuardado(e, 'No se pudo eliminar el vendedor.')); return; }
   vendedores = vendedores.filter(v=>v.id!==id);
   registrarCambio('Eliminó vendedor', v ? v.nombre+' (usuario: '+v.username+')' : id);
   if(editingVendedorId===id) cancelarEdicionVendedor();
@@ -2364,23 +2562,22 @@ async function guardarSorteo(){
     if(editingSorteoId){
       const s = sorteos.find(x=>x.id===editingSorteoId);
       const actualizado = { ...s, nombre, horaSorteoTexto, horaCierre, notas, dias, paleHabilitado, tipoBillete, iconoUrl };
-      await db.from('sorteos').update(filaSorteoParaDB(actualizado)).eq('id', editingSorteoId);
+      await guardarEnBD(db.from('sorteos').update(filaSorteoParaDB(actualizado)).eq('id', editingSorteoId), 'guardar el sorteo');
       s.nombre=nombre; s.horaSorteoTexto=horaSorteoTexto; s.horaCierre=horaCierre; s.notas=notas; s.dias=dias; s.paleHabilitado=paleHabilitado; s.tipoBillete=tipoBillete; s.iconoUrl=iconoUrl;
     }else{
       const nuevo = { id: uid(), nombre, horaSorteoTexto, horaCierre, notas, dias, excepcionFecha:null, pausaFecha:null, paleHabilitado, tipoBillete, iconoUrl };
-      await db.from('sorteos').insert(filaSorteoParaDB(nuevo));
+      await guardarEnBD(db.from('sorteos').insert(filaSorteoParaDB(nuevo)), 'guardar el sorteo');
       sorteos.push(nuevo);
     }
-  }catch(e){ avisar('No se pudo guardar el sorteo.'); return; }
+  }catch(e){ avisar(textoErrorGuardado(e, 'No se pudo guardar el sorteo.')); return; }
   cancelarEdicionSorteo();
   renderSorteoFiltros(); renderVentaSorteoSelect(); renderConfigLists(); renderResultadosSorteoSelect(); renderTablaSorteoSelect(); actualizarDisponibilidadPale(); renderListaSorteosVenta();
 }
 async function eliminarSorteo(id){
   if(!(await mostrarConfirmacion('¿Eliminar este sorteo?'))) return;
   try{
-    const { error } = await db.from('sorteos').delete().eq('id', id);
-    if(error) throw error;
-  }catch(e){ avisar('No se pudo eliminar el sorteo ('+(e&&e.message?e.message:'sin conexión')+').'); return; }
+    await guardarEnBD(db.from('sorteos').delete().eq('id', id), 'eliminar el sorteo');
+  }catch(e){ avisar(textoErrorGuardado(e, 'No se pudo eliminar el sorteo.')); return; }
   sorteos = sorteos.filter(s=>s.id!==id);
   if(editingSorteoId===id) cancelarEdicionSorteo();
   renderSorteoFiltros(); renderVentaSorteoSelect(); renderConfigLists(); renderResultadosSorteoSelect(); renderTablaSorteoSelect();
@@ -2389,8 +2586,8 @@ async function toggleExcepcionHoy(id){
   const s = sorteos.find(x=>x.id===id); if(!s) return;
   const todayKey = toDateKey(new Date().toISOString());
   const nuevoValor = (s.excepcionFecha===todayKey) ? null : todayKey;
-  try{ await db.from('sorteos').update({ excepcion_fecha: nuevoValor }).eq('id', id); }
-  catch(e){ avisar('No se pudo actualizar el sorteo.'); return; }
+  try{ await guardarEnBD(db.from('sorteos').update({ excepcion_fecha: nuevoValor }).eq('id', id), 'actualizar el sorteo'); }
+  catch(e){ avisar(textoErrorGuardado(e, 'No se pudo actualizar el sorteo.')); return; }
   s.excepcionFecha = nuevoValor;
   renderConfigLists(); renderVentaSorteoSelect();
 }
@@ -2398,16 +2595,16 @@ async function togglePausaHoy(id){
   const s = sorteos.find(x=>x.id===id); if(!s) return;
   const todayKey = toDateKey(new Date().toISOString());
   const nuevoValor = (s.pausaFecha===todayKey) ? null : todayKey;
-  try{ await db.from('sorteos').update({ pausa_fecha: nuevoValor }).eq('id', id); }
-  catch(e){ avisar('No se pudo actualizar el sorteo.'); return; }
+  try{ await guardarEnBD(db.from('sorteos').update({ pausa_fecha: nuevoValor }).eq('id', id), 'actualizar el sorteo'); }
+  catch(e){ avisar(textoErrorGuardado(e, 'No se pudo actualizar el sorteo.')); return; }
   s.pausaFecha = nuevoValor;
   renderConfigLists(); renderVentaSorteoSelect(); renderListaSorteosVenta();
 }
 async function togglePaleSorteo(id){
   const s = sorteos.find(x=>x.id===id); if(!s) return;
   const nuevoValor = !(s.paleHabilitado !== false);
-  try{ await db.from('sorteos').update({ pale_habilitado: nuevoValor }).eq('id', id); }
-  catch(e){ avisar('No se pudo actualizar el sorteo.'); return; }
+  try{ await guardarEnBD(db.from('sorteos').update({ pale_habilitado: nuevoValor }).eq('id', id), 'actualizar el sorteo'); }
+  catch(e){ avisar(textoErrorGuardado(e, 'No se pudo actualizar el sorteo.')); return; }
   s.paleHabilitado = nuevoValor;
   renderConfigLists(); actualizarDisponibilidadPale();
 }
@@ -2440,8 +2637,8 @@ async function cargarSorteosPredefinidos(){
     if(!existe){ nuevos.push({ id: uid(), paleHabilitado:true, tipoBillete:'ninguno', ...p, excepcionFecha:null, pausaFecha:null }); }
   });
   if(nuevos.length){
-    try{ await db.from('sorteos').insert(nuevos.map(filaSorteoParaDB)); }
-    catch(e){ avisar('No se pudieron cargar los sorteos.'); return; }
+    try{ await guardarEnBD(db.from('sorteos').insert(nuevos.map(filaSorteoParaDB)), 'cargar los sorteos'); }
+    catch(e){ avisar(textoErrorGuardado(e, 'No se pudieron cargar los sorteos.')); return; }
     sorteos.push(...nuevos);
   }
   renderSorteoFiltros(); renderVentaSorteoSelect(); renderConfigLists(); renderResultadosSorteoSelect(); renderTablaSorteoSelect();
@@ -2568,14 +2765,13 @@ function renderPremiosForm(){
   document.getElementById('premio-pale-23').value = premios.pale ? premios.pale['23'] : 200;
   document.getElementById('cob-limite-perdida').value = LIMITE_PERDIDA_POR_NUMERO;
 }
-function guardarPremios(){
+async function guardarPremios(){
   premios.chance20 = { 1:+document.getElementById('premio-c20-1').value||0, 2:+document.getElementById('premio-c20-2').value||0, 3:+document.getElementById('premio-c20-3').value||0 };
   premios.chance25 = { 1:+document.getElementById('premio-c25-1').value||0, 2:+document.getElementById('premio-c25-2').value||0, 3:+document.getElementById('premio-c25-3').value||0 };
   premios.pale = { "12":+document.getElementById('premio-pale-12').value||0, "23":+document.getElementById('premio-pale-23').value||0 };
   const nuevoLimite = +document.getElementById('cob-limite-perdida').value;
   if(nuevoLimite>0) LIMITE_PERDIDA_POR_NUMERO = nuevoLimite;
-  guardarConfig();
-  avisar('Premiación actualizada.');
+  if(await guardarConfig()) avisar('Premiación actualizada.');
 }
 function renderPremiosBilleteForm(){
   ['nacional','gordito'].forEach(tipo=>{
@@ -2588,15 +2784,14 @@ function renderPremiosBilleteForm(){
     });
   });
 }
-function guardarPremiosBillete(){
+async function guardarPremiosBillete(){
   const leer = pref => ({
     1:{ cuatro:+document.getElementById(pref+'1-4').value||0, tres:+document.getElementById(pref+'1-3').value||0, dos:+document.getElementById(pref+'1-2').value||0 },
     2:{ cuatro:+document.getElementById(pref+'2-4').value||0, tres:+document.getElementById(pref+'2-3').value||0, dos:+document.getElementById(pref+'2-2').value||0 },
     3:{ cuatro:+document.getElementById(pref+'3-4').value||0, tres:+document.getElementById(pref+'3-3').value||0, dos:+document.getElementById(pref+'3-2').value||0 }
   });
   premios.billete = { nacional: leer('bil-nac-'), gordito: leer('bil-gor-') };
-  guardarConfig();
-  avisar('Premiación de billetes actualizada.');
+  if(await guardarConfig()) avisar('Premiación de billetes actualizada.');
   actualizarDisponibilidadPale();
 }
 // ---------------- SEGURIDAD ----------------
@@ -2607,9 +2802,18 @@ async function cambiarAdminAuth(){
   const actualCifrada = await hashTexto(actual);
   if(actualCifrada !== adminAuth.password && actual !== adminAuth.password){ avisar('La contraseña actual no es correcta.'); return; }
   if(!nuevoUser && !nuevaPass){ avisar('Escribe el nuevo usuario y/o la nueva contraseña.'); return; }
+  // Se guardan los valores anteriores por si la base de datos rechaza el
+  // cambio: en ese caso hay que dejar todo como estaba, si no la pantalla
+  // mostraría un usuario/contraseña que en realidad no se guardó.
+  const usuarioAnterior = adminAuth.username;
+  const passwordAnterior = adminAuth.password;
   if(nuevoUser) adminAuth.username = nuevoUser;
   if(nuevaPass) adminAuth.password = await hashTexto(nuevaPass);
-  guardarConfig();
+  if(!(await guardarConfig())){
+    adminAuth.username = usuarioAnterior;
+    adminAuth.password = passwordAnterior;
+    return;
+  }
   registrarCambio('Cambió credenciales de admin', (nuevoUser?'usuario nuevo: '+nuevoUser:'')+(nuevoUser&&nuevaPass?' · ':'')+(nuevaPass?'contraseña actualizada':''));
   document.getElementById('sec-actual').value=''; document.getElementById('sec-nuevo-user').value=''; document.getElementById('sec-nueva-pass').value='';
   avisar('Datos de administrador actualizados.');
@@ -4510,10 +4714,10 @@ async function guardarLimitePorSorteo(){
       const valor = inp.value.trim()==='' ? null : +inp.value;
       const s = sorteos.find(x=>x.id===sorteoId);
       if(!s || s.limitePerdidaCobertura===valor) continue;
-      await db.from('sorteos').update({ limite_perdida_cobertura: valor }).eq('id', sorteoId);
+      await guardarEnBD(db.from('sorteos').update({ limite_perdida_cobertura: valor }).eq('id', sorteoId), 'guardar el límite del sorteo');
       s.limitePerdidaCobertura = valor;
     }
-  }catch(e){ avisar('No se pudo guardar. Revisa tu conexión.'); return; }
+  }catch(e){ avisar(textoErrorGuardado(e, 'No se pudo guardar. Revisa tu conexión.')); return; }
   cerrarModalLimitePorSorteo();
   renderTablaNumeros();
   avisar('Límites por sorteo guardados.');
@@ -4687,8 +4891,8 @@ async function guardarTarifa(){
   const extra = (tipo==='quincenal' && extraRaw!=='') ? +extraRaw : null;
   const tarifaAnteriorTxt = textoTarifa(v);
   try{
-    await db.from('vendedores').update({ tarifa_tipo: tipo, tarifa_valor: valor, tarifa_extra: extra, dia_libre: diaLibre }).eq('id', v.id);
-  }catch(e){ avisar('No se pudo guardar. Revisa tu conexión.'); return; }
+    await guardarEnBD(db.from('vendedores').update({ tarifa_tipo: tipo, tarifa_valor: valor, tarifa_extra: extra, dia_libre: diaLibre }).eq('id', v.id), 'guardar la tarifa');
+  }catch(e){ avisar(textoErrorGuardado(e, 'No se pudo guardar. Revisa tu conexión.')); return; }
   v.tarifaTipo = tipo; v.tarifaValor = valor; v.tarifaExtra = extra; v.diaLibre = diaLibre;
   registrarCambio('Cambió tarifa', v.nombre+': "'+tarifaAnteriorTxt+'" → "'+textoTarifa(v)+'"');
   cerrarModalTarifa();
@@ -4828,8 +5032,8 @@ async function guardarPermisosUsuario(){
   if(document.getElementById('usu-check-tabla-volumen').checked) permisos.push('tabla_volumen');
   if(document.getElementById('usu-check-tabla-menu').checked) permisos.push('tabla_menu');
   try{
-    await db.from('vendedores').update({ permisos_extra: permisos }).eq('id', v.id);
-  }catch(e){ avisar('No se pudo guardar. Revisa tu conexión.'); return; }
+    await guardarEnBD(db.from('vendedores').update({ permisos_extra: permisos }).eq('id', v.id), 'guardar los permisos');
+  }catch(e){ avisar(textoErrorGuardado(e, 'No se pudo guardar. Revisa tu conexión.')); return; }
   const permisosAnteriores = (v.permisosExtra||[]).join(', ') || 'ninguno';
   v.permisosExtra = permisos;
   registrarCambio('Cambió permisos de usuario', v.nombre+': antes ['+permisosAnteriores+'] → ahora ['+(permisos.join(', ')||'ninguno')+']');
@@ -5023,12 +5227,12 @@ async function guardarResultado(){
   const idAUsar = r ? r.id : uid();
   const ahoraIso = ahoraServidor().toISOString();
   try{
-    await db.from('resultados').upsert(
+    await guardarEnBD(db.from('resultados').upsert(
       { id: idAUsar, sorteo_id: sorteoId, codigo_sorteo: codigoSorteo, fecha_key: fechaKey, primero:p1, segundo:p2, tercero:p3,
         primero_completo:c1, segundo_completo:c2, tercero_completo:c3, updated_at: ahoraIso },
       { onConflict: 'sorteo_id,fecha_key' }
-    );
-  }catch(e){ avisar('No se pudo guardar el resultado.'); return; }
+    ), 'guardar el resultado');
+  }catch(e){ avisar(textoErrorGuardado(e, 'No se pudo guardar el resultado.')); return; }
   if(r){ r.primero=p1; r.segundo=p2; r.tercero=p3; r.primeroCompleto=c1; r.segundoCompleto=c2; r.terceroCompleto=c3; r.codigoSorteo=codigoSorteo; r.updatedAt=ahoraIso; }
   else{ r = { id: idAUsar, sorteoId, codigoSorteo, fechaKey, primero:p1, segundo:p2, tercero:p3, primeroCompleto:c1, segundoCompleto:c2, terceroCompleto:c3, updatedAt:ahoraIso }; resultados.unshift(r); }
   renderListaResultados();
@@ -5071,11 +5275,11 @@ async function guardarResultadoHistorico(){
   const idAUsar = r ? r.id : uid();
   const ahoraIso = ahoraServidor().toISOString();
   try{
-    await db.from('resultados').upsert(
+    await guardarEnBD(db.from('resultados').upsert(
       { id: idAUsar, sorteo_id: null, codigo_sorteo: codigo, fecha_key: fechaKey, primero:p1, segundo:p2, tercero:p3,
         primero_completo:c1, segundo_completo:c2, tercero_completo:c3, updated_at: ahoraIso }
-    );
-  }catch(e){ avisar('No se pudo guardar el resultado histórico.'); return; }
+    ), 'guardar el resultado histórico');
+  }catch(e){ avisar(textoErrorGuardado(e, 'No se pudo guardar el resultado histórico.')); return; }
   if(r){ r.primero=p1; r.segundo=p2; r.tercero=p3; r.primeroCompleto=c1; r.segundoCompleto=c2; r.terceroCompleto=c3; r.fechaKey=fechaKey; r.updatedAt=ahoraIso; }
   else{ r = { id: idAUsar, sorteoId:null, codigoSorteo:codigo, fechaKey, primero:p1, segundo:p2, tercero:p3, primeroCompleto:c1, segundoCompleto:c2, terceroCompleto:c3, updatedAt:ahoraIso }; resultados.unshift(r); }
   renderHistorial();
@@ -5147,9 +5351,8 @@ async function eliminarResultadoHistorico(id){
   if(!(await mostrarConfirmacion('¿Borrar este resultado histórico? Si algún ticket ya lo estaba usando para calcular su premio, dejaría de calcularlo.'))) return;
   const r = resultados.find(x=>x.id===id);
   try{
-    const { error } = await db.from('resultados').delete().eq('id', id);
-    if(error) throw error;
-  }catch(e){ avisar('No se pudo borrar ('+(e&&e.message?e.message:'sin conexión')+').'); return; }
+    await guardarEnBD(db.from('resultados').delete().eq('id', id), 'borrar el resultado');
+  }catch(e){ avisar(textoErrorGuardado(e, 'No se pudo borrar el resultado.')); return; }
   resultados = resultados.filter(r=>r.id!==id);
   registrarCambio('Eliminó resultado', r ? (r.codigoSorteo||'')+' · '+r.fechaKey+' · '+(r.primeroCompleto||r.primero)+'-'+(r.segundoCompleto||r.segundo)+'-'+(r.terceroCompleto||r.tercero) : id);
   renderListaResultados();
@@ -6236,6 +6439,11 @@ if('serviceWorker' in navigator){
     if(btnEntrar){ btnEntrar.disabled = true; btnEntrar.textContent = 'Entrando...'; }
   }
 
+  // Antes de nada se revisa si quedó abierta una sesión real de Supabase
+  // (las cuentas de la etapa 1). De eso depende si esta persona va a poder
+  // guardar cambios, y si se le puede devolver la sesión sin pedirle la
+  // contraseña otra vez.
+  await revisarSesionAuth();
   await cargarDatos();
   // Si había una sesión guardada pero la lista de vendedores no cargó bien
   // (mala señal justo al abrir), reintentamos un par de veces antes de darnos

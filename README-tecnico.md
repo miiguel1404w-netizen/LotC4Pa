@@ -63,9 +63,27 @@ Se identificó que la app expone la llave (`anon key`) de Supabase directamente 
 1. ✅ Crear cuentas de auth de Supabase para admin/vendedores, sin tocar el login actual.
 2. ✅ Probar el login nuevo en paralelo (primero admin, luego 1-2 vendedores). El login intenta primero `signInWithPassword` con el correo interno `usuario@lotc4pa.app`; si esa cuenta no existe, sigue de largo al login viejo.
 3. ✅ Cerrar permisos RLS tabla por tabla, probando cada una antes de seguir → ver más abajo.
-4. ⬜ (Único paso de riesgo real) apagar el login viejo y dejar el nuevo como único — hacer en un momento de poca venta, con el dueño disponible para probar en vivo. Requisito previo: que **todos** los vendedores tengan cuenta real creada y probada. Hoy (etapa 3) ninguno la tiene ni la necesita: entran por el login viejo, que sigue encendido, y los vendedores nuevos se siguen creando solo desde la app, sin cuenta de Supabase.
+4. ✅ (El paso de riesgo) apagar el login viejo y dejar el nuevo como único → ver más abajo.
 
 No se debe hacer sin que el dueño esté despierto y disponible para probar — un permiso mal cerrado puede dejar a un vendedor sin poder entrar a vender.
+
+### Etapa 4 (hecha) — login único y todo cerrado
+
+**Aplicada en producción el 22 de agosto de 2026**, de madrugada, con la comprobación previa de que los 5 vendedores tenían cuenta real **y ya estaban entrando con ella** (`auth.users.last_sign_in_at` reciente en todos — que la cuenta exista no basta: si la contraseña no es la que la persona escribe, entra por el login viejo sin que nadie lo note).
+
+SQL: `sql/etapa-4-rls.sql` (bloques 5 a 8, con su marcha atrás completa al final). Guía: `sql/etapa-4-guia.md`.
+
+Qué cambió:
+
+- **Una sola forma de entrar**: `signInWithPassword` contra la cuenta real. El correo se arma solo desde el usuario de siempre (`usuario@lotc4pa.app`), así que para el vendedor no cambió nada de lo que escribe. Se eliminó el login viejo, la comparación contra `vendedores.password` y la migración de contraseñas del Camino 2 (`migrar_password_legacy`, borrada).
+- **Los datos se piden DESPUÉS de iniciar sesión.** Antes se cargaban al abrir la app, antes del login. Con la lectura cerrada eso traería todo vacío, así que el arranque ahora es: revisar sesión → si hay, cargar datos → identificar a la persona. Es el cambio estructural de esta etapa; si alguien vuelve a mover la carga antes del login, rompe la app entera.
+- **Quién es cada quien sale de la sesión, no del celular.** `identificarUsuarioDeLaSesion()` deduce el rol del correo de la cuenta (la parte de antes del `@`). Lo guardado en `localStorage` quedó solo para rellenar el usuario en pantalla.
+- **El canal en vivo de resultados se abre al entrar**, no al cargar la página: un canal abierto sin sesión no recibe nada con la lectura cerrada.
+- **Todas las tablas exigen sesión** (`auth.uid() is not null`), cada una solo con las operaciones que la app realmente usa — `ventas` y `liquidaciones` siguen sin DELETE, como quedó en el Camino 2. El rol `anon` se quedó sin un solo permiso: la llave del código ya no sirve para nada.
+
+⚠️ **Agregar un vendedor son dos pasos desde ahora**: crearlo en la app **y** crearle la cuenta en Supabase → Authentication (`usuario@lotc4pa.app`, con Auto Confirm User). Si falta el segundo, no puede entrar. La contraseña del formulario de la app ya no controla el acceso — se avisa en la propia pantalla.
+
+Lo que **no** se hizo, y queda como posible etapa 5: filtrar por usuario *dentro* de cada tabla (que un vendedor solo pueda leer sus propias ventas, por ejemplo). Hoy cualquiera que haya iniciado sesión puede leer todas las filas de las tablas, que es justo lo que la app necesita para funcionar como funciona (el equipo comparte y anula tickets entre sí, y todo el filtrado es del lado del navegador). El riesgo que queda es de alguien de adentro usando la API a mano, no de cualquiera con la llave.
 
 ### Etapa 3 (hecha) — escritura cerrada en las tablas sensibles
 
@@ -113,7 +131,7 @@ El detalle de qué correr en la etapa 4 está al final de `sql/etapa-3-rls.sql`.
 
 ## Pendientes conocidos (sin construir todavía)
 
-- Camino 1 de seguridad completo (autenticación real + RLS por usuario).
+- RLS por usuario dentro de cada tabla (posible etapa 5, ver arriba). La autenticación real y el cierre de todas las tablas ya están hechos.
 - Separar el proyecto en varios archivos + control de versiones formal con Git.
 - Notificaciones push a vendedores cuando se carga un resultado.
 - Un módulo "Modo Cobertura" (semáforo de riesgo por número vendido) se llegó a construir y luego se eliminó por decisión del dueño — quedó fuera del código por completo, no hay rastro de él.

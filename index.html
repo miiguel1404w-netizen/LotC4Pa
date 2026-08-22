@@ -346,11 +346,6 @@
   </div>
   <button id="btn-refrescar-manual" onclick="refrescoManual()" title="Actualizar" style="margin-left:auto; background:none; border:1px solid rgba(245,241,230,0.35); color:var(--paper); border-radius:8px; width:34px; height:34px; font-size:16px; cursor:pointer;">↻</button>
 </div>
-<div id="aviso-cuenta-vieja" class="no-print" style="display:none; background:#fff3cd; color:#5b4708; border-bottom:1px solid #e2cf7a; padding:10px 14px; font-size:13px; line-height:1.45;">
-  <strong>Entraste con el sistema viejo.</strong>
-  Puedes ver todo y vender normalmente, pero la base de datos ya no acepta cambios en vendedores, sorteos, resultados ni premiación desde el login viejo. Para guardar cambios, cierra sesión y entra con tu cuenta nueva.
-  <button type="button" onclick="document.getElementById('aviso-cuenta-vieja').style.display='none'" style="margin-left:8px; background:none; border:1px solid #b79a3a; color:#5b4708; border-radius:6px; padding:2px 8px; cursor:pointer;">Entendido</button>
-</div>
 <div id="menu-overlay" class="no-print" onclick="cerrarMenu()"></div>
 <div id="menu-drawer" class="no-print">
   <div class="session-box">
@@ -1009,6 +1004,7 @@
       <div class="card">
         <h2 id="vendedor-form-title">Agregar vendedor</h2>
         <p class="hint">Cada vendedor inicia sesión con su propio usuario y contraseña.</p>
+        <p class="hint" style="background:#fff3cd; color:#5b4708; border:1px solid #e2cf7a; border-radius:8px; padding:8px 10px;"><strong>Importante:</strong> agregarlo acá no le crea el acceso. Después de guardarlo tienes que crearle su cuenta en <strong>Supabase → Authentication → Add user</strong>, con el correo <span class="mono">suusuario@lotc4pa.app</span> y la contraseña que le vas a dar (marca "Auto Confirm User"). Esa es la contraseña con la que entra; la que escribes acá abajo ya no controla el acceso.</p>
         <div class="grid-3">
           <div class="field"><label>Nombre</label><input type="text" id="in-v-nombre"></div>
           <div class="field"><label>Usuario</label><input type="text" id="in-v-username"></div>
@@ -1132,6 +1128,7 @@
       <div class="card">
         <h2>Seguridad</h2>
         <p class="hint">Cambiar usuario y contraseña del administrador.</p>
+        <p class="hint" style="background:#fff3cd; color:#5b4708; border:1px solid #e2cf7a; border-radius:8px; padding:8px 10px;"><strong>Ojo:</strong> esto ya no cambia la contraseña con la que entras. Desde la etapa 4 se entra con la cuenta de Supabase — para cambiarla, ve a <strong>Supabase → Authentication</strong>, busca <span class="mono">admin@lotc4pa.app</span> y cámbiala ahí.</p>
         <div class="grid-3">
           <div class="field"><label>Contraseña actual</label><input type="password" id="sec-actual"></div>
           <div class="field"><label>Nuevo usuario</label><input type="text" id="sec-nuevo-user"></div>
@@ -1140,7 +1137,7 @@
         <button class="btn btn-outline" onclick="cambiarAdminAuth()">Guardar cambios</button>
 
         <h2 style="margin-top:22px">Permisos de la base de datos</h2>
-        <p class="hint">Desde la etapa 3 del plan de seguridad, solo quien entra con la <strong>cuenta nueva</strong> (la que se creó en Supabase) puede guardar cambios en vendedores, sorteos, resultados y premiación. Acá puedes ver con cuál cuenta entraste y comprobar tus permisos tabla por tabla.</p>
+        <p class="hint">Solo el administrador puede guardar cambios en vendedores, sorteos, resultados y premiación. Acá puedes ver con cuál cuenta entraste y comprobar tus permisos tabla por tabla.</p>
         <div id="sec-estado-cuenta" class="hint" style="margin-bottom:10px;"></div>
         <button class="btn btn-outline btn-sm" onclick="probarPermisosBD()">Probar permisos</button>
         <p class="hint" style="margin-top:6px; margin-bottom:0;">La prueba de escritura vuelve a guardar en un sorteo el mismo valor que ya tenía: no cambia nada, solo comprueba si te dejan escribir.</p>
@@ -1390,14 +1387,16 @@ try{
 // TODOS los celulares conectados en ese momento, no solo al que lo guardó.
 // El refresco de cada 30s sigue existiendo igual, como respaldo por si a
 // alguien se le corta esta conexión en vivo por un rato.
-if(db){
+let canalResultados = null;
+function activarCanalResultados(){
+  if(!db || canalResultados) return;
   try{
-    db.channel('resultados-en-vivo')
+    canalResultados = db.channel('resultados-en-vivo')
       .on('postgres_changes', { event:'*', schema:'public', table:'resultados' }, ()=>{
         if(currentUser) refrescarConfigCompartida();
       })
       .subscribe();
-  }catch(e){}
+  }catch(e){ canalResultados = null; }
 }
 
 // ---------------- ESTADO ----------------
@@ -1677,11 +1676,11 @@ async function guardarConfig(){
 }
 
 // ---------------- PERMISOS DE LA BASE DE DATOS (Camino 1 — etapa 3) ----------------
-// Desde la etapa 3, las tablas `vendedores`, `sorteos`, `resultados` y
-// `app_config` solo aceptan cambios de quien entró con una CUENTA REAL de
-// Supabase (las creadas en la etapa 1). Quien entra por el login viejo
-// sigue viendo y vendiendo igual, pero si intenta guardar en esas tablas,
-// la base de datos lo rechaza.
+// Las tablas `vendedores`, `sorteos`, `resultados` y `app_config` solo
+// aceptan cambios del administrador (y `resultados`, además, de un
+// vendedor con ese módulo delegado). Desde la etapa 4 todos entran con su
+// cuenta real, así que la base de datos sabe quién es cada quien y
+// rechaza por su cuenta lo que no corresponde.
 //
 // OJO con cómo avisa Supabase de ese rechazo, porque es la trampa más
 // fácil de esta etapa:
@@ -1708,7 +1707,7 @@ async function revisarSesionAuth(){
   return sesionAuthReal;
 }
 
-const MSG_SIN_PERMISO = 'Tu cuenta no tiene permiso: entraste con el login viejo. Entra con tu cuenta nueva.';
+const MSG_SIN_PERMISO = 'Tu cuenta no tiene permiso para hacer este cambio.';
 
 function esErrorDePermiso(e){
   if(!e) return false;
@@ -1733,10 +1732,9 @@ async function guardarEnBD(consulta, queSeIntentaba){
     throw new Error('No se pudo '+queSeIntentaba+' ('+(res.error.message||'sin conexión')+').');
   }
   if(!res || !res.data || res.data.length===0){
-    // Ninguna fila cambió: o la política de permisos lo bloqueó (el caso
-    // normal si entró por el login viejo), o eso que se quería cambiar ya
-    // no existe porque lo borraron desde otro celular.
-    throw new Error('No se pudo '+queSeIntentaba+': no se guardó nada. Si entraste con el login viejo, entra con tu cuenta nueva; si no, refresca con ↻ y vuelve a intentar.');
+    // Ninguna fila cambió: o los permisos lo bloquearon, o eso que se
+    // quería cambiar ya no existe porque lo borraron desde otro celular.
+    throw new Error('No se pudo '+queSeIntentaba+': no se guardó nada. Refresca con ↻ y vuelve a intentar; si sigue igual, avísale al administrador.');
   }
   return res.data;
 }
@@ -1747,23 +1745,12 @@ function textoErrorGuardado(e, respaldo){
   return (e && e.message) ? e.message : respaldo;
 }
 
-function actualizarAvisoCuentaVieja(){
-  const box = document.getElementById('aviso-cuenta-vieja');
-  if(!box) return;
-  // Solo se le muestra a quien de verdad necesita escribir en las tablas
-  // cerradas: el admin y los vendedores con el módulo de Resultados
-  // delegado. A un vendedor normal no le cambia nada, así que no se le
-  // pone un letrero que no puede resolver.
-  const necesitaEscribir = !!currentUser && (currentUser.role==='admin' || tienePermisoExtra('resultados'));
-  box.style.display = (necesitaEscribir && !currentUser.authReal) ? 'block' : 'none';
-}
-
 function renderEstadoCuenta(){
   const box = document.getElementById('sec-estado-cuenta');
   if(!box) return;
   box.innerHTML = (currentUser && currentUser.authReal)
-    ? '✅ Entraste con la <strong>cuenta nueva</strong>'+(correoAuthReal ? ' ('+correoAuthReal+')' : '')+'. Puedes guardar cambios.'
-    : '⚠️ Entraste con el <strong>login viejo</strong>. Puedes ver todo, pero los cambios en vendedores, sorteos, resultados y premiación van a ser rechazados.';
+    ? '✅ Sesión abierta con tu cuenta'+(correoAuthReal ? ' <strong>'+correoAuthReal+'</strong>' : '')+'. Puedes guardar cambios.'
+    : '⚠️ No se pudo confirmar tu cuenta. Cierra sesión y vuelve a entrar.';
 }
 
 // Probador de permisos. Sirve para ir comprobando tabla por tabla mientras
@@ -1809,73 +1796,43 @@ async function intentarLogin(){
   errBox.style.display='none';
   if(btnEntrar){ btnEntrar.disabled = true; btnEntrar.textContent = 'Entrando...'; }
   try{
-    if(!dataLoaded) await conTiempoLimite(cargarDatos(), 10000, 'conectando a la base de datos');
     const u = document.getElementById('login-username').value.trim();
     const p = document.getElementById('login-password').value;
-    const pCifrada = await hashTexto(p);
-
-    // PRIMERO: se intenta con las cuentas reales de Supabase (el sistema
-    // nuevo y seguro). Si esa persona todavía no tiene cuenta real, se
-    // sigue de largo y entra por el sistema viejo de siempre — así se puede
-    // ir migrando de a poco sin cortarle el acceso a nadie.
-    const correoInterno = u.includes('@') ? u : (u.toLowerCase()+'@lotc4pa.app');
-    try{
-      const { data: authData, error: authError } = await db.auth.signInWithPassword({ email: correoInterno, password: p });
-      if(!authError && authData && authData.user){
-        sesionAuthReal = true;
-        correoAuthReal = authData.user.email || correoInterno;
-        try{ if(authData.session && authData.session.access_token) db.realtime.setAuth(authData.session.access_token); }catch(e){}
-        // Entró con cuenta real. Se busca a qué vendedor corresponde para
-        // que la app sepa su rol y nombre igual que siempre. Se compara
-        // contra la parte de antes del @ por si escribió el correo completo
-        // (en la tabla de vendedores figura solo el usuario, sin dominio).
-        const usuarioBase = u.includes('@') ? u.split('@')[0] : u;
-        // El admin se revisa PRIMERO: "admin" es la cuenta de administrador
-        // y nunca debe confundirse con un vendedor que se llame parecido.
-        // Así, la cuenta de vendedor (ej. miguel@) y la de admin (admin@)
-        // quedan separadas de verdad, cada una con su propia contraseña.
-        const esCuentaAdmin = usuarioBase.toLowerCase()==='admin'
-          || usuarioBase.toLowerCase()===adminAuth.username.toLowerCase();
-        const vAuth = vendedores.find(x=>x.username.toLowerCase()===usuarioBase.toLowerCase());
-        if(esCuentaAdmin){
-          currentUser = { role:'admin', nombre:'Administrador', authReal:true };
-        }else if(vAuth){
-          currentUser = { role:'vendedor', vendedorId:vAuth.id, nombre:vAuth.nombre, authReal:true };
-        }else{
-          // Cuenta real válida pero que no corresponde a ningún vendedor ni
-          // al admin: NO se asume ningún permiso. Se cierra la sesión que
-          // acaba de abrirse y se rechaza la entrada, para que una cuenta
-          // suelta nunca pueda terminar con vista de administrador.
-          try{ await db.auth.signOut(); }catch(e){}
-          sesionAuthReal = false; correoAuthReal = '';
-        }
-      }
-    }catch(e){ /* sin cuenta real todavía: sigue con el sistema de siempre */ }
-
-    if(!currentUser){
-      if(u===adminAuth.username && pCifrada===adminAuth.password){
-        currentUser = { role:'admin', nombre:'Administrador' };
-      }else if(u===adminAuth.username && p===adminAuth.password){
-        // Cuenta todavía con la contraseña vieja sin cifrar: entra y la
-        // actualiza en silencio para que quede protegida desde ahora.
-        currentUser = { role:'admin', nombre:'Administrador' };
-        adminAuth.password = pCifrada;
-        await migrarPasswordVieja(u, p, pCifrada);
-      }else{
-        let v = vendedores.find(x=>x.username===u && x.password===pCifrada);
-        if(!v){
-          const vViejo = vendedores.find(x=>x.username===u && x.password===p);
-          if(vViejo){
-            v = vViejo;
-            v.password = pCifrada;
-            await migrarPasswordVieja(u, p, pCifrada);
-          }
-        }
-        if(v){ currentUser = { role:'vendedor', vendedorId:v.id, nombre:v.nombre }; }
-      }
+    if(!u || !p){
+      errBox.textContent = 'Escribe tu usuario y tu contraseña.';
+      errBox.style.display='block';
+      return;
     }
-    if(!currentUser){
+
+    // Desde la etapa 4 hay una sola forma de entrar: la cuenta real de
+    // Supabase. El correo se arma solo a partir del usuario de siempre
+    // (usuario@lotc4pa.app), así nadie tiene que aprenderse un correo
+    // nuevo ni cambiar nada de lo que ya hace.
+    const correoInterno = u.includes('@') ? u : (u.toLowerCase()+'@lotc4pa.app');
+    const { data: authData, error: authError } = await conTiempoLimite(
+      db.auth.signInWithPassword({ email: correoInterno, password: p }),
+      15000, 'entrando a tu cuenta'
+    );
+    if(authError || !authData || !authData.user){
       errBox.textContent = 'Usuario o contraseña incorrectos.';
+      errBox.style.display='block';
+      return;
+    }
+    sesionAuthReal = true;
+    correoAuthReal = authData.user.email || correoInterno;
+    try{ if(authData.session && authData.session.access_token) db.realtime.setAuth(authData.session.access_token); }catch(e){}
+
+    // Recién ahora se piden los datos: con la lectura cerrada, la base de
+    // datos no le contesta nada a quien no ha iniciado sesión.
+    if(!dataLoaded) await conTiempoLimite(cargarDatos(), 20000, 'cargando los datos');
+
+    if(!identificarUsuarioDeLaSesion()){
+      // La cuenta es válida pero no corresponde a ningún vendedor ni al
+      // admin: no se le da ningún permiso y se cierra la sesión que acaba
+      // de abrirse, para que una cuenta suelta nunca entre a la app.
+      try{ await db.auth.signOut(); }catch(e){}
+      sesionAuthReal = false; correoAuthReal = '';
+      errBox.textContent = 'Tu cuenta entró, pero no está ligada a ningún vendedor. Avísale al administrador.';
       errBox.style.display='block';
       return;
     }
@@ -1890,41 +1847,26 @@ async function intentarLogin(){
     if(btnEntrar){ btnEntrar.disabled = false; btnEntrar.textContent = 'Entrar'; }
   }
 }
-// Guarda cifrada una contraseña que todavía estaba en texto plano (la
-// migración del camino 2). Ahora que `vendedores` y `app_config` ya no
-// aceptan escrituras desde el login viejo, el cambio lo hace la función
-// `migrar_password_legacy` de la base de datos, que solo lo aplica si
-// quien llama ya demostró saber la contraseña vieja. Si esa función
-// todavía no existe (el SQL de la etapa 3 no se ha corrido), se intenta
-// por el camino de siempre. Nunca debe tumbar el inicio de sesión: si no
-// se puede migrar, la persona entra igual.
-async function migrarPasswordVieja(usuario, passwordPlana, passwordCifrada){
-  try{
-    const { data, error } = await db.rpc('migrar_password_legacy', {
-      p_usuario: usuario, p_password_plano: passwordPlana, p_password_hash: passwordCifrada
-    });
-    if(!error) return data === true;
-  }catch(e){}
-  try{
-    if(usuario === adminAuth.username){
-      await db.from('app_config').update({ admin_password: passwordCifrada }).eq('id',1);
-    }else{
-      const v = vendedores.find(x=>x.username===usuario);
-      if(v) await db.from('vendedores').update({ password: passwordCifrada }).eq('id', v.id);
-    }
-  }catch(e){}
-  return false;
-}
 
-// ¿La cuenta real que está abierta por debajo es de ESTA persona? Se
-// compara contra la parte de antes del @ (así se crearon las cuentas en la
-// etapa 1: usuario@lotc4pa.app). Evita que una sesión real olvidada de
-// otra persona haga creer que esta entró con permisos que no tiene.
-function esCuentaRealDe(username, esAdmin){
+// Decide quién es la persona que tiene la sesión abierta, a partir del
+// correo de su propia cuenta (la parte de antes del @ es su usuario de
+// siempre). Es la única fuente de verdad: nunca se deduce el rol de algo
+// guardado en el celular, que cualquiera podría editar a mano.
+function identificarUsuarioDeLaSesion(){
   if(!sesionAuthReal || !correoAuthReal) return false;
   const base = String(correoAuthReal).split('@')[0].toLowerCase();
-  if(esAdmin) return base==='admin' || base===String(adminAuth.username||'').toLowerCase();
-  return base===String(username||'').toLowerCase();
+  // El admin se revisa PRIMERO, para que nunca se confunda con un vendedor
+  // que se llame parecido.
+  if(base==='admin' || base===String(adminAuth.username||'').toLowerCase()){
+    currentUser = { role:'admin', nombre:'Administrador', authReal:true };
+    return true;
+  }
+  const v = vendedores.find(x=>String(x.username||'').toLowerCase()===base);
+  if(v){
+    currentUser = { role:'vendedor', vendedorId:v.id, nombre:v.nombre, authReal:true };
+    return true;
+  }
+  return false;
 }
 
 async function guardarSesionActiva(){
@@ -1941,28 +1883,10 @@ async function guardarSesionActiva(){
   }catch(e){}
 }
 async function intentarAutoLogin(){
-  try{
-    const raw = localStorage.getItem('lotc4pa_sesion');
-    if(!raw) return false;
-    const sesion = JSON.parse(raw);
-    const esAdmin = sesion.role==='admin';
-    const cuentaReal = esCuentaRealDe(sesion.username, esAdmin);
-    // Si la última vez entró con la cuenta nueva, se exige que esa sesión
-    // siga viva. Si venció o se cerró desde otro lado, NO se entra en
-    // silencio con los permisos viejos: eso dejaría al admin adentro pero
-    // sin poder guardar nada y sin entender por qué. Se pide la
-    // contraseña de nuevo, que es un segundo de molestia y ninguna duda.
-    if(sesion.authReal && !cuentaReal) return false;
-    if(esAdmin){
-      currentUser = { role:'admin', nombre:'Administrador', authReal: cuentaReal };
-      return true;
-    }
-    if(sesion.role==='vendedor'){
-      const v = vendedores.find(x=>x.id===sesion.vendedorId);
-      if(v){ currentUser = { role:'vendedor', vendedorId:v.id, nombre:v.nombre, authReal: cuentaReal }; return true; }
-    }
-  }catch(e){}
-  return false;
+  // Ya no se confía en lo guardado en el celular para volver a entrar: lo
+  // único que vale es si la sesión de Supabase sigue viva. Si venció, se
+  // pide la contraseña otra vez — que es un segundo, y es lo correcto.
+  return identificarUsuarioDeLaSesion();
 }
 function entrarAlApp(){
   document.getElementById('login-screen').style.display='none';
@@ -1974,7 +1898,7 @@ function entrarAlApp(){
   // mostraba lo que realmente se estaba mirando. El resto se arma un
   // instante después, en segundo plano, sin que se note.
   aplicarRol();
-  actualizarAvisoCuentaVieja();
+  activarCanalResultados();
   renderEstadoCuenta();
   resetKeypad();
   renderVendedorSelects();
@@ -2006,8 +1930,6 @@ async function cerrarSesion(){
   try{ await db.auth.signOut(); }catch(e){}
   sesionAuthReal = false;
   correoAuthReal = '';
-  const avisoCuentaVieja = document.getElementById('aviso-cuenta-vieja');
-  if(avisoCuentaVieja) avisoCuentaVieja.style.display = 'none';
   await guardarSesionActiva();
   document.documentElement.classList.remove('sin-scroll');
   document.body.classList.remove('sin-scroll');
@@ -6444,16 +6366,19 @@ if('serviceWorker' in navigator){
   // guardar cambios, y si se le puede devolver la sesión sin pedirle la
   // contraseña otra vez.
   await revisarSesionAuth();
-  await cargarDatos();
-  // Si había una sesión guardada pero la lista de vendedores no cargó bien
-  // (mala señal justo al abrir), reintentamos un par de veces antes de darnos
-  // por vencidos — así no mandamos a alguien al login solo por una señal débil.
-  const haySesionGuardada = !!localStorage.getItem('lotc4pa_sesion');
-  let intentos = 0;
-  while(haySesionGuardada && !cargaOk.vendedores && intentos<3){
-    await new Promise(r=>setTimeout(r, 1500));
+  // Los datos solo se piden si hay una sesión viva: con la lectura cerrada,
+  // pedirlos antes de entrar sería traerlo todo vacío.
+  if(sesionAuthReal){
     await cargarDatos();
-    intentos++;
+    // Si la lista de vendedores no cargó bien (mala señal justo al abrir),
+    // se reintenta un par de veces antes de darse por vencido — así nadie
+    // termina en el login solo por una señal débil de un segundo.
+    let intentos = 0;
+    while(!cargaOk.vendedores && intentos<3){
+      await new Promise(r=>setTimeout(r, 1500));
+      await cargarDatos();
+      intentos++;
+    }
   }
   const huboSesion = await intentarAutoLogin();
   document.getElementById('spinner-chequeo-sesion').style.display = 'none';

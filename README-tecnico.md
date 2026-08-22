@@ -29,7 +29,7 @@ Tablas principales — todas con RLS habilitado:
 | `app_config` | Config global: usuario/contraseña admin, tabla de premios de cada modalidad | Fila única (`id=1`) |
 | `folio_counter` | Contador del próximo número de folio | Fila única (`id=1`) |
 
-**Todo el SQL histórico** (cada `alter table` / `create table` que se ha corrido) debería estar guardado en un archivo `schema.sql` aparte de este proyecto — si no lo tienes, pídele el historial de commits/SQL a quien traspase el proyecto.
+**Todo el SQL histórico** (cada `alter table` / `create table` que se ha corrido) debería estar guardado en un archivo `schema.sql` aparte de este proyecto — si no lo tienes, pídele el historial de commits/SQL a quien traspase el proyecto. Desde la etapa 3 del Camino 1, el SQL nuevo sí vive en este repo, en la carpeta `sql/`.
 
 ## Reglas de negocio clave (para no repetir errores ya corregidos)
 
@@ -58,14 +58,37 @@ Se identificó que la app expone la llave (`anon key`) de Supabase directamente 
 - Las contraseñas se guardan con hash SHA-256 (no en texto plano). Las cuentas viejas se migran solas al hash en su próximo login exitoso (comparación intenta primero contra el hash, si falla intenta contra texto plano y si acierta ahí, actualiza el registro).
 - Se quitó el permiso de `DELETE` externo en `ventas` y `liquidaciones` (dejando solo select/insert/update, que es todo lo que la app necesita — nunca borra esas dos tablas).
 
-**Lo que sigue pendiente ("Camino 1", más grande):** las tablas `vendedores`, `sorteos`, `resultados` siguen sin ninguna protección real — cualquiera con la llave de Supabase (visible en el código) puede leer, escribir o borrar libremente en ellas. El arreglo de fondo requiere pasar a autenticación real de Supabase (no el login "a mano" comparando contra la tabla `vendedores` como está ahora) + políticas RLS por usuario. Es un cambio grande que toca el login de todos, así que se planeó por fases:
+**"Camino 1" (el arreglo de fondo)** es pasar a autenticación real de Supabase (no el login "a mano" comparando contra la tabla `vendedores`) + políticas RLS por usuario. Toca el login de todos, así que se planeó por fases:
 
-1. Crear cuentas de auth de Supabase para admin/vendedores, sin tocar el login actual.
-2. Probar el login nuevo en paralelo (primero admin, luego 1-2 vendedores).
-3. Cerrar permisos RLS tabla por tabla, probando cada una antes de seguir.
-4. (Único paso de riesgo real) apagar el login viejo y dejar el nuevo como único — hacer en un momento de poca venta, con el dueño disponible para probar en vivo.
+1. ✅ Crear cuentas de auth de Supabase para admin/vendedores, sin tocar el login actual.
+2. ✅ Probar el login nuevo en paralelo (primero admin, luego 1-2 vendedores). El login intenta primero `signInWithPassword` con el correo interno `usuario@lotc4pa.app`; si esa cuenta no existe, sigue de largo al login viejo.
+3. ✅ Cerrar permisos RLS tabla por tabla, probando cada una antes de seguir → ver más abajo.
+4. ⬜ (Único paso de riesgo real) apagar el login viejo y dejar el nuevo como único — hacer en un momento de poca venta, con el dueño disponible para probar en vivo.
 
 No se debe hacer sin que el dueño esté despierto y disponible para probar — un permiso mal cerrado puede dejar a un vendedor sin poder entrar a vender.
+
+### Etapa 3 (hecha) — escritura cerrada en las tablas sensibles
+
+SQL: `sql/etapa-3-rls.sql` (en bloques, uno por tabla, cada uno con sus pruebas y su "deshacer"). Guía en lenguaje llano para aplicarlo: `sql/etapa-3-guia.md`.
+
+Qué quedó cerrado: `vendedores`, `sorteos`, `resultados` y `app_config` solo aceptan **insert/update/delete** de quien entró con cuenta real de Supabase — el admin, o (solo para `resultados`) un vendedor que tenga delegado el módulo "🏆 Resultados y premiación". Además se le quitó al rol `anon` el permiso de escribir en esas cuatro tablas.
+
+Piezas nuevas en la base de datos:
+- `es_admin()`, `tiene_modulo(text)`, `correo_auth()`, `usuario_auth()`: funciones de apoyo que usan las políticas. La cuenta real se relaciona con la fila de `vendedores` por la parte de antes del `@` del correo (así se crearon en la etapa 1).
+- `app_config.admins_auth` (jsonb) y `vendedores.auth_email` (text): escapes por si alguna cuenta real usa un correo que no sigue la convención `usuario@lotc4pa.app`.
+- `migrar_password_legacy(usuario, plano, hash)`: mantiene viva la migración de contraseñas del Camino 2 ahora que el login viejo ya no puede escribir en `vendedores`/`app_config`. Solo cambia la contraseña si quien llama ya demostró saber la vieja. Se borra en la etapa 4.
+
+Cambios en `index.html` que van con esta etapa:
+- **`guardarEnBD(consulta, queSeIntentaba)`**: todo guardado en esas tablas pasa por acá. Importante entender por qué existe: Supabase **no lanza excepción** cuando RLS rechaza algo, y en `update`/`delete` normalmente **ni siquiera devuelve error** — simplemente no toca ninguna fila y todo "parece" que salió bien. La función pide las filas afectadas (`.select('id')`) y si no vino ninguna, avisa con un mensaje claro. Sin esto, un permiso cerrado se ve como un guardado exitoso, que es la peor forma de fallar de esta etapa.
+- Letrero amarillo arriba para quien entra por el login viejo y necesita escribir (admin o vendedor con Resultados delegado).
+- **Administración → Seguridad → Permisos de la base de datos**: dice con cuál cuenta entraste y tiene un botón "Probar permisos" que revisa lectura de las cuatro tablas y escritura en `sorteos` (reescribiendo el mismo valor que ya tenía, o sea sin cambiar nada). Sirve para ir probando bloque por bloque.
+- El auto-login ya no devuelve la sesión en silencio si la última vez se entró con cuenta real y esa sesión venció: pide la contraseña otra vez, en vez de dejar al admin adentro sin poder guardar nada y sin entender por qué.
+
+Lo que **sigue abierto a propósito** hasta la etapa 4:
+- La **lectura** de todas las tablas: mientras exista el login viejo, la app tiene que leer `vendedores` y `app_config` antes de que alguien inicie sesión.
+- Las tablas donde escriben los vendedores en cada venta: `folio_counter`, `ventas`, `liquidaciones`, `deudas_equipo`, `asistencia_equipo`, `coberturas`, `registro_cambios`, `push_subscriptions`. No se pueden cerrar hasta que todos los vendedores tengan cuenta real.
+
+El detalle de qué correr en la etapa 4 está al final de `sql/etapa-3-rls.sql`.
 
 ## Decisiones de diseño que vale la pena conocer
 

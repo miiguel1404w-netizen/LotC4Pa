@@ -958,7 +958,7 @@
 
       <div class="card" style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
         <select id="cob-sorteo" onchange="renderCobertura()" style="flex:1; min-width:160px;"></select>
-        <input type="date" id="cob-fecha" onchange="renderCobertura()">
+        <input type="date" id="cob-fecha" onchange="actualizarEstadoOpcionesCoberturaSorteo(); renderCobertura()">
       </div>
 
       <div class="card">
@@ -5693,6 +5693,27 @@ function renderCoberturaRecomendada(sorteoId, fechaKey){
 // cobertura y cuánto pagaría si ese número gana (misma tabla de premios de
 // la app). No modifica ventas, premios ni Balance de cuentas — es su propio
 // balance, independiente del resto de la app.
+function sorteoJuegaEnFecha(s, fechaKey){
+  if(!fechaKey) return true;
+  if(s.pausaFecha===fechaKey) return false;
+  if(s.excepcionFecha===fechaKey) return true;
+  const dow = new Date(fechaKey+'T12:00:00').getDay();
+  return !!(s.dias && s.dias.includes(dow));
+}
+function actualizarEstadoOpcionesCoberturaSorteo(){
+  const fechaKey = document.getElementById('cob-fecha').value;
+  const sel = document.getElementById('cob-sorteo');
+  [...sel.options].forEach(opt=>{
+    if(!opt.value) return;
+    const s = sorteos.find(x=>x.id===opt.value);
+    if(!s) return;
+    const juega = sorteoJuegaEnFecha(s, fechaKey);
+    const base = s.nombre+' · '+s.horaSorteoTexto;
+    opt.textContent = juega ? base : '🚫 '+base+' (no juega ese día)';
+    opt.disabled = !juega;
+    opt.style.color = juega ? '' : '#999';
+  });
+}
 function renderCoberturaSorteoSelect(){
   const opts = sorteosOrdenados().map(s=>`<option value="${s.id}">${escapeHtml(s.nombre+' · '+s.horaSorteoTexto)}</option>`).join('');
   const sel = document.getElementById('cob-sorteo');
@@ -5701,6 +5722,7 @@ function renderCoberturaSorteoSelect(){
   if(valorPrevio && [...sel.options].some(o=>o.value===valorPrevio)) sel.value = valorPrevio;
   const fecha = document.getElementById('cob-fecha');
   if(!fecha.value) fecha.value = toDateKey(ahoraServidor().toISOString());
+  actualizarEstadoOpcionesCoberturaSorteo();
 }
 function calcularCobertura(c){
   const precioUnit = c.modalidad==='chance25' ? 0.25 : (c.modalidad==='pale'||c.modalidad==='billete') ? 1.00 : 0.20;
@@ -5727,6 +5749,11 @@ function etiquetaModalidadCobertura(modalidad){
 async function agregarCobertura(){
   const sorteoId = document.getElementById('cob-sorteo').value;
   const fechaKey = document.getElementById('cob-fecha').value || toDateKey(ahoraServidor().toISOString());
+  const sorteoElegido = sorteos.find(s=>s.id===sorteoId);
+  if(sorteoElegido && !sorteoJuegaEnFecha(sorteoElegido, fechaKey)){
+    avisar('Ese sorteo no juega ese día. Verifica el sorteo o la fecha.');
+    return;
+  }
   const modalidad = document.getElementById('cob-modalidad').value;
   const esDoble = modalidad==='pale' || modalidad==='billete';
   const digitos = esDoble ? 4 : 2;

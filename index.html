@@ -596,7 +596,7 @@
         <h2>Registrar resultado</h2>
         <div class="grid-3">
           <div class="field"><label>Sorteo</label><select id="res-sorteo"></select></div>
-          <div class="field"><label>Fecha</label><input type="date" id="res-fecha"></div>
+          <div class="field"><label>Fecha</label><input type="date" id="res-fecha" onchange="actualizarEstadoOpcionesResultadoSorteo()"></div>
           <div class="field"></div>
         </div>
         <div class="grid-3">
@@ -4980,6 +4980,20 @@ async function guardarPagoAsistencia(){
   renderDetalleAsistencia();
   avisar('Pago registrado.');
 }
+function actualizarEstadoOpcionesResultadoSorteo(){
+  const fechaKey = document.getElementById('res-fecha').value;
+  const sel = document.getElementById('res-sorteo');
+  [...sel.options].forEach(opt=>{
+    if(!opt.value) return;
+    const s = sorteos.find(x=>x.id===opt.value);
+    if(!s) return;
+    const juega = sorteoJuegaEnFecha(s, fechaKey);
+    const base = s.nombre+' · '+s.horaSorteoTexto;
+    opt.textContent = juega ? base : '🚫 '+base+' (no juega ese día)';
+    opt.disabled = !juega;
+    opt.style.color = juega ? '' : '#999';
+  });
+}
 function renderResultadosSorteoSelect(){
   const opts = sorteosOrdenados().map(s=>`<option value="${s.id}">${escapeHtml(s.nombre+' · '+s.horaSorteoTexto)}</option>`).join('');
   const sel = document.getElementById('res-sorteo');
@@ -4988,6 +5002,7 @@ function renderResultadosSorteoSelect(){
   if(valorPrevio && [...sel.options].some(o=>o.value===valorPrevio)) sel.value = valorPrevio;
   const fecha = document.getElementById('res-fecha');
   if(!fecha.value) fecha.value = toDateKey(ahoraServidor().toISOString());
+  actualizarEstadoOpcionesResultadoSorteo();
 }
 async function guardarResultado(){
   const sorteoId = document.getElementById('res-sorteo').value;
@@ -4999,6 +5014,10 @@ async function guardarResultado(){
   if(!c1 || !c2 || !c3){ avisar('Ingresa los 3 números ganadores (2 a 4 cifras).'); return; }
   const p1 = ultimosDosDigitos(c1), p2 = ultimosDosDigitos(c2), p3 = ultimosDosDigitos(c3);
   const sorteo = sorteos.find(s=>s.id===sorteoId);
+  if(sorteo && !sorteoJuegaEnFecha(sorteo, fechaKey)){
+    avisar('Ese sorteo no juega ese día. Si es correcto, usa "Resultado histórico".');
+    return;
+  }
   const codigoSorteo = sorteo ? codigoSorteoParaFecha(sorteo, fechaKey+'T12:00:00') : null;
   let r = resultadoDe(sorteoId, fechaKey);
   const idAUsar = r ? r.id : uid();

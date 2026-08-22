@@ -63,11 +63,13 @@ Se identificó que la app expone la llave (`anon key`) de Supabase directamente 
 1. ✅ Crear cuentas de auth de Supabase para admin/vendedores, sin tocar el login actual.
 2. ✅ Probar el login nuevo en paralelo (primero admin, luego 1-2 vendedores). El login intenta primero `signInWithPassword` con el correo interno `usuario@lotc4pa.app`; si esa cuenta no existe, sigue de largo al login viejo.
 3. ✅ Cerrar permisos RLS tabla por tabla, probando cada una antes de seguir → ver más abajo.
-4. ⬜ (Único paso de riesgo real) apagar el login viejo y dejar el nuevo como único — hacer en un momento de poca venta, con el dueño disponible para probar en vivo.
+4. ⬜ (Único paso de riesgo real) apagar el login viejo y dejar el nuevo como único — hacer en un momento de poca venta, con el dueño disponible para probar en vivo. Requisito previo: que **todos** los vendedores tengan cuenta real creada y probada. Hoy (etapa 3) ninguno la tiene ni la necesita: entran por el login viejo, que sigue encendido, y los vendedores nuevos se siguen creando solo desde la app, sin cuenta de Supabase.
 
 No se debe hacer sin que el dueño esté despierto y disponible para probar — un permiso mal cerrado puede dejar a un vendedor sin poder entrar a vender.
 
 ### Etapa 3 (hecha) — escritura cerrada en las tablas sensibles
+
+**Ya está aplicada en producción (22 de agosto de 2026).** Los 5 bloques del SQL se corrieron en el Supabase real y se probaron uno por uno: el admin guarda con su cuenta nueva, y un vendedor entrando por el login viejo sigue vendiendo igual. **No hay que volver a correr ese SQL** — está guardado como referencia y para saber qué se cerró y cómo deshacerlo.
 
 SQL: `sql/etapa-3-rls.sql` (en bloques, uno por tabla, cada uno con sus pruebas y su "deshacer"). Guía en lenguaje llano para aplicarlo: `sql/etapa-3-guia.md`.
 

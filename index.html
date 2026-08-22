@@ -5032,7 +5032,7 @@ async function guardarResultado(){
   try{
     await db.functions.invoke('notificar-resultado', {
       body: {
-        title: sorteo ? `${sorteo.nombre} — Resultado` : 'Resultado de sorteo',
+        title: sorteo ? `${sorteo.nombre} — ${sorteo.horaSorteoTexto}` : 'Resultado de sorteo',
         body: `Números ganadores: ${c1} - ${c2} - ${c3}`,
         url: '/'
       }
